@@ -1,0 +1,26 @@
+import uuid
+from datetime import datetime, date
+from sqlalchemy import Column, String, Text, Integer, DateTime, Date, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from app.database import Base
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text)
+    status = Column(String(32), default="todo")  # todo, in_progress, review, done
+    priority = Column(String(16), default="medium")  # low, medium, high
+    assignee_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    due_date = Column(Date)
+    order_index = Column(Integer, default=0)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("Project", back_populates="tasks")
+    assignee = relationship("User", back_populates="tasks_assigned", foreign_keys=[assignee_id])
