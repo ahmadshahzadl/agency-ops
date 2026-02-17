@@ -35,6 +35,18 @@ class ProjectResponse(ProjectBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+    client_name: Optional[str] = None  # populated in list for display without clients:read
+    task_count: Optional[int] = None  # total tasks (for progress)
+    task_done_count: Optional[int] = None  # completed tasks (for progress)
+
+    class Config:
+        from_attributes = True
+
+
+class ProjectNameResponse(BaseModel):
+    """Minimal project info (id, name) for display; allowed for all authenticated users."""
+    id: UUID
+    name: str
 
     class Config:
         from_attributes = True
