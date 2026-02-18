@@ -13,6 +13,9 @@ export interface Project {
   owner_id: string | null;
   created_at: string;
   updated_at: string;
+  client_name?: string | null;
+  task_count?: number | null;
+  task_done_count?: number | null;
 }
 
 export async function listProjects(params?: {
@@ -28,6 +31,15 @@ export async function listProjects(params?: {
   if (params?.status_filter) sp.set("status_filter", params.status_filter);
   const qs = sp.toString();
   return apiFetch<Project[]>(`/api/v1/projects${qs ? `?${qs}` : ""}`);
+}
+
+/** Project id and name only; allowed for all authenticated users (for display in meetings/tasks). */
+export async function listProjectNames(params?: { skip?: number; limit?: number }): Promise<{ id: string; name: string }[]> {
+  const sp = new URLSearchParams();
+  if (params?.skip != null) sp.set("skip", String(params.skip));
+  if (params?.limit != null) sp.set("limit", String(params.limit));
+  const qs = sp.toString();
+  return apiFetch<{ id: string; name: string }[]>(`/api/v1/projects/names${qs ? `?${qs}` : ""}`);
 }
 
 export async function getProject(id: string): Promise<Project> {

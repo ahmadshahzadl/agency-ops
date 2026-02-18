@@ -27,11 +27,19 @@ export default function Projects() {
 
   const load = () => {
     const teamList = isAdmin ? listTeams() : listMyTeams();
-    Promise.all([listProjects(), listClients(), teamList]).then(([p, c, t]) => {
-      setItems(p);
-      setClients(c);
-      setTeams(t);
-    }).finally(() => setLoading(false));
+    const needsClients = hasPermission("clients:read") || hasPermission("projects:write");
+    if (needsClients) {
+      Promise.all([listProjects(), listClients(), teamList]).then(([p, c, t]) => {
+        setItems(p);
+        setClients(c);
+        setTeams(t);
+      }).finally(() => setLoading(false));
+    } else {
+      Promise.all([listProjects(), teamList]).then(([p, t]) => {
+        setItems(p);
+        setTeams(t);
+      }).finally(() => setLoading(false));
+    }
   };
 
   useEffect(() => {
@@ -130,17 +138,32 @@ export default function Projects() {
                 <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Stage</th>
+                <th className="px-4 py-3">Progress</th>
                 <th className="px-4 py-3">Assigned team</th>
                 {canWrite && <th className="px-4 py-3 w-24"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
-              {items.map((p) => (
+              {items.map((p) => {
+                const total = p.task_count ?? 0;
+                const done = p.task_done_count ?? 0;
+                const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                return (
                 <tr key={p.id} className="hover:bg-slate-800/50">
                   <td className="px-4 py-3 text-white">{p.name}</td>
-                  <td className="px-4 py-3 text-slate-300">{clientMap[p.client_id] || p.client_id}</td>
+                  <td className="px-4 py-3 text-slate-300">{p.client_name ?? clientMap[p.client_id] ?? p.client_id}</td>
                   <td className="px-4 py-3 text-slate-300">{p.status}</td>
                   <td className="px-4 py-3 text-slate-300">{p.pipeline_stage || "—"}</td>
+                  <td className="px-4 py-3 text-slate-300">
+                    {total > 0 ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-16 bg-slate-700 rounded-full h-2 block overflow-hidden">
+                          <span className="bg-primary h-full block" style={{ width: `${pct}%` }} />
+                        </span>
+                        <span>{done}/{total} ({pct}%)</span>
+                      </span>
+                    ) : "—"}
+                  </td>
                   <td className="px-4 py-3 text-slate-300">{p.assigned_team_id ? teamMap[p.assigned_team_id] || "—" : "—"}</td>
                   {canWrite && (
                     <td className="px-4 py-3">
@@ -153,7 +176,8 @@ export default function Projects() {
                     </td>
                   )}
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
