@@ -4,7 +4,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.role import Role
 from app.core.security import decode_token
 
 security = HTTPBearer(auto_error=False)
@@ -48,6 +49,20 @@ def require_permission(permission: str):
     return _check
 
 
+def require_any_permission(*permissions: str):
+    """Require at least one of the given permissions (or admin:all)."""
+    def _check(
+        user: Annotated[User, Depends(get_current_user)],
+        user_perms: Annotated[set[str], Depends(get_user_permissions)],
+    ) -> User:
+        if "admin:all" in user_perms:
+            return user
+        if any(p in user_perms for p in permissions):
+            return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission required")
+    return _check
+
+
 def require_admin(
     user: Annotated[User, Depends(get_current_user)],
     permissions: Annotated[set[str], Depends(get_user_permissions)],
@@ -59,3 +74,33 @@ def require_admin(
 
 def get_user_team_ids(user: Annotated[User, Depends(get_current_user)]) -> set[UUID]:
     return {t.id for t in user.teams}
+
+
+def get_manager_scope_user_ids(user: Annotated[User, Depends(get_current_user)]) -> set[UUID] | None:
+    """If user has direct reports (is a manager), return {self} ∪ report ids for scoping. Else None (use team_ids)."""
+    report_ids = [r.id for r in user.reports] if getattr(user, "reports", None) else []
+    if not report_ids:
+        return None
+    return {user.id} | set(report_ids)
+
+
+def get_is_sales_member(
+    user: Annotated[User, Depends(get_current_user)],
+    manager_scope: Annotated[set[UUID] | None, Depends(get_manager_scope_user_ids)],
+) -> bool:
+    """True when user has role 'sales' and no direct reports → restrict to own data only (leads, tasks, meetings)."""
+    role_names = [r.name for r in user.roles] if getattr(user, "roles", None) else []
+    return "sales" in role_names and manager_scope is None
+
+
+def get_sales_team_user_ids(
+    db: Annotated[Session, Depends(get_db)],
+) -> set[UUID]:
+    """All user IDs that have the 'sales' role (for new-lead visibility: all sales see new leads)."""
+    rows = (
+        db.query(UserRole.user_id)
+        .join(Role, Role.id == UserRole.role_id)
+        .filter(Role.name == "sales")
+        .all()
+    )
+    return {r[0] for r in rows}

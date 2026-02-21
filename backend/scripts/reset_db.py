@@ -55,7 +55,7 @@ def main():
     print("   Done.\n")
     print("=== Database reset complete ===")
     print("  Admin:  admin@example.com / admin123")
-    print("  Others: manager@example.com, member@example.com, viewer@example.com / demo123")
+    print("  Others: manager@example.com, member@example.com, viewer@example.com, sales@example.com, sales_member@example.com / demo123")
 
 
 if __name__ == "__main__":
