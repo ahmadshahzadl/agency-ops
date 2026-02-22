@@ -13,6 +13,7 @@ class LeadBase(BaseModel):
     status: Optional[str] = "new"
     notes: Optional[str] = None
     assigned_team_id: Optional[UUID] = None
+    assigned_to: Optional[UUID] = None  # user working on lead (set when leaving "new" or assigned)
 
 
 class LeadCreate(LeadBase):
@@ -28,11 +29,14 @@ class LeadUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     assigned_team_id: Optional[UUID] = None
+    assigned_to: Optional[UUID] = None
 
 
 class LeadResponse(LeadBase):
     id: UUID
     created_by: Optional[UUID] = None
+    created_by_name: Optional[str] = None  # submitter display name for tracking
+    assigned_to_name: Optional[str] = None  # assignee display name
     converted_to_client_id: Optional[UUID] = None
     converted_at: Optional[datetime] = None
     created_at: datetime

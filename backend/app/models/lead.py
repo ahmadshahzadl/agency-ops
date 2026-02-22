@@ -16,9 +16,10 @@ class Lead(Base):
     contact_email = Column(String(255))
     contact_phone = Column(String(64))
     source = Column(String(64))  # website, referral, cold_outreach, etc.
-    status = Column(String(32), default="new")  # new, contacted, qualified, converted, lost
+    status = Column(String(32), default="new")  # new, contacted, qualified, converted, lost, closed, dead
     notes = Column(Text)
     assigned_team_id = Column(UUID(as_uuid=True), ForeignKey("teams.id", ondelete="SET NULL"))
+    assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))  # member working on lead (set when leaving "new")
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     converted_to_client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"))
     converted_at = Column(DateTime(timezone=True))
@@ -26,5 +27,20 @@ class Lead(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     assigned_team = relationship("Team", back_populates="leads")
+    assigned_to_user = relationship("User", back_populates="leads_assigned", foreign_keys=[assigned_to])
     created_by_user = relationship("User", back_populates="leads_created", foreign_keys=[created_by])
     converted_to_client = relationship("Client", back_populates="source_lead", foreign_keys=[converted_to_client_id])
+
+    @property
+    def assigned_to_name(self) -> str | None:
+        """Assignee display name (who is working on the lead)."""
+        if not self.assigned_to_user:
+            return None
+        return self.assigned_to_user.full_name or self.assigned_to_user.email
+
+    @property
+    def created_by_name(self) -> str | None:
+        """Submitter display name for tracking who created the lead."""
+        if not self.created_by_user:
+            return None
+        return self.created_by_user.full_name or self.created_by_user.email
