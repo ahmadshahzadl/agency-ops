@@ -5,7 +5,7 @@ from datetime import datetime, date
 
 
 class TaskBase(BaseModel):
-    project_id: UUID
+    project_id: Optional[UUID] = None
     title: str
     description: Optional[str] = None
     status: str = "todo"
@@ -20,6 +20,7 @@ class TaskCreate(TaskBase):
 
 
 class TaskUpdate(BaseModel):
+    project_id: Optional[UUID] = None
     title: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
