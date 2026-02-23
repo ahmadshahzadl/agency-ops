@@ -8,6 +8,7 @@ class UserCreateAdmin(BaseModel):
     password: str
     full_name: Optional[str] = None
     is_active: bool = True
+    manager_id: Optional[UUID] = None
     role_ids: list[UUID] = []
     team_ids: list[UUID] = []
 
@@ -15,6 +16,7 @@ class UserCreateAdmin(BaseModel):
 class UserUpdateAdmin(BaseModel):
     full_name: Optional[str] = None
     is_active: Optional[bool] = None
+    manager_id: Optional[UUID] = None
     role_ids: Optional[list[UUID]] = None
     team_ids: Optional[list[UUID]] = None
 
@@ -24,6 +26,7 @@ class UserListResponse(BaseModel):
     email: str
     full_name: Optional[str] = None
     is_active: bool
+    manager_id: Optional[UUID] = None
     role_ids: list[UUID] = []
     team_ids: list[UUID] = []
 
