@@ -1,14 +1,38 @@
-"""Admin-only: list, create, update users; assign roles and teams."""
+"""Admin-only: list, create, update users; assign roles and teams. Assignable users for task assignment."""
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User as UserModel, UserRole, TeamMember
 from app.schemas.user import UserCreateAdmin, UserUpdateAdmin, UserListResponse
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import get_current_user, require_admin, require_permission, require_any_permission, get_manager_scope_user_ids, get_user_permissions
 from app.core.security import get_password_hash
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+class AssignableUserResponse(UserListResponse):
+    """Minimal user info for assignee dropdowns."""
+
+    pass
+
+
+@router.get("/assignable", response_model=list[AssignableUserResponse])
+def list_assignable_users(
+    db: Session = Depends(get_db),
+    user=Depends(require_any_permission("tasks:write", "meetings:write")),
+    permissions=Depends(get_user_permissions),
+    manager_scope=Depends(get_manager_scope_user_ids),
+):
+    """Users the current user can assign tasks to: admin=all, manager=self+reports, member=self only."""
+    if "admin:all" in permissions:
+        users = db.query(UserModel).filter(UserModel.is_active == True).all()
+        return [_user_to_response(u) for u in users]
+    if manager_scope is not None:
+        users = db.query(UserModel).filter(UserModel.id.in_(manager_scope), UserModel.is_active == True).all()
+        return [_user_to_response(u) for u in users]
+    # Member: only self
+    return [_user_to_response(user)]
 
 
 def _user_to_response(user: UserModel) -> UserListResponse:
@@ -19,6 +43,7 @@ def _user_to_response(user: UserModel) -> UserListResponse:
         email=user.email,
         full_name=user.full_name,
         is_active=user.is_active,
+        manager_id=getattr(user, "manager_id", None),
         role_ids=role_ids,
         team_ids=team_ids,
     )
@@ -54,6 +79,7 @@ def create_user(
         password_hash=get_password_hash(data.password),
         full_name=data.full_name,
         is_active=data.is_active,
+        manager_id=getattr(data, "manager_id", None),
     )
     db.add(user)
     db.flush()
@@ -92,6 +118,8 @@ def update_user(
         user.full_name = data.full_name
     if data.is_active is not None:
         user.is_active = data.is_active
+    if data.manager_id is not None:
+        user.manager_id = data.manager_id
     if data.role_ids is not None:
         db.query(UserRole).filter(UserRole.user_id == user_id).delete()
         for role_id in data.role_ids:
