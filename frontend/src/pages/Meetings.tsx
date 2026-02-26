@@ -1,33 +1,45 @@
 import { useEffect, useState } from "react";
 import { listMeetings, createMeeting, updateMeeting, deleteMeeting, type Meeting } from "@/api/meetings";
-import { listProjects, type Project } from "@/api/projects";
+import { listProjectNames } from "@/api/projects";
+import { listAssignableUsers, type UserList } from "@/api/users";
+import { SearchableUserMultiSelect } from "@/components/SearchableUserMultiSelect";
 import { useAuth } from "@/store/auth";
 
 export default function MeetingsPage() {
   const [items, setItems] = useState<Meeting[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectNames, setProjectNames] = useState<{ id: string; name: string }[]>([]);
+  const [assignableUsers, setAssignableUsers] = useState<UserList[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<"new" | Meeting | null>(null);
   const [form, setForm] = useState({
-    project_id: "",
     title: "",
     description: "",
     start_at: "",
     end_at: "",
     location: "",
+    attendee_ids: [] as string[],
   });
   const { hasPermission } = useAuth();
 
+  const canWrite = hasPermission("meetings:write");
+
   const load = () => {
-    Promise.all([listMeetings(), listProjects()]).then(([m, p]) => {
-      setItems(m);
-      setProjects(p);
-    }).finally(() => setLoading(false));
+    listMeetings()
+      .then(setItems)
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+    listProjectNames()
+      .then(setProjectNames)
+      .catch(() => setProjectNames([]));
   };
 
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (canWrite) listAssignableUsers().then(setAssignableUsers).catch(() => {});
+  }, [canWrite]);
 
   const openNew = () => {
     const now = new Date();
@@ -36,42 +48,42 @@ export default function MeetingsPage() {
     const end = new Date(now);
     end.setHours(11, 0, 0, 0);
     setForm({
-      project_id: "",
       title: "",
       description: "",
       start_at: start.toISOString().slice(0, 16),
       end_at: end.toISOString().slice(0, 16),
       location: "",
+      attendee_ids: [],
     });
     setModal("new");
   };
   const openEdit = (m: Meeting) => {
     setForm({
-      project_id: m.project_id || "",
       title: m.title,
       description: m.description || "",
       start_at: m.start_at.slice(0, 16),
       end_at: m.end_at.slice(0, 16),
       location: m.location || "",
+      attendee_ids: m.attendee_ids ?? [],
     });
     setModal(m);
   };
 
   const save = async () => {
     if (modal === null) return;
-    const payload = {
-      project_id: form.project_id || undefined,
+    const basePayload = {
       title: form.title,
       description: form.description || undefined,
       start_at: new Date(form.start_at).toISOString(),
       end_at: new Date(form.end_at).toISOString(),
       location: form.location || undefined,
+      attendee_ids: form.attendee_ids,
     };
     try {
       if (modal === "new") {
-        await createMeeting(payload);
+        await createMeeting(basePayload);
       } else {
-        await updateMeeting(modal.id, payload);
+        await updateMeeting(modal.id, basePayload);
       }
       setModal(null);
       load();
@@ -91,8 +103,7 @@ export default function MeetingsPage() {
     }
   };
 
-  const canWrite = hasPermission("meetings:write");
-  const projectMap = Object.fromEntries(projects.map((p) => [p.id, p.name]));
+  const projectMap = Object.fromEntries(projectNames.map((p) => [p.id, p.name]));
 
   return (
     <div>
@@ -151,19 +162,6 @@ export default function MeetingsPage() {
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold text-white mb-4">{modal === "new" ? "New meeting" : "Edit meeting"}</h2>
             <div className="space-y-3">
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Project (optional)</label>
-                <select
-                  value={form.project_id}
-                  onChange={(e) => setForm((f) => ({ ...f, project_id: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-                >
-                  <option value="">—</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
               <input
                 placeholder="Title"
                 value={form.title}
@@ -201,6 +199,15 @@ export default function MeetingsPage() {
                 onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
               />
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">Assign attendees</label>
+                <SearchableUserMultiSelect
+                  users={assignableUsers}
+                  value={form.attendee_ids}
+                  onChange={(ids) => setForm((f) => ({ ...f, attendee_ids: ids }))}
+                  placeholder="Search and add attendees..."
+                />
+              </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setModal(null)} className="px-4 py-2 text-slate-400 hover:text-white">
