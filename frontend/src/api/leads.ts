@@ -10,7 +10,10 @@ export interface Lead {
   status: string;
   notes: string | null;
   assigned_team_id: string | null;
+  assigned_to: string | null;
+  assigned_to_name?: string | null;
   created_by: string | null;
+  created_by_name?: string | null;
   converted_to_client_id: string | null;
   converted_at: string | null;
   created_at: string;
@@ -41,6 +44,7 @@ export async function createLead(data: {
   status?: string;
   notes?: string;
   assigned_team_id?: string;
+  assigned_to?: string;
 }): Promise<Lead> {
   return apiFetch<Lead>("/api/v1/leads", {
     method: "POST",
@@ -59,6 +63,7 @@ export async function updateLead(
     status: string;
     notes: string;
     assigned_team_id: string | null;
+    assigned_to: string | null;
   }>
 ): Promise<Lead> {
   return apiFetch<Lead>(`/api/v1/leads/${id}`, {

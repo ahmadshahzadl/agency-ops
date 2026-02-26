@@ -29,6 +29,7 @@ export default function Leads() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<"new" | Lead | null>(null);
   const [convertModal, setConvertModal] = useState<Lead | null>(null);
+  const [markLostModal, setMarkLostModal] = useState<Lead | null>(null);
   const [form, setForm] = useState({
     company_name: "",
     contact_name: "",
@@ -46,8 +47,9 @@ export default function Leads() {
     project_pipeline_stage: "discovery",
     project_assigned_team_id: "" as string | null,
   });
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const isAdmin = hasPermission("admin:all");
+  const canManageLeads = user?.can_manage_leads ?? false; // manager or admin: create client/project, edit converted/closed
 
   const load = async () => {
     setLoading(true);
@@ -140,8 +142,35 @@ export default function Leads() {
       alert("Lead converted to client. You can open Clients and Projects to see the new records.");
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Failed");
+      load(); // refresh so any backend "marked as lost" is visible
     }
   };
+
+  const handleMarkLost = async (status: "lost" | "closed" | "dead") => {
+    if (!markLostModal) return;
+    try {
+      await updateLead(markLostModal.id, { status });
+      setMarkLostModal(null);
+      load();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed");
+    }
+  };
+
+  const handleMarkAsConverted = async (l: Lead) => {
+    try {
+      await updateLead(l.id, { status: "converted" });
+      load();
+      alert("Lead marked as converted. Management will create the client and project.");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed");
+    }
+  };
+
+  const canWrite = hasPermission("leads:write");
+  const lockedForMember = (l: Lead) => l.status === "converted" || l.status === "closed";
+  const memberCanEdit = (l: Lead) => canWrite && !canManageLeads && !lockedForMember(l);
+  const managementCanEdit = (l: Lead) => canWrite && canManageLeads;
 
   const remove = async (id: string) => {
     if (!confirm("Delete this lead?")) return;
@@ -154,7 +183,6 @@ export default function Leads() {
     }
   };
 
-  const canWrite = hasPermission("leads:write");
   const teamMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
 
   return (
@@ -182,6 +210,8 @@ export default function Leads() {
                 <th className="px-4 py-3">Contact</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Team</th>
+                <th className="px-4 py-3">Submitted by</th>
+                <th className="px-4 py-3">Assigned to</th>
                 <th className="px-4 py-3">Converted</th>
                 {canWrite && <th className="px-4 py-3 w-40"></th>}
               </tr>
@@ -198,17 +228,33 @@ export default function Leads() {
                     {l.assigned_team_id ? teamMap[l.assigned_team_id] || "—" : "—"}
                   </td>
                   <td className="px-4 py-3 text-slate-300">
+                    {l.created_by_name ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-slate-300">
+                    {l.assigned_to_name ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-slate-300">
                     {l.converted_to_client_id ? "Yes" : "—"}
                   </td>
-                  {canWrite && (
+                  {(memberCanEdit(l) || managementCanEdit(l)) && (
                     <td className="px-4 py-3">
+                      <button onClick={() => openEdit(l)} className="text-primary hover:underline mr-2">
+                        Edit
+                      </button>
                       {!l.converted_to_client_id && (
                         <>
-                          <button onClick={() => openEdit(l)} className="text-primary hover:underline mr-2">
-                            Edit
-                          </button>
-                          <button onClick={() => openConvert(l)} className="text-green-400 hover:underline mr-2">
-                            Convert
+                          {memberCanEdit(l) && (
+                            <button onClick={() => handleMarkAsConverted(l)} className="text-green-400 hover:underline mr-2">
+                              Mark as converted
+                            </button>
+                          )}
+                          {managementCanEdit(l) && (
+                            <button onClick={() => openConvert(l)} className="text-green-400 hover:underline mr-2">
+                              Create client & project
+                            </button>
+                          )}
+                          <button onClick={() => setMarkLostModal(l)} className="text-amber-400 hover:underline mr-2">
+                            Mark lost/closed
                           </button>
                         </>
                       )}
@@ -236,6 +282,16 @@ export default function Leads() {
             <h2 className="text-lg font-semibold text-white mb-4">
               {modal === "new" ? "New lead" : "Edit lead"}
             </h2>
+            {modal !== "new" && (
+              <div className="flex flex-wrap gap-4 text-sm text-slate-400 mb-3">
+                {(modal as Lead).created_by_name && (
+                  <span>Submitted by: {(modal as Lead).created_by_name}</span>
+                )}
+                {(modal as Lead).assigned_to_name && (
+                  <span>Assigned to: {(modal as Lead).assigned_to_name}</span>
+                )}
+              </div>
+            )}
             <div className="space-y-3">
               <input
                 placeholder="Company name *"
@@ -276,7 +332,10 @@ export default function Leads() {
                 <option value="new">New</option>
                 <option value="contacted">Contacted</option>
                 <option value="qualified">Qualified</option>
+                <option value="converted">Converted</option>
                 <option value="lost">Lost</option>
+                <option value="closed">Closed</option>
+                <option value="dead">Dead</option>
               </select>
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Assigned team</label>
@@ -389,6 +448,48 @@ export default function Leads() {
               </button>
               <button onClick={handleConvert} className="px-4 py-2 rounded-lg bg-primary text-white font-medium">
                 Convert
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {markLostModal && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-10"
+          onClick={() => setMarkLostModal(null)}
+        >
+          <div
+            className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-white mb-2">Mark lead as not won</h2>
+            <p className="text-sm text-slate-400 mb-4">
+              &quot;{markLostModal.company_name}&quot; — choose outcome:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleMarkLost("lost")}
+                className="px-4 py-2 rounded-lg bg-slate-600 text-white hover:bg-slate-500"
+              >
+                Lost
+              </button>
+              <button
+                onClick={() => handleMarkLost("closed")}
+                className="px-4 py-2 rounded-lg bg-slate-600 text-white hover:bg-slate-500"
+              >
+                Closed
+              </button>
+              <button
+                onClick={() => handleMarkLost("dead")}
+                className="px-4 py-2 rounded-lg bg-slate-600 text-white hover:bg-slate-500"
+              >
+                Dead
+              </button>
+            </div>
+            <div className="mt-4">
+              <button onClick={() => setMarkLostModal(null)} className="px-4 py-2 text-slate-400 hover:text-white">
+                Cancel
               </button>
             </div>
           </div>
