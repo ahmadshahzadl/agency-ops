@@ -5,6 +5,7 @@ export interface UserList {
   email: string;
   full_name: string | null;
   is_active: boolean;
+  manager_id: string | null;
   role_ids: string[];
   team_ids: string[];
 }
@@ -18,11 +19,17 @@ export async function listUsers(params?: { skip?: number; limit?: number; q?: st
   return apiFetch<UserList[]>(`/api/v1/users${qs ? `?${qs}` : ""}`);
 }
 
+/** Users the current user can assign tasks to (for assignee dropdown): admin=all, manager=self+team, member=self only. */
+export async function listAssignableUsers(): Promise<UserList[]> {
+  return apiFetch<UserList[]>("/api/v1/users/assignable");
+}
+
 export async function createUser(data: {
   email: string;
   password: string;
   full_name?: string;
   is_active?: boolean;
+  manager_id?: string | null;
   role_ids?: string[];
   team_ids?: string[];
 }): Promise<UserList> {
@@ -34,7 +41,7 @@ export async function createUser(data: {
 
 export async function updateUser(
   id: string,
-  data: { full_name?: string; is_active?: boolean; role_ids?: string[]; team_ids?: string[] }
+  data: { full_name?: string; is_active?: boolean; manager_id?: string | null; role_ids?: string[]; team_ids?: string[] }
 ): Promise<UserList> {
   return apiFetch<UserList>(`/api/v1/users/${id}`, {
     method: "PATCH",

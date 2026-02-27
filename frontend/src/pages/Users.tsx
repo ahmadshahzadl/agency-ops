@@ -14,6 +14,7 @@ export default function Users() {
     password: "",
     full_name: "",
     is_active: true,
+    manager_id: null as string | null,
     role_ids: [] as string[],
     team_ids: [] as string[],
   });
@@ -44,6 +45,7 @@ export default function Users() {
       password: "",
       full_name: "",
       is_active: true,
+      manager_id: null,
       role_ids: [],
       team_ids: [],
     });
@@ -56,6 +58,7 @@ export default function Users() {
       password: "",
       full_name: u.full_name || "",
       is_active: u.is_active,
+      manager_id: u.manager_id || null,
       role_ids: u.role_ids || [],
       team_ids: u.team_ids || [],
     });
@@ -85,6 +88,7 @@ export default function Users() {
           password: form.password,
           full_name: form.full_name || undefined,
           is_active: form.is_active,
+          manager_id: form.manager_id,
           role_ids: form.role_ids.length ? form.role_ids : undefined,
           team_ids: form.team_ids.length ? form.team_ids : undefined,
         });
@@ -92,6 +96,7 @@ export default function Users() {
         await updateUser(modal.id, {
           full_name: form.full_name || undefined,
           is_active: form.is_active,
+          manager_id: form.manager_id,
           role_ids: form.role_ids,
           team_ids: form.team_ids,
         });
@@ -116,6 +121,7 @@ export default function Users() {
 
   const roleMap = Object.fromEntries(roles.map((r) => [r.id, r.name]));
   const teamMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
+  const userMap = Object.fromEntries(items.map((u) => [u.id, u.full_name || u.email]));
   const getRoleNames = (roleIds: string[]) =>
     roleIds?.map((id) => roleMap[id]).filter(Boolean).join(", ") || "—";
 
@@ -141,6 +147,7 @@ export default function Users() {
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Active</th>
+                <th className="px-4 py-3">Manager</th>
                 <th className="px-4 py-3">Roles</th>
                 <th className="px-4 py-3">Teams</th>
                 <th className="px-4 py-3 w-24"></th>
@@ -152,6 +159,9 @@ export default function Users() {
                   <td className="px-4 py-3 text-white">{u.email}</td>
                   <td className="px-4 py-3 text-slate-300">{u.full_name || "—"}</td>
                   <td className="px-4 py-3 text-slate-300">{u.is_active ? "Yes" : "No"}</td>
+                  <td className="px-4 py-3 text-slate-300 text-sm">
+                    {u.manager_id ? userMap[u.manager_id] || "—" : "—"}
+                  </td>
                   <td className="px-4 py-3 text-slate-300 text-sm">
                     {getRoleNames(u.role_ids || [])}
                   </td>
@@ -220,6 +230,26 @@ export default function Users() {
                 />
                 Active
               </label>
+              <div>
+                <label className="text-sm text-slate-400 block mb-1">Manager</label>
+                <select
+                  value={form.manager_id ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, manager_id: e.target.value || null }))}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                >
+                  <option value="">— None —</option>
+                  {items
+                    .filter((u) => modal === "new" || u.id !== modal.id)
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name || u.email}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Team members under this manager will show up in their Team activity.
+                </p>
+              </div>
               <div>
                 <span className="text-sm text-slate-400 block mb-1">Roles (select all that apply)</span>
                 <p className="text-xs text-slate-500 mb-2">
