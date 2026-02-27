@@ -2,7 +2,7 @@ import { apiFetch } from "./client";
 
 export interface Task {
   id: string;
-  project_id: string;
+  project_id: string | null;
   title: string;
   description: string | null;
   status: string;
