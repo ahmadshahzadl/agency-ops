@@ -11,9 +11,13 @@ import Meetings from "@/pages/Meetings";
 import Invoices from "@/pages/Invoices";
 import Expenses from "@/pages/Expenses";
 import Analytics from "@/pages/Analytics";
+import TeamActivity from "@/pages/TeamActivity";
 import Users from "@/pages/Users";
 import Teams from "@/pages/Teams";
 import Roles from "@/pages/Roles";
+import Profile from "@/pages/Profile";
+import Announcements from "@/pages/Announcements";
+import Notifications from "@/pages/Notifications";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -52,9 +56,13 @@ function AppRoutes() {
         <Route path="invoices" element={<Invoices />} />
         <Route path="expenses" element={<Expenses />} />
         <Route path="analytics" element={<Analytics />} />
+        <Route path="team-activity" element={<TeamActivity />} />
         <Route path="users" element={<Users />} />
         <Route path="teams" element={<Teams />} />
         <Route path="roles" element={<Roles />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="announcements" element={<Announcements />} />
+        <Route path="notifications" element={<Notifications />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
