@@ -1,4 +1,4 @@
-"""Seed demo data: all team types, users, leads→client→project flow, clients, projects, tasks, meetings, finance.
+"""Seed demo data: all team types, all user types (admin, manager, member, viewer, sales), consistent data for testing.
 Run after migrations and seed_db.py."""
 import os
 import sys
@@ -27,7 +27,6 @@ from app.models import (
 )
 from app.core.security import get_password_hash
 
-# All 9 team types from the spec (we create 12 teams: management, product_pm, frontend, backend, fullstack, mobile, design, qa, devops, data_ai, sales_marketing, support)
 TEAM_TYPES = [
     ("Management / Leadership", "management", "Oversees company, strategic alignment, goals and roadmap"),
     ("Product / Project Management", "product_pm", "Plan, coordinate, track projects; scope, milestones, timelines"),
@@ -42,6 +41,8 @@ TEAM_TYPES = [
     ("Sales, Marketing & Client Relations", "sales_marketing", "Lead gen, client relationships, marketing"),
     ("Support / Maintenance", "support", "Post-launch support, bugs, customer tickets"),
 ]
+
+DEMO_PASSWORD = "demo123"
 
 
 def _get_or_create_user(db, email: str, full_name: str, password: str, role_name: str) -> User:
@@ -74,12 +75,11 @@ def seed_demo():
             print("Run seed_db.py first to create admin user.")
             return
 
-        # Skip if demo data already present
         if db.query(Client).first():
             print("Demo data already exists. Skipping.")
             return
 
-        # --- All team types (1–9 from spec) ---
+        # --- All 12 teams ---
         teams_by_type = {}
         for name, team_type, desc in TEAM_TYPES:
             t = Team(name=name, description=desc, team_type=team_type)
@@ -90,58 +90,90 @@ def seed_demo():
         for t in teams_by_type.values():
             db.refresh(t)
 
+        # --- All user types: admin, manager, member, viewer, sales (lead manager), sales_member ---
+        manager_user = _get_or_create_user(db, "manager@example.com", "Demo Manager", DEMO_PASSWORD, "manager")
+        member_user = _get_or_create_user(db, "member@example.com", "Demo Member", DEMO_PASSWORD, "member")
+        viewer_user = _get_or_create_user(db, "viewer@example.com", "Demo Viewer", DEMO_PASSWORD, "viewer")
+        sales_user = _get_or_create_user(db, "sales@example.com", "Demo Sales Lead", DEMO_PASSWORD, "sales")
+        sales_member_user = _get_or_create_user(db, "sales_member@example.com", "Demo Sales Rep", DEMO_PASSWORD, "sales")
+
+        # --- Team membership: admin in ALL teams; others spread across teams for testing ---
+        all_teams = list(teams_by_type.values())
+        team_memberships = []
+        for t in all_teams:
+            team_memberships.append(TeamMember(team_id=t.id, user_id=admin.id))
         team_pm = teams_by_type["product_pm"]
         team_sales = teams_by_type["sales_marketing"]
         team_frontend = teams_by_type["frontend"]
         team_backend = teams_by_type["backend"]
-        team_design = teams_by_type["design"]
         team_qa = teams_by_type["qa"]
-        team_devops = teams_by_type["devops"]
-        team_fullstack = teams_by_type["fullstack"]
+        team_design = teams_by_type["design"]
         team_management = teams_by_type["management"]
+        team_fullstack = teams_by_type["fullstack"]
+        team_devops = teams_by_type["devops"]
 
-        # --- Users and team members (admin→management; manager→product_pm + sales; member→frontend; viewer→qa) ---
-        manager_user = _get_or_create_user(db, "manager@example.com", "Demo Manager", "demo123", "manager")
-        member_user = _get_or_create_user(db, "member@example.com", "Demo Member", "demo123", "member")
-        viewer_user = _get_or_create_user(db, "viewer@example.com", "Demo Viewer", "demo123", "viewer")
+        for tid in [team_pm.id, team_sales.id, team_frontend.id, team_backend.id]:
+            team_memberships.append(TeamMember(team_id=tid, user_id=manager_user.id))
+        for tid in [team_frontend.id, team_backend.id, team_qa.id]:
+            team_memberships.append(TeamMember(team_id=tid, user_id=member_user.id))
+        for tid in [team_qa.id, team_design.id]:
+            team_memberships.append(TeamMember(team_id=tid, user_id=viewer_user.id))
+        team_memberships.append(TeamMember(team_id=team_sales.id, user_id=sales_user.id))
+        team_memberships.append(TeamMember(team_id=team_sales.id, user_id=sales_member_user.id))
+        db.add_all(team_memberships)
 
-        db.add(TeamMember(team_id=team_management.id, user_id=admin.id))
-        db.add_all([
-            TeamMember(team_id=team_pm.id, user_id=admin.id),
-            TeamMember(team_id=team_pm.id, user_id=manager_user.id),
-            TeamMember(team_id=team_sales.id, user_id=manager_user.id),
-            TeamMember(team_id=team_frontend.id, user_id=member_user.id),
-            TeamMember(team_id=team_qa.id, user_id=viewer_user.id),
-        ])
+        # --- Manager hierarchy: manager has member & viewer as reports; sales (lead manager) has sales_member ---
+        member_user.manager_id = manager_user.id
+        viewer_user.manager_id = manager_user.id
+        sales_member_user.manager_id = sales_user.id
         db.commit()
 
-        # --- Leads (Sales team generates leads) ---
-        lead1 = Lead(
-            company_name="Future Tech Inc",
-            contact_name="Jane Doe",
-            contact_email="jane@futuretech.example",
-            contact_phone="+1-555-1000",
-            source="website",
-            status="qualified",
-            notes="Interested in custom dashboard.",
-            assigned_team_id=team_sales.id,
-            created_by=manager_user.id,
-        )
-        lead2 = Lead(
-            company_name="Startup Alpha",
-            contact_name="John Smith",
-            contact_email="john@startupalpha.example",
-            source="referral",
-            status="contacted",
-            assigned_team_id=team_sales.id,
-            created_by=manager_user.id,
-        )
-        db.add_all([lead1, lead2])
+        # --- Leads: by manager (team leads), by sales lead manager, by sales member (own leads) ---
+        leads = [
+            Lead(
+                company_name="Future Tech Inc",
+                contact_name="Jane Doe",
+                contact_email="jane@futuretech.example",
+                contact_phone="+1-555-1000",
+                source="website",
+                status="qualified",
+                notes="Interested in custom dashboard.",
+                assigned_team_id=team_sales.id,
+                created_by=manager_user.id,
+            ),
+            Lead(
+                company_name="Startup Alpha",
+                contact_name="John Smith",
+                contact_email="john@startupalpha.example",
+                source="referral",
+                status="contacted",
+                assigned_team_id=team_sales.id,
+                created_by=manager_user.id,
+            ),
+            Lead(
+                company_name="Enterprise Beta",
+                contact_name="Alice Lee",
+                contact_email="alice@enterprise.example",
+                source="cold_outreach",
+                status="new",
+                assigned_team_id=team_sales.id,
+                created_by=sales_user.id,
+            ),
+            Lead(
+                company_name="Local Biz Co",
+                contact_name="Bob Wilson",
+                contact_email="bob@localbiz.example",
+                status="qualified",
+                assigned_team_id=team_sales.id,
+                created_by=sales_member_user.id,
+            ),
+        ]
+        db.add_all(leads)
         db.commit()
-        db.refresh(lead1)
-        db.refresh(lead2)
+        for lead in leads:
+            db.refresh(lead)
 
-        # --- Clients: 3 under Product/PM (delivery), 1 from Sales, 1 from converted lead ---
+        # --- Clients: created_by admin, manager, sales (for manager/sales scope) ---
         c1 = Client(
             name="Acme Corp",
             contact_email="contact@acme.example",
@@ -161,37 +193,43 @@ def seed_demo():
             name="Gamma LLC",
             contact_email="info@gamma.example",
             team_id=team_pm.id,
-            created_by=admin.id,
+            created_by=manager_user.id,
         )
         c4 = Client(
             name="Sales Lead Co",
             contact_email="sales@sl.example",
             contact_phone="+1-555-0300",
             team_id=team_sales.id,
-            created_by=admin.id,
+            created_by=manager_user.id,
         )
-        db.add_all([c1, c2, c3, c4])
+        c5 = Client(
+            name="Enterprise Client",
+            contact_email="enterprise@example.com",
+            team_id=team_sales.id,
+            created_by=sales_user.id,
+        )
+        db.add_all([c1, c2, c3, c4, c5])
         db.commit()
-        for c in [c1, c2, c3, c4]:
+        for c in [c1, c2, c3, c4, c5]:
             db.refresh(c)
 
-        # Convert lead1 → client c5 + project p4 (flow: Sales lead → Client → Project assigned to PM)
-        c5 = Client(
-            name=lead1.company_name,
-            contact_email=lead1.contact_email,
-            contact_phone=lead1.contact_phone,
+        # Convert first lead → client c6 + project later
+        c6 = Client(
+            name=leads[0].company_name,
+            contact_email=leads[0].contact_email,
+            contact_phone=leads[0].contact_phone,
             team_id=team_sales.id,
             created_by=manager_user.id,
         )
-        db.add(c5)
+        db.add(c6)
         db.commit()
-        db.refresh(c5)
-        lead1.converted_to_client_id = c5.id
-        lead1.converted_at = datetime.now(timezone.utc)
-        lead1.status = "converted"
+        db.refresh(c6)
+        leads[0].converted_to_client_id = c6.id
+        leads[0].converted_at = datetime.now(timezone.utc)
+        leads[0].status = "converted"
         db.commit()
 
-        # --- Projects (with pipeline_stage and assigned_team_id for flow) ---
+        # --- Projects: owner_id admin or manager (managers can assign; members see only assigned tasks) ---
         today = date.today()
         p1 = Project(
             client_id=c1.id,
@@ -233,7 +271,7 @@ def seed_demo():
             owner_id=manager_user.id,
         )
         p5 = Project(
-            client_id=c5.id,
+            client_id=c6.id,
             name="Custom Dashboard",
             description="Converted from lead: Future Tech Inc",
             status="draft",
@@ -242,25 +280,37 @@ def seed_demo():
             start_date=today,
             owner_id=manager_user.id,
         )
-        db.add_all([p1, p2, p3, p4, p5])
+        p6 = Project(
+            client_id=c5.id,
+            name="Enterprise Platform",
+            description="Large-scale platform",
+            status="active",
+            pipeline_stage="development",
+            assigned_team_id=team_backend.id,
+            start_date=today - timedelta(days=7),
+            owner_id=sales_user.id,
+        )
+        db.add_all([p1, p2, p3, p4, p5, p6])
         db.commit()
-        for p in [p1, p2, p3, p4, p5]:
+        for p in [p1, p2, p3, p4, p5, p6]:
             db.refresh(p)
 
-        # --- Tasks ---
+        # --- Tasks: assignee_id set so member/viewer/sales_member see "my tasks"; created_by admin/manager ---
         tasks_data = [
-            (p1.id, "Design homepage", "todo", "high", 0, admin.id),
-            (p1.id, "Implement backend", "in_progress", "high", 1, admin.id),
-            (p1.id, "Code review", "todo", "medium", 2, admin.id),
-            (p2.id, "Setup project", "done", "medium", 0, admin.id),
-            (p2.id, "Auth flow", "in_progress", "high", 1, admin.id),
-            (p3.id, "Requirements doc", "todo", "low", 0, admin.id),
-            (p4.id, "Discovery call", "done", "high", 0, manager_user.id),
-            (p4.id, "Proposal draft", "in_progress", "medium", 1, manager_user.id),
-            (p5.id, "Kickoff meeting", "todo", "high", 0, manager_user.id),
-            (p5.id, "Requirements gathering", "todo", "medium", 1, manager_user.id),
+            (p1.id, "Design homepage", "todo", "high", 0, admin.id, member_user.id),
+            (p1.id, "Implement backend", "in_progress", "high", 1, admin.id, member_user.id),
+            (p1.id, "Code review", "todo", "medium", 2, admin.id, viewer_user.id),
+            (p2.id, "Setup project", "done", "medium", 0, admin.id, admin.id),
+            (p2.id, "Auth flow", "in_progress", "high", 1, admin.id, member_user.id),
+            (p3.id, "Requirements doc", "todo", "low", 0, admin.id, None),
+            (p4.id, "Discovery call", "done", "high", 0, manager_user.id, manager_user.id),
+            (p4.id, "Proposal draft", "in_progress", "medium", 1, manager_user.id, member_user.id),
+            (p5.id, "Kickoff meeting", "todo", "high", 0, manager_user.id, None),
+            (p5.id, "Requirements gathering", "todo", "medium", 1, manager_user.id, viewer_user.id),
+            (p6.id, "Sales follow-up", "todo", "high", 0, sales_user.id, sales_member_user.id),
+            (p6.id, "Demo prep", "in_progress", "medium", 1, sales_user.id, sales_member_user.id),
         ]
-        for project_id, title, status, priority, order_index, created_by in tasks_data:
+        for project_id, title, status, priority, order_index, created_by, assignee_id in tasks_data:
             db.add(Task(
                 project_id=project_id,
                 title=title,
@@ -269,11 +319,12 @@ def seed_demo():
                 order_index=order_index,
                 due_date=today + timedelta(days=14),
                 created_by=created_by,
+                assignee_id=assignee_id,
             ))
         db.commit()
 
-        # --- Meetings ---
-        start = datetime.utcnow().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        # --- Meetings: created_by and attendees for visibility (member/viewer see where they attend) ---
+        start = datetime.now(timezone.utc).replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
         end = start + timedelta(hours=1)
         m1 = Meeting(
             project_id=p1.id,
@@ -306,15 +357,27 @@ def seed_demo():
             end_at=end + timedelta(days=3),
             created_by=manager_user.id,
         )
-        db.add_all([m1, m2, m3, m4])
+        m5 = Meeting(
+            project_id=p6.id,
+            title="Enterprise demo",
+            start_at=start + timedelta(days=4),
+            end_at=end + timedelta(days=4),
+            created_by=sales_member_user.id,
+        )
+        db.add_all([m1, m2, m3, m4, m5])
         db.flush()
         db.add(MeetingAttendee(meeting_id=m1.id, user_id=admin.id))
+        db.add(MeetingAttendee(meeting_id=m1.id, user_id=member_user.id))
         db.add(MeetingAttendee(meeting_id=m2.id, user_id=admin.id))
+        db.add(MeetingAttendee(meeting_id=m2.id, user_id=member_user.id))
+        db.add(MeetingAttendee(meeting_id=m2.id, user_id=viewer_user.id))
         db.add(MeetingAttendee(meeting_id=m3.id, user_id=manager_user.id))
         db.add(MeetingAttendee(meeting_id=m4.id, user_id=admin.id))
+        db.add(MeetingAttendee(meeting_id=m5.id, user_id=sales_user.id))
+        db.add(MeetingAttendee(meeting_id=m5.id, user_id=sales_member_user.id))
         db.commit()
 
-        # --- Invoices and payments ---
+        # --- Invoices (clients created_by in scope for manager/sales) ---
         inv1 = Invoice(
             client_id=c1.id,
             project_id=p1.id,
@@ -346,7 +409,7 @@ def seed_demo():
             issued_at=today,
         )
         inv4 = Invoice(
-            client_id=c5.id,
+            client_id=c6.id,
             project_id=p5.id,
             number="INV-2024-004",
             amount=Decimal("4000.00"),
@@ -355,7 +418,17 @@ def seed_demo():
             due_date=today + timedelta(days=21),
             issued_at=today - timedelta(days=3),
         )
-        db.add_all([inv1, inv2, inv3, inv4])
+        inv5 = Invoice(
+            client_id=c5.id,
+            project_id=p6.id,
+            number="INV-2024-005",
+            amount=Decimal("10000.00"),
+            currency="USD",
+            status="paid",
+            due_date=today + timedelta(days=30),
+            issued_at=today - timedelta(days=10),
+        )
+        db.add_all([inv1, inv2, inv3, inv4, inv5])
         db.commit()
         db.refresh(inv1)
         pay1 = Payment(
@@ -364,7 +437,13 @@ def seed_demo():
             paid_at=today - timedelta(days=2),
             reference="BANK-REF-001",
         )
-        db.add(pay1)
+        pay2 = Payment(
+            invoice_id=inv5.id,
+            amount=Decimal("10000.00"),
+            paid_at=today - timedelta(days=5),
+            reference="BANK-REF-002",
+        )
+        db.add_all([pay1, pay2])
         db.commit()
 
         # --- Expenses ---
@@ -393,23 +472,27 @@ def seed_demo():
             created_by=manager_user.id,
         )
         e4 = Expense(
-            project_id=p5.id,
+            project_id=p6.id,
             description="Licenses",
             amount=Decimal("50.00"),
             currency="USD",
             expense_date=today,
-            created_by=admin.id,
+            created_by=sales_user.id,
         )
         db.add_all([e1, e2, e3, e4])
         db.commit()
 
         print(
-            "Demo data seeded:\n"
-            "  Users: admin@example.com, manager@example.com, member@example.com, viewer@example.com (admin123 / demo123)\n"
-            "  Roles: admin, manager, member, viewer (from seed_db)\n"
-            "  Teams (12): Management, Product/PM, Frontend, Backend, Full-Stack, Mobile, Design, QA, DevOps, Data/AI, Sales & Marketing, Support\n"
-            "  Leads: 2 (Sales); 1 converted → Client (Future Tech Inc) + Project (Custom Dashboard) → assigned to Product/PM\n"
-            "  Clients: 5 | Projects: 5 (with pipeline_stage + assigned_team) | Tasks: 10 | Meetings: 4 | Invoices: 4 | Payments: 1 | Expenses: 4"
+            "Demo data seeded.\n"
+            "  Users (password: admin123 for admin, demo123 for others):\n"
+            "    admin@example.com (admin) – all teams, full access\n"
+            "    manager@example.com (manager) – product_pm, sales_marketing, frontend, backend; reports: member, viewer\n"
+            "    member@example.com (member) – frontend, backend, qa; sees only tasks assigned to them\n"
+            "    viewer@example.com (viewer) – qa, design; read-only, sees only assigned tasks\n"
+            "    sales@example.com (sales lead manager) – sales_marketing; reports: sales_member\n"
+            "    sales_member@example.com (sales) – sales_marketing; sees own leads/meetings, assigned tasks only\n"
+            "  Teams: 12 (management, product_pm, frontend, backend, fullstack, mobile, design, qa, devops, data_ai, sales_marketing, support)\n"
+            "  Data: 4 leads (1 converted), 6 clients, 6 projects, 12 tasks (assigned to member/viewer/sales_member), 5 meetings, 5 invoices, 2 payments, 4 expenses"
         )
     finally:
         db.close()
