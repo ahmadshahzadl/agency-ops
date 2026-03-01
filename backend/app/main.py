@@ -1,7 +1,15 @@
-from fastapi import FastAPI
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications
+from app.websocket import activity_manager
+from app.services.activity_service import (
+    activity_logged_this_request,
+    tasks_updated_this_request,
+    meetings_updated_this_request,
+    notifications_updated_this_request,
+)
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
@@ -13,6 +21,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.websocket("/api/v1/ws/activity")
+async def websocket_activity(websocket: WebSocket):
+    """Connect to receive instant activity updates. Sends { \"type\": \"activity_updated\" } when any user logs activity."""
+    await activity_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        activity_manager.disconnect(websocket)
+
+
+class ActivityBroadcastMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        activity_logged_this_request.set(False)
+        tasks_updated_this_request.set(False)
+        meetings_updated_this_request.set(False)
+        notifications_updated_this_request.set(False)
+        response = await call_next(request)
+        types = []
+        if activity_logged_this_request.get():
+            types.append("activity_updated")
+        if tasks_updated_this_request.get():
+            types.append("tasks_updated")
+        if meetings_updated_this_request.get():
+            types.append("meetings_updated")
+        if notifications_updated_this_request.get():
+            types.append("notifications_updated")
+        if types:
+            await activity_manager.broadcast({"types": types})
+        activity_logged_this_request.set(False)
+        tasks_updated_this_request.set(False)
+        meetings_updated_this_request.set(False)
+        notifications_updated_this_request.set(False)
+        return response
+
+
+app.add_middleware(ActivityBroadcastMiddleware)
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(clients.router, prefix="/api/v1")
