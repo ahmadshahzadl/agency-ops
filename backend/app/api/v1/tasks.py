@@ -6,7 +6,7 @@ from app.models import Task as TaskModel, Project as ProjectModel, Client as Cli
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 from sqlalchemy import or_
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
-from app.services.activity_service import log_activity
+from app.services.activity_service import log_activity, tasks_updated_this_request, notifications_updated_this_request
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -114,7 +114,9 @@ def create_task(
     db.flush()
     if assignee_id is not None and assignee_id != user.id:
         _notify_task_assignee(db, assignee_id, task.title, task.id)
+        notifications_updated_this_request.set(True)
     log_activity(db, user.id, "task_created", "task", task.id, details=f"Task: {task.title}")
+    tasks_updated_this_request.set(True)
     db.commit()
     db.refresh(task)
     return task
@@ -186,8 +188,10 @@ def update_task(
     db.flush()
     if "assignee_id" in updates and task.assignee_id is not None and task.assignee_id != user.id:
         _notify_task_assignee(db, task.assignee_id, task.title, task.id)
+        notifications_updated_this_request.set(True)
     action = "task_completed" if status_change == "done" else "task_updated"
     log_activity(db, user.id, action, "task", task.id, details=f"Task: {task.title}" + (f" → {status_change}" if status_change else ""))
+    tasks_updated_this_request.set(True)
     db.commit()
     db.refresh(task)
     return task
@@ -213,4 +217,5 @@ def delete_task(
     db.delete(task)
     db.flush()
     log_activity(db, user.id, "task_deleted", "task", None, details=f"Task deleted: {title}")
+    tasks_updated_this_request.set(True)
     db.commit()

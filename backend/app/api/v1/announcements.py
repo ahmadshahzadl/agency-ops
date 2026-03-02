@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models import Announcement as AnnouncementModel, Notification as NotificationModel, User
 from app.schemas.announcement import AnnouncementCreate, AnnouncementUpdate, AnnouncementResponse
 from app.api.deps import get_current_user, require_admin
+from app.services.activity_service import log_activity, notifications_updated_this_request
 
 router = APIRouter(prefix="/announcements", tags=["announcements"])
 
@@ -58,6 +59,8 @@ def create_announcement(
     db.add(ann)
     db.flush()
     _deliver_announcement(db, ann)
+    notifications_updated_this_request.set(True)
+    log_activity(db, user.id, "announcement_created", "announcement", ann.id, details=f"Announcement: {ann.title}")
     db.commit()
     db.refresh(ann)
     return ann
@@ -101,5 +104,6 @@ def delete_announcement(
     ann = db.query(AnnouncementModel).filter(AnnouncementModel.id == announcement_id).first()
     if not ann:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Announcement not found")
+    log_activity(db, user.id, "announcement_deleted", "announcement", announcement_id, details=f"Announcement deleted: {ann.title}")
     db.delete(ann)
     db.commit()

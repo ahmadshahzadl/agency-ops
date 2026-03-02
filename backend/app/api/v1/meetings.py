@@ -6,7 +6,7 @@ from app.models import Meeting as MeetingModel, MeetingAttendee, Project as Proj
 from app.schemas.meeting import MeetingCreate, MeetingUpdate, MeetingResponse
 from sqlalchemy import or_, exists
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids, get_is_sales_member
-from app.services.activity_service import log_activity
+from app.services.activity_service import log_activity, meetings_updated_this_request, notifications_updated_this_request
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -198,8 +198,10 @@ def update_meeting(
             db.add(MeetingAttendee(meeting_id=meeting.id, user_id=uid))
         db.flush()
         _notify_meeting_attendees(db, meeting, attendee_ids)
+        notifications_updated_this_request.set(True)
     db.flush()
     log_activity(db, user.id, "meeting_updated", "meeting", meeting.id, details=f"Meeting: {meeting.title}")
+    meetings_updated_this_request.set(True)
     db.commit()
     db.refresh(meeting)
     return _meeting_to_response(meeting)
@@ -220,5 +222,8 @@ def delete_meeting(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
     if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    meeting_title = meeting.title
+    log_activity(db, user.id, "meeting_deleted", "meeting", meeting_id, details=f"Meeting deleted: {meeting_title}")
     db.delete(meeting)
+    meetings_updated_this_request.set(True)
     db.commit()
