@@ -1,9 +1,9 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
-from app.models import Client, Project, Task, Invoice, Lead
+from app.models import Client, Project, Task, Invoice, Payment, Expense, Lead, User
 from app.schemas.analytics import (
     AnalyticsOverview,
     DashboardResponse,
@@ -25,11 +25,15 @@ def overview(
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
     from decimal import Decimal
+    today = date.today()
+    month_start = today.replace(day=1)
+    month_end = (month_start + timedelta(days=31)).replace(day=1) - timedelta(days=1)
     if "admin:all" in permissions:
         total_clients = db.query(func.count(Client.id)).filter(Client.deleted_at.is_(None)).scalar() or 0
         active_projects = db.query(func.count(Project.id)).filter(
             Project.deleted_at.is_(None), Project.status == "active",
         ).scalar() or 0
+        total_users = db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
         tasks_todo = db.query(func.count(Task.id)).filter(Task.status == "todo").scalar() or 0
         tasks_in_progress = db.query(func.count(Task.id)).filter(Task.status == "in_progress").scalar() or 0
         tasks_done = db.query(func.count(Task.id)).filter(Task.status == "done").scalar() or 0
@@ -39,6 +43,14 @@ def overview(
             Invoice.status.in_(["sent", "overdue"])
         ).scalar()
         outstanding_total = Decimal(str(outstanding_total or 0))
+        revenue_this_month = Decimal(str(db.query(func.coalesce(func.sum(Payment.amount), 0)).filter(
+            Payment.paid_at >= month_start, Payment.paid_at <= month_end,
+        ).scalar() or 0))
+        expenses_this_month = Decimal(str(db.query(func.coalesce(func.sum(Expense.amount), 0)).filter(
+            Expense.expense_date.isnot(None),
+            Expense.expense_date >= month_start,
+            Expense.expense_date <= month_end,
+        ).scalar() or 0))
     elif manager_scope is not None:
         total_clients = db.query(func.count(Client.id)).filter(
             Client.deleted_at.is_(None), Client.created_by.in_(manager_scope),
@@ -46,6 +58,7 @@ def overview(
         active_projects = db.query(func.count(Project.id)).filter(
             Project.deleted_at.is_(None), Project.status == "active", Project.owner_id.in_(manager_scope),
         ).scalar() or 0
+        total_users = db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
         tasks_todo = db.query(func.count(Task.id)).join(Project).filter(
             Task.status == "todo",
             Project.owner_id.in_(manager_scope),
@@ -69,23 +82,38 @@ def overview(
             Invoice.status.in_(["sent", "overdue"]), Client.created_by.in_(manager_scope),
         ).scalar()
         outstanding_total = Decimal(str(outstanding_total or 0))
+        revenue_this_month = Decimal(str(db.query(func.coalesce(func.sum(Payment.amount), 0)).join(Invoice).join(Client).filter(
+            Payment.paid_at >= month_start, Payment.paid_at <= month_end, Client.created_by.in_(manager_scope),
+        ).scalar() or 0))
+        expenses_this_month = Decimal(str(db.query(func.coalesce(func.sum(Expense.amount), 0)).join(Project).join(Client).filter(
+            Expense.expense_date.isnot(None),
+            Expense.expense_date >= month_start,
+            Expense.expense_date <= month_end,
+            Client.created_by.in_(manager_scope),
+        ).scalar() or 0))
     else:
         # No reports (members): only tasks assigned to them, same as task list
         total_clients = 0
         active_projects = 0
+        total_users = 0
         tasks_todo = db.query(func.count(Task.id)).filter(Task.status == "todo", Task.assignee_id == user.id).scalar() or 0
         tasks_in_progress = db.query(func.count(Task.id)).filter(Task.status == "in_progress", Task.assignee_id == user.id).scalar() or 0
         tasks_done = db.query(func.count(Task.id)).filter(Task.status == "done", Task.assignee_id == user.id).scalar() or 0
         revenue_total = Decimal("0")
         outstanding_total = Decimal("0")
+        revenue_this_month = Decimal("0")
+        expenses_this_month = Decimal("0")
     return AnalyticsOverview(
         total_clients=total_clients,
         active_projects=active_projects,
+        total_users=total_users,
         tasks_todo=tasks_todo,
         tasks_in_progress=tasks_in_progress,
         tasks_done=tasks_done,
         revenue_total=revenue_total,
         outstanding_total=outstanding_total,
+        revenue_this_month=revenue_this_month,
+        expenses_this_month=expenses_this_month,
     )
 
 
@@ -178,11 +206,16 @@ def dashboard(
 ):
     from decimal import Decimal
 
+    today = date.today()
+    month_start = today.replace(day=1)
+    month_end = (month_start + timedelta(days=31)).replace(day=1) - timedelta(days=1)
+
     if "admin:all" in permissions:
         total_clients = db.query(func.count(Client.id)).filter(Client.deleted_at.is_(None)).scalar() or 0
         active_projects = db.query(func.count(Project.id)).filter(
             Project.deleted_at.is_(None), Project.status == "active",
         ).scalar() or 0
+        total_users = db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
         tasks_todo = db.query(func.count(Task.id)).filter(Task.status == "todo").scalar() or 0
         tasks_in_progress = db.query(func.count(Task.id)).filter(Task.status == "in_progress").scalar() or 0
         tasks_done = db.query(func.count(Task.id)).filter(Task.status == "done").scalar() or 0
@@ -192,11 +225,38 @@ def dashboard(
             Invoice.status.in_(["sent", "overdue"])
         ).scalar()
         outstanding_total = Decimal(str(outstanding_total or 0))
+        revenue_this_month = db.query(func.coalesce(func.sum(Payment.amount), 0)).filter(
+            Payment.paid_at >= month_start, Payment.paid_at <= month_end
+        ).scalar()
+        revenue_this_month = Decimal(str(revenue_this_month or 0))
+        expenses_this_month = db.query(func.coalesce(func.sum(Expense.amount), 0)).filter(
+            Expense.expense_date.isnot(None),
+            Expense.expense_date >= month_start,
+            Expense.expense_date <= month_end,
+        ).scalar()
+        expenses_this_month = Decimal(str(expenses_this_month or 0))
+        week_start = today - timedelta(days=6)
+        leads_today = db.query(func.count(Lead.id)).filter(func.date(Lead.created_at) == today).scalar() or 0
+        leads_this_week = db.query(func.count(Lead.id)).filter(
+            func.date(Lead.created_at) >= week_start,
+            func.date(Lead.created_at) <= today,
+        ).scalar() or 0
+        leads_this_month = db.query(func.count(Lead.id)).filter(
+            func.date(Lead.created_at) >= month_start,
+            func.date(Lead.created_at) <= month_end,
+        ).scalar() or 0
+        projects_by_stage_rows = (
+            db.query(Project.pipeline_stage, func.count(Project.id))
+            .filter(Project.deleted_at.is_(None))
+            .group_by(Project.pipeline_stage)
+            .all()
+        )
+        projects_by_stage = [StatusCount(status=s or "unknown", count=c) for s, c in projects_by_stage_rows]
         chart_data = {"conversion_rate": None, "conversion_over_time": [], "leads_by_status": [], "tasks_by_status": [
             StatusCount(status="todo", count=tasks_todo),
             StatusCount(status="in_progress", count=tasks_in_progress),
             StatusCount(status="done", count=tasks_done),
-        ]}
+        ], "projects_by_stage": projects_by_stage}
     elif manager_scope is not None:
         total_clients = db.query(func.count(Client.id)).filter(
             Client.deleted_at.is_(None), Client.created_by.in_(manager_scope),
@@ -204,6 +264,7 @@ def dashboard(
         active_projects = db.query(func.count(Project.id)).filter(
             Project.deleted_at.is_(None), Project.status == "active", Project.owner_id.in_(manager_scope),
         ).scalar() or 0
+        total_users = db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
         tasks_todo = db.query(func.count(Task.id)).filter(
             Task.status == "todo",
             or_(Task.created_by.in_(manager_scope), Task.assignee_id.in_(manager_scope)),
@@ -224,14 +285,38 @@ def dashboard(
             Invoice.status.in_(["sent", "overdue"]), Client.created_by.in_(manager_scope),
         ).scalar()
         outstanding_total = Decimal(str(outstanding_total or 0))
+        revenue_this_month = db.query(func.coalesce(func.sum(Payment.amount), 0)).join(Invoice).join(Client).filter(
+            Payment.paid_at >= month_start, Payment.paid_at <= month_end, Client.created_by.in_(manager_scope),
+        ).scalar()
+        revenue_this_month = Decimal(str(revenue_this_month or 0))
+        expenses_this_month = db.query(func.coalesce(func.sum(Expense.amount), 0)).join(Project).join(Client).filter(
+            Expense.expense_date.isnot(None),
+            Expense.expense_date >= month_start,
+            Expense.expense_date <= month_end,
+            Client.created_by.in_(manager_scope),
+        ).scalar()
+        expenses_this_month = Decimal(str(expenses_this_month or 0))
+        projects_by_stage_rows = (
+            db.query(Project.pipeline_stage, func.count(Project.id))
+            .filter(Project.deleted_at.is_(None), Project.owner_id.in_(manager_scope))
+            .group_by(Project.pipeline_stage)
+            .all()
+        )
+        projects_by_stage = [StatusCount(status=s or "unknown", count=c) for s, c in projects_by_stage_rows]
         chart_data = {"conversion_rate": None, "conversion_over_time": [], "leads_by_status": [], "tasks_by_status": [
             StatusCount(status="todo", count=tasks_todo),
             StatusCount(status="in_progress", count=tasks_in_progress),
             StatusCount(status="done", count=tasks_done),
-        ]}
+        ], "projects_by_stage": projects_by_stage}
     else:
         total_clients = 0
         active_projects = 0
+        total_users = 0
+        revenue_this_month = Decimal("0")
+        expenses_this_month = Decimal("0")
+        leads_today = 0
+        leads_this_week = 0
+        leads_this_month = 0
         tasks_todo = db.query(func.count(Task.id)).filter(Task.status == "todo", Task.assignee_id == user.id).scalar() or 0
         tasks_in_progress = db.query(func.count(Task.id)).filter(Task.status == "in_progress", Task.assignee_id == user.id).scalar() or 0
         tasks_done = db.query(func.count(Task.id)).filter(Task.status == "done", Task.assignee_id == user.id).scalar() or 0
@@ -242,13 +327,20 @@ def dashboard(
     return DashboardResponse(
         total_clients=total_clients,
         active_projects=active_projects,
+        total_users=total_users,
         tasks_todo=tasks_todo,
         tasks_in_progress=tasks_in_progress,
         tasks_done=tasks_done,
         revenue_total=revenue_total,
         outstanding_total=outstanding_total,
+        revenue_this_month=revenue_this_month,
+        expenses_this_month=expenses_this_month,
+        leads_today=leads_today,
+        leads_this_week=leads_this_week,
+        leads_this_month=leads_this_month,
         conversion_rate=chart_data["conversion_rate"],
         conversion_over_time=chart_data["conversion_over_time"],
         leads_by_status=chart_data["leads_by_status"],
         tasks_by_status=chart_data["tasks_by_status"],
+        projects_by_stage=chart_data.get("projects_by_stage", []),
     )
