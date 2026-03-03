@@ -75,4 +75,9 @@ export async function refreshAccessToken(): Promise<boolean> {
   return false;
 }
 
+export function getWsUrl(path: string): string {
+  const base = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  return base.replace(/^http/, "ws") + path;
+}
+
 export { getToken, getRefreshToken, setTokens, clearTokens, API_BASE };
