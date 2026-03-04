@@ -7,6 +7,7 @@ from app.models import User as UserModel, UserRole, TeamMember
 from app.schemas.user import UserCreateAdmin, UserUpdateAdmin, UserListResponse
 from app.api.deps import get_current_user, require_admin, require_permission, require_any_permission, get_manager_scope_user_ids, get_user_permissions
 from app.core.security import get_password_hash
+from app.services.activity_service import log_activity
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -70,7 +71,7 @@ def list_users(
 def create_user(
     data: UserCreateAdmin,
     db: Session = Depends(get_db),
-    _user=Depends(require_admin),
+    admin_user=Depends(require_admin),
 ):
     if db.query(UserModel).filter(UserModel.email == data.email).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
@@ -87,6 +88,7 @@ def create_user(
         db.add(UserRole(user_id=user.id, role_id=role_id))
     for team_id in data.team_ids or []:
         db.add(TeamMember(team_id=team_id, user_id=user.id))
+    log_activity(db, admin_user.id, "user_created", "user", user.id, details=f"User created: {user.email}")
     db.commit()
     db.refresh(user)
     return _user_to_response(user)
@@ -109,7 +111,7 @@ def update_user(
     user_id: UUID,
     data: UserUpdateAdmin,
     db: Session = Depends(get_db),
-    _user=Depends(require_admin),
+    admin_user=Depends(require_admin),
 ):
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not user:
@@ -128,6 +130,8 @@ def update_user(
         db.query(TeamMember).filter(TeamMember.user_id == user_id).delete()
         for team_id in data.team_ids:
             db.add(TeamMember(team_id=team_id, user_id=user.id))
+    db.flush()
+    log_activity(db, admin_user.id, "user_updated", "user", user.id, details=f"User updated: {user.email}")
     db.commit()
     db.refresh(user)
     return _user_to_response(user)
@@ -144,5 +148,6 @@ def delete_user(
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    log_activity(db, current_user.id, "user_deleted", "user", user_id, details=f"User deleted: {user.email}")
     db.delete(user)
     db.commit()

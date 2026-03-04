@@ -134,5 +134,7 @@ def delete_client(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
     if not _can_access_client(client, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
+    client_name = client.name
+    log_activity(db, user.id, "client_deleted", "client", client_id, details=f"Client deleted: {client_name}")
     client.deleted_at = datetime.now(timezone.utc)
     db.commit()

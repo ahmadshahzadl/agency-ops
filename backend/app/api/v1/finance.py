@@ -15,6 +15,7 @@ from app.schemas.finance import (
     ExpenseCreate, ExpenseUpdate, ExpenseResponse,
 )
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
+from app.services.activity_service import log_activity
 
 router = APIRouter(tags=["finance"])
 
@@ -101,6 +102,8 @@ def create_invoice(
         issued_at=data.issued_at,
     )
     db.add(inv)
+    db.flush()
+    log_activity(db, user.id, "invoice_created", "invoice", inv.id, details=f"Invoice #{inv.number}: {inv.currency} {inv.amount}")
     db.commit()
     db.refresh(inv)
     return inv
@@ -140,6 +143,8 @@ def update_invoice(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(inv, k, v)
+    db.flush()
+    log_activity(db, user.id, "invoice_updated", "invoice", invoice_id, details=f"Invoice #{inv.number}: {inv.currency} {inv.amount}")
     db.commit()
     db.refresh(inv)
     return inv
@@ -168,7 +173,7 @@ def delete_invoice(
 def create_payment(
     data: PaymentCreate,
     db: Session = Depends(get_db),
-    _user=Depends(require_permission("finance:write")),
+    user=Depends(require_permission("finance:write")),
 ):
     pay = PaymentModel(
         invoice_id=data.invoice_id,
@@ -177,6 +182,8 @@ def create_payment(
         reference=data.reference,
     )
     db.add(pay)
+    db.flush()
+    log_activity(db, user.id, "payment_created", "payment", pay.id, details=f"Payment: {pay.amount} (invoice {pay.invoice_id})")
     db.commit()
     db.refresh(pay)
     return pay
@@ -233,6 +240,8 @@ def create_expense(
         created_by=user.id,
     )
     db.add(exp)
+    db.flush()
+    log_activity(db, user.id, "expense_created", "expense", exp.id, details=f"Expense: {exp.description or '—'} {exp.currency} {exp.amount}")
     db.commit()
     db.refresh(exp)
     return exp
@@ -255,6 +264,8 @@ def update_expense(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(exp, k, v)
+    db.flush()
+    log_activity(db, user.id, "expense_updated", "expense", expense_id, details=f"Expense: {exp.description or '—'} {exp.currency} {exp.amount}")
     db.commit()
     db.refresh(exp)
     return exp
@@ -274,5 +285,6 @@ def delete_expense(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
     if not _can_access_expense_project(exp, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
+    log_activity(db, user.id, "expense_deleted", "expense", expense_id, details=f"Expense deleted: {exp.description or '—'} {exp.currency} {exp.amount}")
     db.delete(exp)
     db.commit()

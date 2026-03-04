@@ -6,6 +6,7 @@ from app.api.deps import get_current_user
 from app.models import User
 from app.core.security import verify_password, get_password_hash
 from app.services.auth_service import authenticate_user, create_tokens_for_user, refresh_access_token
+from app.services.activity_service import log_activity
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -68,6 +69,9 @@ def update_profile(
         if not verify_password(data.current_password, user.password_hash):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
         user.password_hash = get_password_hash(data.new_password)
+    db.flush()
+    if data.full_name is not None or data.new_password is not None:
+        log_activity(db, user.id, "profile_updated", "profile", user.id, details="Profile updated (name or password)")
     db.commit()
     db.refresh(user)
     permissions = []

@@ -10,6 +10,7 @@ from app.schemas.lead import LeadCreate, LeadUpdate, LeadResponse, LeadConvertRe
 from app.schemas.client import ClientCreate, ClientResponse
 from app.schemas.project import ProjectCreate, ProjectResponse
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids, get_is_sales_member, get_sales_team_user_ids
+from app.services.activity_service import log_activity
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -112,6 +113,8 @@ def create_lead(
         created_by=user.id,
     )
     db.add(lead)
+    db.flush()
+    log_activity(db, user.id, "lead_created", "lead", lead.id, details=f"Lead: {lead.company_name}")
     db.commit()
     db.refresh(lead)
     lead = db.query(LeadModel).options(joinedload(LeadModel.created_by_user), joinedload(LeadModel.assigned_to_user)).get(lead.id)
@@ -162,6 +165,7 @@ def update_lead(
     if lead.converted_to_client_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Lead already converted")
     dump = data.model_dump(exclude_unset=True)
+    old_status = lead.status
     # When lead leaves "new", auto-assign to current user if not yet assigned
     if lead.status == "new" and dump.get("status") and dump["status"] != "new" and lead.assigned_to is None:
         lead.assigned_to = user.id
@@ -171,6 +175,9 @@ def update_lead(
         if k == "assigned_to" and v and "admin:all" not in permissions and manager_scope is None and v != user.id:
             continue  # only admin/manager can assign to others
         setattr(lead, k, v)
+    db.flush()
+    status_change = f"; status: {old_status} → {lead.status}" if "status" in dump and old_status != lead.status else ""
+    log_activity(db, user.id, "lead_updated", "lead", lead.id, details=f"Lead: {lead.company_name}{status_change}")
     db.commit()
     lead = db.query(LeadModel).options(joinedload(LeadModel.created_by_user), joinedload(LeadModel.assigned_to_user)).get(lead.id)
     return lead
@@ -234,6 +241,8 @@ def convert_lead(
         lead.converted_to_client_id = client.id
         lead.converted_at = datetime.now(timezone.utc)
         lead.status = "converted"
+        db.flush()
+        log_activity(db, user.id, "lead_converted", "lead", lead.id, details=f"Lead '{lead.company_name}' → Client + Project")
         db.commit()
         db.refresh(client)
         if project:
@@ -277,5 +286,7 @@ def delete_lead(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only management can delete a lead in converted or closed stage",
             )
+    company_name = lead.company_name
+    log_activity(db, user.id, "lead_deleted", "lead", None, details=f"Lead deleted: {company_name}")
     db.delete(lead)
     db.commit()

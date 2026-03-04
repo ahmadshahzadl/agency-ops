@@ -233,5 +233,7 @@ def delete_project(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     if not _can_access_project(project, user.id, team_ids, "admin:all" in permissions, manager_scope, db):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    project_name = project.name
+    log_activity(db, user.id, "project_deleted", "project", project_id, details=f"Project deleted: {project_name}")
     project.deleted_at = datetime.now(timezone.utc)
     db.commit()
