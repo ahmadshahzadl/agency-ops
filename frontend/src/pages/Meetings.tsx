@@ -38,6 +38,12 @@ export default function MeetingsPage() {
   }, []);
 
   useEffect(() => {
+    const onMeetingsUpdated = () => load();
+    window.addEventListener("ws:meetings_updated", onMeetingsUpdated);
+    return () => window.removeEventListener("ws:meetings_updated", onMeetingsUpdated);
+  }, []);
+
+  useEffect(() => {
     if (canWrite) listAssignableUsers().then(setAssignableUsers).catch(() => {});
   }, [canWrite]);
 

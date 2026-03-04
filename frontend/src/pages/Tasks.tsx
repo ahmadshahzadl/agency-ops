@@ -37,6 +37,12 @@ export default function TasksPage() {
   }, [projectFilter]);
 
   useEffect(() => {
+    const onTasksUpdated = () => load();
+    window.addEventListener("ws:tasks_updated", onTasksUpdated);
+    return () => window.removeEventListener("ws:tasks_updated", onTasksUpdated);
+  }, [projectFilter]);
+
+  useEffect(() => {
     if (canWrite) listAssignableUsers().then(setAssignableUsers).catch(() => {});
   }, [canWrite]);
 

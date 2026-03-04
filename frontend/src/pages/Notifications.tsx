@@ -30,6 +30,12 @@ export default function NotificationsPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    const onWsNotifications = () => load();
+    window.addEventListener("ws:notifications_updated", onWsNotifications);
+    return () => window.removeEventListener("ws:notifications_updated", onWsNotifications);
+  }, []);
+
   const handleMarkRead = async (id: string) => {
     await markOneRead(id);
     load();
