@@ -37,6 +37,8 @@ Thumbs.db
 
 # Build / output
 frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.d.ts
 *.log
 .coverage
 htmlcov/
