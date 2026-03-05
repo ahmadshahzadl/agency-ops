@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --steel-blue: #3a7eb9;
+  --cloudy-sky: #5791c4;
+  --rich-cerulean: #347ab7;
+  --white: #ffffff;
+  --white-2: #ffffff;
+}
+
 body {
   margin: 0;
   font-family: "DM Sans", system-ui, sans-serif;
@@ -11,4 +19,16 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.animate-slide-in-right {
+  animation: slideInRight 0.2s ease-out;
 }

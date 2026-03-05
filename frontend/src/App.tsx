@@ -17,13 +17,12 @@ import Teams from "@/pages/Teams";
 import Roles from "@/pages/Roles";
 import Profile from "@/pages/Profile";
 import Announcements from "@/pages/Announcements";
-import Notifications from "@/pages/Notifications";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f6f8] text-rich-cerulean">
         Loading...
       </div>
     );
@@ -62,7 +61,6 @@ function AppRoutes() {
         <Route path="roles" element={<Roles />} />
         <Route path="profile" element={<Profile />} />
         <Route path="announcements" element={<Announcements />} />
-        <Route path="notifications" element={<Notifications />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

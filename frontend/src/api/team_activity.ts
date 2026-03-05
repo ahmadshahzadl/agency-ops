@@ -25,12 +25,14 @@ export async function listMyReports(): Promise<ReportSummary[]> {
 export async function listTeamActivity(params?: {
   report_id?: string;
   action?: string;
+  entity_type?: string;
   skip?: number;
   limit?: number;
 }): Promise<ActivityLogWithUser[]> {
   const sp = new URLSearchParams();
   if (params?.report_id) sp.set("report_id", params.report_id);
   if (params?.action) sp.set("action", params.action);
+  if (params?.entity_type) sp.set("entity_type", params.entity_type);
   if (params?.skip != null) sp.set("skip", String(params.skip));
   if (params?.limit != null) sp.set("limit", String(params.limit));
   const qs = sp.toString();
