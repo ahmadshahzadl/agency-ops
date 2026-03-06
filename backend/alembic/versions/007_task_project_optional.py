@@ -25,6 +25,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Remove tasks with NULL project_id so we can restore NOT NULL constraint
+    op.execute("DELETE FROM tasks WHERE project_id IS NULL")
     op.alter_column(
         "tasks",
         "project_id",
