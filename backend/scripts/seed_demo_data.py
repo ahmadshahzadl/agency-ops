@@ -45,7 +45,15 @@ TEAM_TYPES = [
 DEMO_PASSWORD = "demo123"
 
 
-def _get_or_create_user(db, email: str, full_name: str, password: str, role_name: str) -> User:
+def _get_or_create_user(
+    db,
+    email: str,
+    full_name: str,
+    password: str,
+    role_name: str,
+    phone: str | None = None,
+    job_title: str | None = None,
+) -> User:
     u = db.query(User).filter(User.email == email).first()
     if u:
         return u
@@ -57,6 +65,8 @@ def _get_or_create_user(db, email: str, full_name: str, password: str, role_name
         email=email,
         password_hash=get_password_hash(password),
         full_name=full_name,
+        phone=phone,
+        job_title=job_title,
         is_active=True,
     )
     db.add(u)
@@ -91,11 +101,26 @@ def seed_demo():
             db.refresh(t)
 
         # --- All user types: admin, manager, member, viewer, sales (lead manager), sales_member ---
-        manager_user = _get_or_create_user(db, "manager@example.com", "Demo Manager", DEMO_PASSWORD, "manager")
-        member_user = _get_or_create_user(db, "member@example.com", "Demo Member", DEMO_PASSWORD, "member")
-        viewer_user = _get_or_create_user(db, "viewer@example.com", "Demo Viewer", DEMO_PASSWORD, "viewer")
-        sales_user = _get_or_create_user(db, "sales@example.com", "Demo Sales Lead", DEMO_PASSWORD, "sales")
-        sales_member_user = _get_or_create_user(db, "sales_member@example.com", "Demo Sales Rep", DEMO_PASSWORD, "sales")
+        manager_user = _get_or_create_user(
+            db, "manager@example.com", "Demo Manager", DEMO_PASSWORD, "manager",
+            phone="+1-555-1001", job_title="Engineering Manager",
+        )
+        member_user = _get_or_create_user(
+            db, "member@example.com", "Demo Member", DEMO_PASSWORD, "member",
+            phone="+1-555-1002", job_title="Software Developer",
+        )
+        viewer_user = _get_or_create_user(
+            db, "viewer@example.com", "Demo Viewer", DEMO_PASSWORD, "viewer",
+            phone="+1-555-1003", job_title="QA Analyst",
+        )
+        sales_user = _get_or_create_user(
+            db, "sales@example.com", "Demo Sales Lead", DEMO_PASSWORD, "sales",
+            phone="+1-555-1004", job_title="Sales Lead",
+        )
+        sales_member_user = _get_or_create_user(
+            db, "sales_member@example.com", "Demo Sales Rep", DEMO_PASSWORD, "sales",
+            phone="+1-555-1005", job_title="Sales Representative",
+        )
 
         # --- Team membership: admin in ALL teams; others spread across teams for testing ---
         all_teams = list(teams_by_type.values())

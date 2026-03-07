@@ -111,6 +111,8 @@ def seed():
             email="admin@example.com",
             password_hash=get_password_hash("admin123"),
             full_name="Admin",
+            phone="+1-555-0000",
+            job_title="Administrator",
             is_active=True,
         )
         db.add(admin_user)
