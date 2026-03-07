@@ -82,3 +82,9 @@ app.include_router(notifications.router, prefix="/api/v1")
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/v1/version")
+def version():
+    """Public endpoint for frontend to check if a newer app version is available."""
+    return {"version": settings.app_version}

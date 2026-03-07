@@ -32,8 +32,7 @@ def refresh(
     return Token(**tokens)
 
 
-@router.get("/me", response_model=UserResponse)
-def me(user: User = Depends(get_current_user)):
+def _user_response(user: User):
     permissions = []
     role_names = []
     for role in user.roles:
@@ -47,12 +46,19 @@ def me(user: User = Depends(get_current_user)):
         id=user.id,
         email=user.email,
         full_name=user.full_name,
+        phone=getattr(user, "phone", None),
+        job_title=getattr(user, "job_title", None),
         is_active=user.is_active,
         permissions=permissions,
         roles=role_names,
         can_manage_tasks=can_manage_tasks,
         can_manage_leads=can_manage_leads,
     )
+
+
+@router.get("/me", response_model=UserResponse)
+def me(user: User = Depends(get_current_user)):
+    return _user_response(user)
 
 
 @router.patch("/me", response_model=UserResponse)
@@ -61,8 +67,18 @@ def update_profile(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    role_names = [r.name for r in user.roles]
+    can_edit_contact = "admin:all" in [p.code for r in user.roles for p in r.permissions] or "manager" in role_names
+
     if data.full_name is not None:
         user.full_name = data.full_name
+    if data.phone is not None or data.job_title is not None:
+        if not can_edit_contact:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin or manager can update contact details")
+        if data.phone is not None:
+            user.phone = data.phone
+        if data.job_title is not None:
+            user.job_title = data.job_title
     if data.new_password is not None:
         if not data.current_password:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password required to set a new password")
@@ -70,26 +86,8 @@ def update_profile(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
         user.password_hash = get_password_hash(data.new_password)
     db.flush()
-    if data.full_name is not None or data.new_password is not None:
-        log_activity(db, user.id, "profile_updated", "profile", user.id, details="Profile updated (name or password)")
+    if data.full_name is not None or data.new_password is not None or data.phone is not None or data.job_title is not None:
+        log_activity(db, user.id, "profile_updated", "profile", user.id, details="Profile updated")
     db.commit()
     db.refresh(user)
-    permissions = []
-    role_names = []
-    for role in user.roles:
-        role_names.append(role.name)
-        for perm in role.permissions:
-            permissions.append(perm.code)
-    report_ids = [r.id for r in user.reports] if getattr(user, "reports", None) else []
-    can_manage_tasks = "admin:all" in permissions or len(report_ids) > 0
-    can_manage_leads = "admin:all" in permissions or len(report_ids) > 0
-    return UserResponse(
-        id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        is_active=user.is_active,
-        permissions=permissions,
-        roles=role_names,
-        can_manage_tasks=can_manage_tasks,
-        can_manage_leads=can_manage_leads,
-    )
+    return _user_response(user)

@@ -43,6 +43,8 @@ def _user_to_response(user: UserModel) -> UserListResponse:
         id=user.id,
         email=user.email,
         full_name=user.full_name,
+        phone=getattr(user, "phone", None),
+        job_title=getattr(user, "job_title", None),
         is_active=user.is_active,
         manager_id=getattr(user, "manager_id", None),
         role_ids=role_ids,
@@ -79,6 +81,8 @@ def create_user(
         email=data.email,
         password_hash=get_password_hash(data.password),
         full_name=data.full_name,
+        phone=getattr(data, "phone", None),
+        job_title=getattr(data, "job_title", None),
         is_active=data.is_active,
         manager_id=getattr(data, "manager_id", None),
     )
@@ -118,6 +122,10 @@ def update_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if data.full_name is not None:
         user.full_name = data.full_name
+    if data.phone is not None:
+        user.phone = data.phone
+    if data.job_title is not None:
+        user.job_title = data.job_title
     if data.is_active is not None:
         user.is_active = data.is_active
     if data.manager_id is not None:

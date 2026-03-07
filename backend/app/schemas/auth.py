@@ -24,6 +24,8 @@ class UserResponse(BaseModel):
     id: UUID
     email: str
     full_name: Optional[str] = None
+    phone: Optional[str] = None
+    job_title: Optional[str] = None
     is_active: bool
     permissions: list[str] = []
     roles: list[str] = []  # role names e.g. ["sales"], ["manager", "sales"]
@@ -42,5 +44,7 @@ class UserCreate(BaseModel):
 
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
+    phone: Optional[str] = None
+    job_title: Optional[str] = None
     current_password: Optional[str] = None
     new_password: Optional[str] = None
