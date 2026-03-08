@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/store/auth";
 import { APP_NAME } from "@/config";
 import { BrandLogo } from "@/components/BrandLogo";
+import { applyTheme, getStoredTheme } from "@/lib/theme";
 import {
   getUnreadCount,
   listNotifications,
@@ -135,6 +136,16 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    applyTheme(getStoredTheme());
+    const m = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => {
+      if (getStoredTheme() === "system") applyTheme("system");
+    };
+    m.addEventListener("change", onChange);
+    return () => m.removeEventListener("change", onChange);
+  }, []);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState<Notification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -240,9 +251,9 @@ export default function Layout() {
   }
 
   return (
-    <div className="h-screen flex overflow-hidden bg-[#f5f6f8]">
+    <div className="h-screen flex overflow-hidden bg-[#f5f6f8] dark:bg-gray-900">
       {/* Sidebar - full viewport height, does not scroll */}
-      <aside className="w-60 h-full flex flex-col shrink-0 shadow-lg overflow-hidden" style={{ backgroundColor: "#3a7eb9" }}>
+      <aside className="w-60 h-full flex flex-col shrink-0 shadow-lg overflow-hidden bg-[#3a7eb9] dark:bg-gray-800">
         <div className="p-6 flex justify-center">
           <div className="flex flex-col items-center gap-2">
             <BrandLogo variant="sidebar" />
@@ -281,15 +292,15 @@ export default function Layout() {
       </aside>
       {/* Main: white header + content (only this area scrolls) */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <header className="shrink-0 h-20 px-6 flex items-center justify-between border-b border-gray-100" style={{ backgroundColor: "#ffffff" }}>
-          <h1 className="font-titillium text-2xl font-bold text-gray-900 truncate">
+        <header className="shrink-0 h-20 px-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <h1 className="font-titillium text-2xl font-bold text-gray-900 dark:text-white truncate">
             {headerTitle}
           </h1>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setNotificationsOpen(true)}
-              className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+              className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
               aria-label="Notifications"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -304,21 +315,21 @@ export default function Layout() {
             <button
               type="button"
               onClick={() => navigate("/profile")}
-              className="flex items-center gap-2 rounded-lg py-1.5 pl-1 pr-2 hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-2 rounded-lg py-1.5 pl-1 pr-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium" style={{ backgroundColor: "#3a7eb9" }}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium bg-primary dark:bg-primary" style={{ backgroundColor: "#3a7eb9" }}>
                 {(user?.full_name || user?.email || "?").charAt(0).toUpperCase()}
               </div>
-              <span className="text-sm font-medium text-gray-700 hidden sm:inline truncate max-w-[160px]">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200 hidden sm:inline truncate max-w-[160px]">
                 {user?.full_name || user?.email}
               </span>
-              <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
           </div>
         </header>
-        <main className="flex-1 overflow-auto bg-[#f5f6f8] p-6">
+        <main className="flex-1 overflow-auto bg-[#f5f6f8] dark:bg-gray-900 p-6">
           <Outlet />
         </main>
       </div>
