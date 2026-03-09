@@ -4,6 +4,8 @@ export interface User {
   id: string;
   email: string;
   full_name: string | null;
+  phone?: string | null;
+  job_title?: string | null;
   is_active: boolean;
   permissions: string[];
   roles?: string[];
@@ -36,6 +38,8 @@ export async function getMe(): Promise<User> {
 
 export interface ProfileUpdate {
   full_name?: string | null;
+  phone?: string | null;
+  job_title?: string | null;
   current_password?: string | null;
   new_password?: string | null;
 }
@@ -43,6 +47,8 @@ export interface ProfileUpdate {
 export async function updateProfile(data: ProfileUpdate): Promise<User> {
   const body: Record<string, string> = {};
   if (data.full_name !== undefined) body.full_name = data.full_name ?? "";
+  if (data.phone !== undefined) body.phone = data.phone ?? "";
+  if (data.job_title !== undefined) body.job_title = data.job_title ?? "";
   if (data.current_password !== undefined) body.current_password = data.current_password ?? "";
   if (data.new_password !== undefined) body.new_password = data.new_password ?? "";
   return apiFetch<User>("/api/v1/auth/me", { method: "PATCH", body: JSON.stringify(body) });

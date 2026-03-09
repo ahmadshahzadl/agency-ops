@@ -4,6 +4,8 @@ export interface UserList {
   id: string;
   email: string;
   full_name: string | null;
+  phone?: string | null;
+  job_title?: string | null;
   is_active: boolean;
   manager_id: string | null;
   role_ids: string[];
@@ -28,6 +30,8 @@ export async function createUser(data: {
   email: string;
   password: string;
   full_name?: string;
+  phone?: string | null;
+  job_title?: string | null;
   is_active?: boolean;
   manager_id?: string | null;
   role_ids?: string[];
@@ -41,7 +45,15 @@ export async function createUser(data: {
 
 export async function updateUser(
   id: string,
-  data: { full_name?: string; is_active?: boolean; manager_id?: string | null; role_ids?: string[]; team_ids?: string[] }
+  data: {
+    full_name?: string;
+    phone?: string | null;
+    job_title?: string | null;
+    is_active?: boolean;
+    manager_id?: string | null;
+    role_ids?: string[];
+    team_ids?: string[];
+  }
 ): Promise<UserList> {
   return apiFetch<UserList>(`/api/v1/users/${id}`, {
     method: "PATCH",
