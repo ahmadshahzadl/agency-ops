@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { listMyReports, listTeamActivity, type ReportSummary, type ActivityLogWithUser } from "@/api/team_activity";
 import { useAuth } from "@/store/auth";
 
@@ -58,6 +58,27 @@ function formatDate(iso: string) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function matchesSearch(log: ActivityLogWithUser, searchLower: string, actionLabels: Record<string, string>, entityLabels: Record<string, string>): boolean {
+  if (!searchLower) return true;
+  const user = (log.user_full_name || log.user_email || "").toLowerCase();
+  const action = (actionLabels[log.action] || log.action).toLowerCase();
+  const entity = (entityLabels[log.entity_type] || log.entity_type).toLowerCase();
+  const details = (log.details || "").toLowerCase();
+  return user.includes(searchLower) || action.includes(searchLower) || entity.includes(searchLower) || details.includes(searchLower);
+}
+
+function startOfDay(dateStr: string): Date {
+  const d = new Date(dateStr + "T00:00:00");
+  return isNaN(d.getTime()) ? new Date(0) : d;
+}
+
+function endOfDay(dateStr: string): Date {
+  const d = new Date(dateStr + "T23:59:59.999");
+  return isNaN(d.getTime()) ? new Date(8640000000000000) : d;
+}
+
+const selectClass = "px-3 py-2 rounded-lg border border-gray-300 text-gray-900 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary min-w-[140px]";
+
 export default function TeamActivity() {
   const { hasPermission } = useAuth();
   const isAdmin = hasPermission("admin:all");
@@ -66,6 +87,11 @@ export default function TeamActivity() {
   const [loading, setLoading] = useState(true);
   const [filterReportId, setFilterReportId] = useState<string | null>(null);
   const [filterEntityType, setFilterEntityType] = useState<string | null>(null);
+  const [filterAction, setFilterAction] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [datePreset, setDatePreset] = useState<"" | "24h" | "7d" | "30d">("");
 
   const load = async () => {
     setLoading(true);
@@ -75,7 +101,8 @@ export default function TeamActivity() {
         listTeamActivity({
           report_id: filterReportId || undefined,
           entity_type: filterEntityType || undefined,
-          limit: 200,
+          action: filterAction || undefined,
+          limit: 300,
         }),
       ]);
       setReports(reportsList);
@@ -91,66 +118,163 @@ export default function TeamActivity() {
 
   useEffect(() => {
     load();
-  }, [filterReportId, filterEntityType]);
+  }, [filterReportId, filterEntityType, filterAction]);
+
+  const searchLower = search.trim().toLowerCase();
+
+  const filteredActivity = useMemo(() => {
+    let list = activity;
+    if (searchLower) list = list.filter((log) => matchesSearch(log, searchLower, ACTION_LABELS, ENTITY_LABELS));
+    if (datePreset === "24h") {
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      list = list.filter((log) => new Date(log.created_at).getTime() >= cutoff);
+    } else if (datePreset === "7d") {
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      list = list.filter((log) => new Date(log.created_at).getTime() >= cutoff);
+    } else if (datePreset === "30d") {
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      list = list.filter((log) => new Date(log.created_at).getTime() >= cutoff);
+    } else {
+      if (dateFrom) list = list.filter((log) => new Date(log.created_at).getTime() >= startOfDay(dateFrom).getTime());
+      if (dateTo) list = list.filter((log) => new Date(log.created_at).getTime() <= endOfDay(dateTo).getTime());
+    }
+    return list;
+  }, [activity, searchLower, dateFrom, dateTo, datePreset]);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-white">Team activity</h1>
-      </div>
-      <p className="text-slate-400 text-sm mb-4">
+      <p className="text-gray-600 text-sm mb-4">
         {isAdmin
           ? "Audit log of all user actions (create, update, delete). Viewing or opening a page does not generate logs."
           : "Activity of team members who report to you. Only create, update, and delete actions are logged; viewing does not."}
       </p>
 
       {loading ? (
-        <p className="text-slate-400">Loading...</p>
+        <p className="text-gray-500">Loading...</p>
       ) : !isAdmin && reports.length === 0 ? (
-        <div className="rounded-xl border border-slate-700 p-6 text-center text-slate-400">
+        <div className="rounded-xl bg-white border border-gray-200 p-6 text-center text-gray-600">
           You have no direct reports, or you don’t have permission to view team activity. Assign team members a
           manager in Admin → Users.
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap gap-2 mb-4 items-center">
-            <span className="text-slate-400 text-sm mr-2">User:</span>
-            <button
-              onClick={() => setFilterReportId(null)}
-              className={`px-3 py-1.5 rounded-lg text-sm ${filterReportId === null ? "bg-primary text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`}
-            >
-              All
-            </button>
-            {reports.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => setFilterReportId(r.id)}
-                className={`px-3 py-1.5 rounded-lg text-sm ${filterReportId === r.id ? "bg-primary text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`}
-              >
-                {r.full_name || r.email}
-              </button>
-            ))}
-            <span className="text-slate-400 text-sm ml-4 mr-2">Entity:</span>
-            <button
-              onClick={() => setFilterEntityType(null)}
-              className={`px-3 py-1.5 rounded-lg text-sm ${filterEntityType === null ? "bg-primary text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`}
-            >
-              All
-            </button>
-            {Object.entries(ENTITY_LABELS).map(([value, label]) => (
-              <button
-                key={value}
-                onClick={() => setFilterEntityType(value)}
-                className={`px-3 py-1.5 rounded-lg text-sm ${filterEntityType === value ? "bg-primary text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-4 mb-4 space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search user, action, entity, details..."
+                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label htmlFor="user-filter" className="text-sm font-medium text-gray-700 whitespace-nowrap">User</label>
+                <select
+                  id="user-filter"
+                  value={filterReportId ?? ""}
+                  onChange={(e) => setFilterReportId(e.target.value || null)}
+                  className={selectClass}
+                >
+                  <option value="">All users</option>
+                  {reports.map((r) => (
+                    <option key={r.id} value={r.id}>{r.full_name || r.email}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label htmlFor="entity-filter" className="text-sm font-medium text-gray-700 whitespace-nowrap">Entity</label>
+                <select
+                  id="entity-filter"
+                  value={filterEntityType ?? ""}
+                  onChange={(e) => setFilterEntityType(e.target.value || null)}
+                  className={selectClass}
+                >
+                  <option value="">All entities</option>
+                  {Object.entries(ENTITY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label htmlFor="action-filter" className="text-sm font-medium text-gray-700 whitespace-nowrap">Action</label>
+                <select
+                  id="action-filter"
+                  value={filterAction ?? ""}
+                  onChange={(e) => setFilterAction(e.target.value || null)}
+                  className={selectClass}
+                >
+                  <option value="">All actions</option>
+                  {Object.entries(ACTION_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
+              <span className="text-sm font-medium text-gray-700">Date range</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setDatePreset("24h"); setDateFrom(""); setDateTo(""); }}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${datePreset === "24h" ? "bg-primary text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+                >
+                  Last 24 hours
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDatePreset("7d"); setDateFrom(""); setDateTo(""); }}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${datePreset === "7d" ? "bg-primary text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+                >
+                  Last 7 days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDatePreset("30d"); setDateFrom(""); setDateTo(""); }}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${datePreset === "30d" ? "bg-primary text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+                >
+                  Last 30 days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDatePreset(""); setDateFrom(""); setDateTo(""); }}
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
+                >
+                  Clear
+                </button>
+              </div>
+              <span className="text-gray-400 text-sm">or</span>
+              <div className="flex items-center gap-2">
+                <label htmlFor="date-from" className="text-sm text-gray-600">From</label>
+                <input
+                  id="date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => { setDateFrom(e.target.value); setDatePreset(""); }}
+                  className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+                <label htmlFor="date-to" className="text-sm text-gray-600">To</label>
+                <input
+                  id="date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => { setDateTo(e.target.value); setDatePreset(""); }}
+                  className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="rounded-xl border border-slate-700 overflow-hidden">
+          <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
             <table className="w-full">
-              <thead className="bg-slate-800 text-left text-sm text-slate-400">
+              <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
                 <tr>
                   <th className="px-4 py-3">Time</th>
                   <th className="px-4 py-3">User</th>
@@ -159,30 +283,31 @@ export default function TeamActivity() {
                   <th className="px-4 py-3">Details</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700">
-                {activity.length === 0 ? (
+              <tbody className="divide-y divide-gray-100">
+                {filteredActivity.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
-                      No audit entries yet. Create, update, or delete tasks, leads, projects, clients, meetings,
-                      invoices, or other items to see them here.
+                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                      {searchLower || datePreset || dateFrom || dateTo
+                        ? "No entries match your filters. Try different filters or clear search and date range."
+                        : "No audit entries yet. Create, update, or delete tasks, leads, projects, clients, meetings, invoices, or other items to see them here."}
                     </td>
                   </tr>
                 ) : (
-                  activity.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-800/50">
-                      <td className="px-4 py-3 text-slate-400 text-sm whitespace-nowrap">
+                  filteredActivity.map((log) => (
+                    <tr key={log.id} className="hover:bg-gray-50/80">
+                      <td className="px-4 py-3 text-gray-500 text-sm whitespace-nowrap">
                         {formatDate(log.created_at)}
                       </td>
-                      <td className="px-4 py-3 text-slate-300">
+                      <td className="px-4 py-3 text-gray-900 font-medium">
                         {log.user_full_name || log.user_email}
                       </td>
-                      <td className="px-4 py-3 text-slate-300">
+                      <td className="px-4 py-3 text-gray-700">
                         {ACTION_LABELS[log.action] || log.action}
                       </td>
-                      <td className="px-4 py-3 text-slate-300">
+                      <td className="px-4 py-3 text-gray-600">
                         {ENTITY_LABELS[log.entity_type] || log.entity_type}
                       </td>
-                      <td className="px-4 py-3 text-slate-300">{log.details || "—"}</td>
+                      <td className="px-4 py-3 text-gray-600">{log.details || "—"}</td>
                     </tr>
                   ))
                 )}

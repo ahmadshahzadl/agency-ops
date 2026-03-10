@@ -122,66 +122,71 @@ export default function TasksPage() {
   const projectMap = Object.fromEntries(projectNames.map((p) => [p.id, p.name]));
   const assigneeMap = Object.fromEntries(assignableUsers.map((u) => [u.id, u.full_name || u.email]));
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-white">Tasks</h1>
-        {canWrite && (
-          <button
-            onClick={openNew}
-            className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover"
-          >
-            Add task
-          </button>
-        )}
-      </div>
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary";
+  const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
-      <div className="mb-4">
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <select
           value={projectFilter}
           onChange={(e) => setProjectFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-white"
+          className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
         >
           <option value="">All projects</option>
           {projectNames.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
+        {canWrite && (
+          <button
+            onClick={openNew}
+            className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover shadow-sm"
+          >
+            Add task
+          </button>
+        )}
       </div>
 
       {loading ? (
-        <p className="text-slate-400">Loading...</p>
+        <p className="text-gray-500">Loading...</p>
       ) : (
-        <div className="rounded-xl border border-slate-700 overflow-hidden">
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
           <table className="w-full">
-            <thead className="bg-slate-800 text-left text-sm text-slate-400">
+            <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
                 <th className="px-4 py-3">Title</th>
                 <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Assignee</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Priority</th>
-                {canWrite && <th className="px-4 py-3 w-24"></th>}
+                {canWrite && <th className="px-4 py-3 w-24 text-right">Actions</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700">
+            <tbody className="divide-y divide-gray-100">
               {items.map((t) => (
-                <tr key={t.id} className="hover:bg-slate-800/50">
-                  <td className="px-4 py-3 text-white">{t.title}</td>
-                  <td className="px-4 py-3 text-slate-300">{t.project_id ? (projectMap[t.project_id] ?? "—") : "—"}</td>
-                  <td className="px-4 py-3 text-slate-300">{t.assignee_id ? (assigneeMap[t.assignee_id] ?? "—") : "—"}</td>
-                  <td className="px-4 py-3 text-slate-300">{t.status}</td>
-                  <td className="px-4 py-3 text-slate-300">{t.priority}</td>
+                <tr key={t.id} className="hover:bg-gray-50/80">
+                  <td className="px-4 py-3 font-medium text-gray-900">{t.title}</td>
+                  <td className="px-4 py-3 text-gray-600">{t.project_id ? (projectMap[t.project_id] ?? "—") : "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">{t.assignee_id ? (assigneeMap[t.assignee_id] ?? "—") : "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">{t.status}</td>
+                  <td className="px-4 py-3 text-gray-600">{t.priority}</td>
                   {canWrite && (
-                    <td className="px-4 py-3">
-                      <button onClick={() => openEdit(t)} className="text-primary hover:underline mr-2">
-                        Edit
-                      </button>
-                      {canManageTasks && (
-                        <button onClick={() => remove(t.id)} className="text-red-400 hover:underline">
-                          Delete
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" onClick={() => openEdit(t)} title="Edit" className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
                         </button>
-                      )}
+                        {canManageTasks && (
+                          <button type="button" onClick={() => remove(t.id)} title="Delete" className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition-colors">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -192,27 +197,28 @@ export default function TasksPage() {
       )}
 
       {modal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-10" onClick={() => setModal(null)}>
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-white mb-4">{modal === "new" ? "New task" : "Edit task"}</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-10" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{modal === "new" ? "New task" : "Edit task"}</h2>
             <div className="space-y-3">
               {(modal === "new" || canManageTasks) && (
                 <input
                   placeholder="Title *"
                   value={form.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                  className={`${inputClass} placeholder-gray-500`}
                   required
                 />
               )}
               {(modal === "new" || canManageTasks) && (
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Assign to</label>
+                  <label className={labelClass}>Assign to</label>
                   <SearchableUserSelect
                     users={assignableUsers}
                     value={form.assignee_id}
                     onChange={(id) => setForm((f) => ({ ...f, assignee_id: id }))}
                     placeholder="Search and select user..."
+                    variant="light"
                   />
                 </div>
               )}
@@ -220,44 +226,27 @@ export default function TasksPage() {
                 placeholder="Description"
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className={`${inputClass} placeholder-gray-500`}
                 rows={2}
               />
               <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                  className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-                >
+                <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className={inputClass}>
                   <option value="todo">Todo</option>
                   <option value="in_progress">In progress</option>
                   <option value="review">Review</option>
                   <option value="done">Done</option>
                 </select>
-                <select
-                  value={form.priority}
-                  onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                  className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-                >
+                <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} className={inputClass}>
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
               </div>
-              <input
-                type="date"
-                value={form.due_date}
-                onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-              />
+              <input type="date" value={form.due_date} onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))} className={inputClass} />
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-slate-400 hover:text-white">
-                Cancel
-              </button>
-              <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium">
-                Save
-              </button>
+              <button onClick={() => setModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">Cancel</button>
+              <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">Save</button>
             </div>
           </div>
         </div>

@@ -110,11 +110,12 @@ export default function MeetingsPage() {
   };
 
   const projectMap = Object.fromEntries(projectNames.map((p) => [p.id, p.name]));
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary";
+  const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-white">Meetings</h1>
+      <div className="flex items-center justify-end mb-4">
         {canWrite && (
           <button
             onClick={openNew}
@@ -126,34 +127,40 @@ export default function MeetingsPage() {
       </div>
 
       {loading ? (
-        <p className="text-slate-400">Loading...</p>
+        <p className="text-gray-500">Loading...</p>
       ) : (
-        <div className="rounded-xl border border-slate-700 overflow-hidden">
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
           <table className="w-full">
-            <thead className="bg-slate-800 text-left text-sm text-slate-400">
+            <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
                 <th className="px-4 py-3">Title</th>
                 <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Start</th>
                 <th className="px-4 py-3">End</th>
-                {canWrite && <th className="px-4 py-3 w-24"></th>}
+                {canWrite && <th className="px-4 py-3 w-24 text-right">Actions</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700">
+            <tbody className="divide-y divide-gray-100">
               {items.map((m) => (
-                <tr key={m.id} className="hover:bg-slate-800/50">
-                  <td className="px-4 py-3 text-white">{m.title}</td>
-                  <td className="px-4 py-3 text-slate-300">{m.project_id ? projectMap[m.project_id] || m.project_id : "—"}</td>
-                  <td className="px-4 py-3 text-slate-300">{new Date(m.start_at).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-slate-300">{new Date(m.end_at).toLocaleString()}</td>
+                <tr key={m.id} className="hover:bg-gray-50/80">
+                  <td className="px-4 py-3 font-medium text-gray-900">{m.title}</td>
+                  <td className="px-4 py-3 text-gray-600">{m.project_id ? projectMap[m.project_id] || m.project_id : "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">{new Date(m.start_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-600">{new Date(m.end_at).toLocaleString()}</td>
                   {canWrite && (
-                    <td className="px-4 py-3">
-                      <button onClick={() => openEdit(m)} className="text-primary hover:underline mr-2">
-                        Edit
-                      </button>
-                      <button onClick={() => remove(m.id)} className="text-red-400 hover:underline">
-                        Delete
-                      </button>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" onClick={() => openEdit(m)} title="Edit" className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                        <button type="button" onClick={() => remove(m.id)} title="Delete" className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -164,62 +171,63 @@ export default function MeetingsPage() {
       )}
 
       {modal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-10" onClick={() => setModal(null)}>
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-white mb-4">{modal === "new" ? "New meeting" : "Edit meeting"}</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-10" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{modal === "new" ? "New meeting" : "Edit meeting"}</h2>
             <div className="space-y-3">
               <input
                 placeholder="Title"
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className={inputClass}
               />
               <textarea
                 placeholder="Description"
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className={inputClass}
                 rows={2}
               />
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Start</label>
+                <label className={labelClass}>Start</label>
                 <input
                   type="datetime-local"
                   value={form.start_at}
                   onChange={(e) => setForm((f) => ({ ...f, start_at: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                  className={inputClass}
                 />
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-1">End</label>
+                <label className={labelClass}>End</label>
                 <input
                   type="datetime-local"
                   value={form.end_at}
                   onChange={(e) => setForm((f) => ({ ...f, end_at: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                  className={inputClass}
                 />
               </div>
               <input
                 placeholder="Location"
                 value={form.location}
                 onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className={inputClass}
               />
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Assign attendees</label>
+                <label className={labelClass}>Assign attendees</label>
                 <SearchableUserMultiSelect
                   users={assignableUsers}
                   value={form.attendee_ids}
                   onChange={(ids) => setForm((f) => ({ ...f, attendee_ids: ids }))}
                   placeholder="Search and add attendees..."
+                  variant="light"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-slate-400 hover:text-white">
+              <button onClick={() => setModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">
                 Cancel
               </button>
-              <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium">
+              <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">
                 Save
               </button>
             </div>

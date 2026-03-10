@@ -186,13 +186,12 @@ export default function Leads() {
   const teamMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-white">Leads</h1>
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
         {canWrite && (
           <button
             onClick={openNew}
-            className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover"
+            className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover shadow-sm"
           >
             Add lead
           </button>
@@ -200,11 +199,11 @@ export default function Leads() {
       </div>
 
       {loading ? (
-        <p className="text-slate-400">Loading...</p>
+        <p className="text-gray-500">Loading...</p>
       ) : (
-        <div className="rounded-xl border border-slate-700 overflow-hidden">
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
           <table className="w-full">
-            <thead className="bg-slate-800 text-left text-sm text-slate-400">
+            <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
                 <th className="px-4 py-3">Company</th>
                 <th className="px-4 py-3">Contact</th>
@@ -213,54 +212,91 @@ export default function Leads() {
                 <th className="px-4 py-3">Submitted by</th>
                 <th className="px-4 py-3">Assigned to</th>
                 <th className="px-4 py-3">Converted</th>
-                {canWrite && <th className="px-4 py-3 w-40"></th>}
+                {canWrite && <th className="px-4 py-3 w-32 text-right">Actions</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700">
+            <tbody className="divide-y divide-gray-100">
               {items.map((l) => (
-                <tr key={l.id} className="hover:bg-slate-800/50">
-                  <td className="px-4 py-3 text-white">{l.company_name}</td>
-                  <td className="px-4 py-3 text-slate-300">
+                <tr key={l.id} className="hover:bg-gray-50/80">
+                  <td className="px-4 py-3 font-medium text-gray-900">{l.company_name}</td>
+                  <td className="px-4 py-3 text-gray-600">
                     {l.contact_name || l.contact_email || "—"}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">{l.status}</td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-gray-600">{l.status}</td>
+                  <td className="px-4 py-3 text-gray-600">
                     {l.assigned_team_id ? teamMap[l.assigned_team_id] || "—" : "—"}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-gray-600">
                     {l.created_by_name ?? "—"}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-gray-600">
                     {l.assigned_to_name ?? "—"}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-gray-600">
                     {l.converted_to_client_id ? "Yes" : "—"}
                   </td>
                   {(memberCanEdit(l) || managementCanEdit(l)) && (
-                    <td className="px-4 py-3">
-                      <button onClick={() => openEdit(l)} className="text-primary hover:underline mr-2">
-                        Edit
-                      </button>
-                      {!l.converted_to_client_id && (
-                        <>
-                          {memberCanEdit(l) && (
-                            <button onClick={() => handleMarkAsConverted(l)} className="text-green-400 hover:underline mr-2">
-                              Mark as converted
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(l)}
+                          title="Edit"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                        {!l.converted_to_client_id && (
+                          <>
+                            {memberCanEdit(l) && (
+                              <button
+                                type="button"
+                                onClick={() => handleMarkAsConverted(l)}
+                                title="Mark as converted"
+                                className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-600 hover:bg-gray-100 transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </button>
+                            )}
+                            {managementCanEdit(l) && (
+                              <button
+                                type="button"
+                                onClick={() => openConvert(l)}
+                                title="Create client & project"
+                                className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-600 hover:bg-gray-100 transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                                </svg>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setMarkLostModal(l)}
+                              title="Mark lost/closed"
+                              className="p-1.5 rounded-lg text-gray-500 hover:text-amber-600 hover:bg-gray-100 transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                              </svg>
                             </button>
-                          )}
-                          {managementCanEdit(l) && (
-                            <button onClick={() => openConvert(l)} className="text-green-400 hover:underline mr-2">
-                              Create client & project
-                            </button>
-                          )}
-                          <button onClick={() => setMarkLostModal(l)} className="text-amber-400 hover:underline mr-2">
-                            Mark lost/closed
-                          </button>
-                        </>
-                      )}
-                      <button onClick={() => remove(l.id)} className="text-red-400 hover:underline">
-                        Delete
-                      </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => remove(l.id)}
+                          title="Delete"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -272,18 +308,18 @@ export default function Leads() {
 
       {modal && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-10"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-10"
           onClick={() => setModal(null)}
         >
           <div
-            className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold text-white mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
               {modal === "new" ? "New lead" : "Edit lead"}
             </h2>
             {modal !== "new" && (
-              <div className="flex flex-wrap gap-4 text-sm text-slate-400 mb-3">
+              <div className="flex flex-wrap gap-4 text-sm text-gray-500 mb-3">
                 {(modal as Lead).created_by_name && (
                   <span>Submitted by: {(modal as Lead).created_by_name}</span>
                 )}
@@ -297,37 +333,37 @@ export default function Leads() {
                 placeholder="Company name *"
                 value={form.company_name}
                 onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
               <input
                 placeholder="Contact name"
                 value={form.contact_name}
                 onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
               <input
                 placeholder="Contact email"
                 type="email"
                 value={form.contact_email}
                 onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
               <input
                 placeholder="Contact phone"
                 value={form.contact_phone}
                 onChange={(e) => setForm((f) => ({ ...f, contact_phone: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
               <input
                 placeholder="Source (e.g. website, referral)"
                 value={form.source}
                 onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
               <select
                 value={form.status}
                 onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="new">New</option>
                 <option value="contacted">Contacted</option>
@@ -338,11 +374,11 @@ export default function Leads() {
                 <option value="dead">Dead</option>
               </select>
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Assigned team</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assigned team</label>
                 <select
                   value={form.assigned_team_id ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, assigned_team_id: e.target.value || null }))}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="">— None —</option>
                   {teams.map((t) => (
@@ -354,15 +390,15 @@ export default function Leads() {
                 placeholder="Notes"
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 rows={2}
               />
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-slate-400 hover:text-white">
+              <button onClick={() => setModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">
                 Cancel
               </button>
-              <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium">
+              <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">
                 Save
               </button>
             </div>
@@ -372,24 +408,24 @@ export default function Leads() {
 
       {convertModal && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-10"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-10"
           onClick={() => setConvertModal(null)}
         >
           <div
-            className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md"
+            className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold text-white mb-2">Convert to client</h2>
-            <p className="text-sm text-slate-400 mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Convert to client</h2>
+            <p className="text-sm text-gray-600 mb-4">
               Create a client and optional project from &quot;{convertModal.company_name}&quot;.
             </p>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Client team</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client team</label>
                 <select
                   value={convertForm.client_team_id ?? ""}
                   onChange={(e) => setConvertForm((f) => ({ ...f, client_team_id: e.target.value || null }))}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="">— Use lead team —</option>
                   {teams.map((t) => (
@@ -397,12 +433,12 @@ export default function Leads() {
                   ))}
                 </select>
               </div>
-              <label className="flex items-center gap-2 text-slate-300">
+              <label className="flex items-center gap-2 text-gray-700">
                 <input
                   type="checkbox"
                   checked={convertForm.create_project}
                   onChange={(e) => setConvertForm((f) => ({ ...f, create_project: e.target.checked }))}
-                  className="rounded"
+                  className="rounded border-gray-300 text-primary focus:ring-primary/20"
                 />
                 Create project
               </label>
@@ -412,14 +448,14 @@ export default function Leads() {
                     placeholder="Project name"
                     value={convertForm.project_name}
                     onChange={(e) => setConvertForm((f) => ({ ...f, project_name: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   />
                   <div>
-                    <label className="block text-sm text-slate-400 mb-1">Pipeline stage</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pipeline stage</label>
                     <select
                       value={convertForm.project_pipeline_stage}
                       onChange={(e) => setConvertForm((f) => ({ ...f, project_pipeline_stage: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     >
                       {PIPELINE_STAGES.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -427,11 +463,11 @@ export default function Leads() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm text-slate-400 mb-1">Assigned team (owner of this stage)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Assigned team (owner of this stage)</label>
                     <select
                       value={convertForm.project_assigned_team_id ?? ""}
                       onChange={(e) => setConvertForm((f) => ({ ...f, project_assigned_team_id: e.target.value || null }))}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     >
                       <option value="">— None —</option>
                       {teams.map((t) => (
@@ -443,10 +479,10 @@ export default function Leads() {
               )}
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setConvertModal(null)} className="px-4 py-2 text-slate-400 hover:text-white">
+              <button onClick={() => setConvertModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">
                 Cancel
               </button>
-              <button onClick={handleConvert} className="px-4 py-2 rounded-lg bg-primary text-white font-medium">
+              <button onClick={handleConvert} className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">
                 Convert
               </button>
             </div>
@@ -456,39 +492,39 @@ export default function Leads() {
 
       {markLostModal && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-10"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-10"
           onClick={() => setMarkLostModal(null)}
         >
           <div
-            className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-sm"
+            className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 w-full max-w-sm"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold text-white mb-2">Mark lead as not won</h2>
-            <p className="text-sm text-slate-400 mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Mark lead as not won</h2>
+            <p className="text-sm text-gray-600 mb-4">
               &quot;{markLostModal.company_name}&quot; — choose outcome:
             </p>
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => handleMarkLost("lost")}
-                className="px-4 py-2 rounded-lg bg-slate-600 text-white hover:bg-slate-500"
+                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200 font-medium"
               >
                 Lost
               </button>
               <button
                 onClick={() => handleMarkLost("closed")}
-                className="px-4 py-2 rounded-lg bg-slate-600 text-white hover:bg-slate-500"
+                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200 font-medium"
               >
                 Closed
               </button>
               <button
                 onClick={() => handleMarkLost("dead")}
-                className="px-4 py-2 rounded-lg bg-slate-600 text-white hover:bg-slate-500"
+                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200 font-medium"
               >
                 Dead
               </button>
             </div>
             <div className="mt-4">
-              <button onClick={() => setMarkLostModal(null)} className="px-4 py-2 text-slate-400 hover:text-white">
+              <button onClick={() => setMarkLostModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">
                 Cancel
               </button>
             </div>

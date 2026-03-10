@@ -87,13 +87,12 @@ export default function Clients() {
   const canWrite = hasPermission("clients:write");
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-white">Clients</h1>
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
         {canWrite && (
           <button
             onClick={openNew}
-            className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover"
+            className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover shadow-sm"
           >
             Add client
           </button>
@@ -101,38 +100,54 @@ export default function Clients() {
       </div>
 
       {loading ? (
-        <p className="text-slate-400">Loading...</p>
+        <p className="text-gray-500">Loading...</p>
       ) : (
-        <div className="rounded-xl border border-slate-700 overflow-hidden">
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
           <table className="w-full">
-            <thead className="bg-slate-800 text-left text-sm text-slate-400">
+            <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Phone</th>
                 {isAdmin && <th className="px-4 py-3">Team</th>}
-                {canWrite && <th className="px-4 py-3 w-24"></th>}
+                {canWrite && <th className="px-4 py-3 w-24 text-right">Actions</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700">
+            <tbody className="divide-y divide-gray-100">
               {items.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-800/50">
-                  <td className="px-4 py-3 text-white">{c.name}</td>
-                  <td className="px-4 py-3 text-slate-300">{c.contact_email || "—"}</td>
-                  <td className="px-4 py-3 text-slate-300">{c.contact_phone || "—"}</td>
+                <tr key={c.id} className="hover:bg-gray-50/80">
+                  <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
+                  <td className="px-4 py-3 text-gray-600">{c.contact_email || "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">{c.contact_phone || "—"}</td>
                   {isAdmin && (
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className="px-4 py-3 text-gray-600">
                       {c.team_id ? teams.find((t) => t.id === c.team_id)?.name ?? "—" : "—"}
                     </td>
                   )}
                   {canWrite && (
-                    <td className="px-4 py-3">
-                      <button onClick={() => openEdit(c)} className="text-primary hover:underline mr-2">
-                        Edit
-                      </button>
-                      <button onClick={() => remove(c.id)} className="text-red-400 hover:underline">
-                        Delete
-                      </button>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(c)}
+                          title="Edit"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => remove(c.id)}
+                          title="Delete"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -143,43 +158,43 @@ export default function Clients() {
       )}
 
       {modal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-10" onClick={() => setModal(null)}>
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-white mb-4">{modal === "new" ? "New client" : "Edit client"}</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-10" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{modal === "new" ? "New client" : "Edit client"}</h2>
             <div className="space-y-3">
               <input
                 placeholder="Name"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
               <input
                 placeholder="Email"
                 type="email"
                 value={form.contact_email}
                 onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
               <input
                 placeholder="Phone"
                 value={form.contact_phone}
                 onChange={(e) => setForm((f) => ({ ...f, contact_phone: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
               <textarea
                 placeholder="Address"
                 value={form.address}
                 onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 rows={2}
               />
               {isAdmin && (
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Team</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Team</label>
                   <select
                     value={form.team_id ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, team_id: e.target.value || null }))}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="">— No team —</option>
                     {teams.map((t) => (
@@ -192,10 +207,10 @@ export default function Clients() {
               )}
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-slate-400 hover:text-white">
+              <button onClick={() => setModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">
                 Cancel
               </button>
-              <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium">
+              <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">
                 Save
               </button>
             </div>

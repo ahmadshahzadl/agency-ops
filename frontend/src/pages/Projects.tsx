@@ -113,14 +113,16 @@ export default function Projects() {
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c.name]));
   const teamMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
 
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary";
+  const labelClass = "block text-sm font-medium text-gray-700 mb-1";
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-white">Projects</h1>
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
         {canWrite && (
           <button
             onClick={openNew}
-            className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover"
+            className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover shadow-sm"
           >
             Add project
           </button>
@@ -128,11 +130,11 @@ export default function Projects() {
       </div>
 
       {loading ? (
-        <p className="text-slate-400">Loading...</p>
+        <p className="text-gray-500">Loading...</p>
       ) : (
-        <div className="rounded-xl border border-slate-700 overflow-hidden">
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
           <table className="w-full">
-            <thead className="bg-slate-800 text-left text-sm text-slate-400">
+            <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Client</th>
@@ -140,39 +142,45 @@ export default function Projects() {
                 <th className="px-4 py-3">Stage</th>
                 <th className="px-4 py-3">Progress</th>
                 <th className="px-4 py-3">Assigned team</th>
-                {canWrite && <th className="px-4 py-3 w-24"></th>}
+                {canWrite && <th className="px-4 py-3 w-24 text-right">Actions</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700">
+            <tbody className="divide-y divide-gray-100">
               {items.map((p) => {
                 const total = p.task_count ?? 0;
                 const done = p.task_done_count ?? 0;
                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                 return (
-                <tr key={p.id} className="hover:bg-slate-800/50">
-                  <td className="px-4 py-3 text-white">{p.name}</td>
-                  <td className="px-4 py-3 text-slate-300">{p.client_name ?? clientMap[p.client_id] ?? p.client_id}</td>
-                  <td className="px-4 py-3 text-slate-300">{p.status}</td>
-                  <td className="px-4 py-3 text-slate-300">{p.pipeline_stage || "—"}</td>
-                  <td className="px-4 py-3 text-slate-300">
+                <tr key={p.id} className="hover:bg-gray-50/80">
+                  <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
+                  <td className="px-4 py-3 text-gray-600">{p.client_name ?? clientMap[p.client_id] ?? p.client_id}</td>
+                  <td className="px-4 py-3 text-gray-600">{p.status}</td>
+                  <td className="px-4 py-3 text-gray-600">{p.pipeline_stage || "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">
                     {total > 0 ? (
                       <span className="flex items-center gap-2">
-                        <span className="w-16 bg-slate-700 rounded-full h-2 block overflow-hidden">
-                          <span className="bg-primary h-full block" style={{ width: `${pct}%` }} />
+                        <span className="w-16 bg-gray-200 rounded-full h-2 block overflow-hidden">
+                          <span className="bg-primary h-full block rounded-full transition-all" style={{ width: `${pct}%` }} />
                         </span>
                         <span>{done}/{total} ({pct}%)</span>
                       </span>
                     ) : "—"}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">{p.assigned_team_id ? teamMap[p.assigned_team_id] || "—" : "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">{p.assigned_team_id ? teamMap[p.assigned_team_id] || "—" : "—"}</td>
                   {canWrite && (
-                    <td className="px-4 py-3">
-                      <button onClick={() => openEdit(p)} className="text-primary hover:underline mr-2">
-                        Edit
-                      </button>
-                      <button onClick={() => remove(p.id)} className="text-red-400 hover:underline">
-                        Delete
-                      </button>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" onClick={() => openEdit(p)} title="Edit" className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                        <button type="button" onClick={() => remove(p.id)} title="Delete" className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -184,64 +192,37 @@ export default function Projects() {
       )}
 
       {modal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-10" onClick={() => setModal(null)}>
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-white mb-4">{modal === "new" ? "New project" : "Edit project"}</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-10" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{modal === "new" ? "New project" : "Edit project"}</h2>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Client</label>
-                <select
-                  value={form.client_id}
-                  onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-                >
+                <label className={labelClass}>Client</label>
+                <select value={form.client_id} onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))} className={inputClass}>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
               </div>
-              <input
-                placeholder="Name"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-              />
-              <textarea
-                placeholder="Description"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-                rows={2}
-              />
-              <select
-                value={form.status}
-                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-              >
+              <input placeholder="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputClass} />
+              <textarea placeholder="Description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={inputClass} rows={2} />
+              <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className={inputClass}>
                 <option value="draft">Draft</option>
                 <option value="active">Active</option>
                 <option value="on_hold">On hold</option>
                 <option value="completed">Completed</option>
               </select>
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Pipeline stage</label>
-                <select
-                  value={form.pipeline_stage}
-                  onChange={(e) => setForm((f) => ({ ...f, pipeline_stage: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-                >
+                <label className={labelClass}>Pipeline stage</label>
+                <select value={form.pipeline_stage} onChange={(e) => setForm((f) => ({ ...f, pipeline_stage: e.target.value }))} className={inputClass}>
                   {PIPELINE_STAGES.map((s) => (
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Assigned team (owner of this stage)</label>
-                <select
-                  value={form.assigned_team_id ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, assigned_team_id: e.target.value || null }))}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-                >
+                <label className={labelClass}>Assigned team (owner of this stage)</label>
+                <select value={form.assigned_team_id ?? ""} onChange={(e) => setForm((f) => ({ ...f, assigned_team_id: e.target.value || null }))} className={inputClass}>
                   <option value="">— None —</option>
                   {teams.map((t) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
@@ -249,29 +230,13 @@ export default function Projects() {
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="date"
-                  placeholder="Start"
-                  value={form.start_date}
-                  onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
-                  className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-                />
-                <input
-                  type="date"
-                  placeholder="End"
-                  value={form.end_date}
-                  onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
-                  className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white"
-                />
+                <input type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} className={inputClass} />
+                <input type="date" value={form.end_date} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))} className={inputClass} />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-slate-400 hover:text-white">
-                Cancel
-              </button>
-              <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium">
-                Save
-              </button>
+              <button onClick={() => setModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">Cancel</button>
+              <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">Save</button>
             </div>
           </div>
         </div>
