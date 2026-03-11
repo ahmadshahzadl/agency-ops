@@ -22,11 +22,17 @@ const PIPELINE_STAGES = [
   "handover",
   "support",
 ];
+const LEAD_STATUS_OPTIONS = ["new", "contacted", "qualified", "converted", "lost", "closed", "dead"];
 
 export default function Leads() {
   const [items, setItems] = useState<Lead[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [localSearch, setLocalSearch] = useState("");
   const [modal, setModal] = useState<"new" | Lead | null>(null);
   const [convertModal, setConvertModal] = useState<Lead | null>(null);
   const [markLostModal, setMarkLostModal] = useState<Lead | null>(null);
@@ -55,7 +61,10 @@ export default function Leads() {
     setLoading(true);
     try {
       const teamList = isAdmin ? await listTeams() : await listMyTeams();
-      const leadList = await listLeads();
+      const params: { q?: string; status?: string } = {};
+      if (searchQuery.trim()) params.q = searchQuery.trim();
+      if (statusFilter) params.status = statusFilter;
+      const leadList = await listLeads(Object.keys(params).length ? params : undefined);
       setItems(leadList);
       setTeams(teamList);
     } finally {
@@ -64,8 +73,13 @@ export default function Leads() {
   };
 
   useEffect(() => {
+    const t = setTimeout(() => setSearchQuery(searchInput), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  useEffect(() => {
     load();
-  }, [isAdmin]);
+  }, [isAdmin, searchQuery, statusFilter]);
 
   const openNew = () => {
     setForm({
@@ -184,10 +198,64 @@ export default function Leads() {
   };
 
   const teamMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
+  const sourceOptions = Array.from(new Set(items.map((l) => l.source?.trim() || "Unknown").filter(Boolean))).sort();
+  const localLower = localSearch.trim().toLowerCase();
+  const filteredItems = items.filter((l) => {
+    if (sourceFilter && (l.source?.trim() || "Unknown") !== sourceFilter) return false;
+    if (localLower) {
+      const company = (l.company_name ?? "").toLowerCase();
+      const contact = (l.contact_name ?? "").toLowerCase();
+      const email = (l.contact_email ?? "").toLowerCase();
+      const notes = (l.notes ?? "").toLowerCase();
+      if (!company.includes(localLower) && !contact.includes(localLower) && !email.includes(localLower) && !notes.includes(localLower))
+        return false;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-sm font-medium text-gray-700">Search</label>
+          <input
+            type="search"
+            placeholder="Company, contact, email..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[200px]"
+          />
+          <label className="text-sm font-medium text-gray-700">Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[120px]"
+          >
+            <option value="">All statuses</option>
+            {LEAD_STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Source</label>
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[120px]"
+          >
+            <option value="">All sources</option>
+            {sourceOptions.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Filter list</label>
+          <input
+            type="search"
+            placeholder="Company, contact, email, notes..."
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[180px]"
+          />
+        </div>
         {canWrite && (
           <button
             onClick={openNew}
@@ -216,7 +284,7 @@ export default function Leads() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((l) => (
+              {filteredItems.map((l) => (
                 <tr key={l.id} className="hover:bg-gray-50/80">
                   <td className="px-4 py-3 font-medium text-gray-900">{l.company_name}</td>
                   <td className="px-4 py-3 text-gray-600">

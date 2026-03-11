@@ -10,6 +10,8 @@ export default function MeetingsPage() {
   const [projectNames, setProjectNames] = useState<{ id: string; name: string }[]>([]);
   const [assignableUsers, setAssignableUsers] = useState<UserList[]>([]);
   const [loading, setLoading] = useState(true);
+  const [projectFilter, setProjectFilter] = useState("");
+  const [searchText, setSearchText] = useState("");
   const [modal, setModal] = useState<"new" | Meeting | null>(null);
   const [form, setForm] = useState({
     title: "",
@@ -24,18 +26,17 @@ export default function MeetingsPage() {
   const canWrite = hasPermission("meetings:write");
 
   const load = () => {
-    listMeetings()
+    listProjectNames().then(setProjectNames).catch(() => setProjectNames([]));
+    const params = projectFilter ? { project_id: projectFilter } : undefined;
+    listMeetings(params)
       .then(setItems)
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-    listProjectNames()
-      .then(setProjectNames)
-      .catch(() => setProjectNames([]));
   };
 
   useEffect(() => {
     load();
-  }, []);
+  }, [projectFilter]);
 
   useEffect(() => {
     const onMeetingsUpdated = () => load();
@@ -110,12 +111,43 @@ export default function MeetingsPage() {
   };
 
   const projectMap = Object.fromEntries(projectNames.map((p) => [p.id, p.name]));
+  const searchLower = searchText.trim().toLowerCase();
+  const filteredItems = searchLower
+    ? items.filter(
+        (m) =>
+          (m.title ?? "").toLowerCase().includes(searchLower) ||
+          (m.description ?? "").toLowerCase().includes(searchLower) ||
+          (m.location ?? "").toLowerCase().includes(searchLower) ||
+          (m.project_id && (projectMap[m.project_id] ?? "").toLowerCase().includes(searchLower))
+      )
+    : items;
   const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
   return (
-    <div>
-      <div className="flex items-center justify-end mb-4">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-sm font-medium text-gray-700">Project</label>
+          <select
+            value={projectFilter}
+            onChange={(e) => setProjectFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[180px]"
+          >
+            <option value="">All projects</option>
+            {projectNames.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Search</label>
+          <input
+            type="search"
+            placeholder="Title, description, location..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[200px]"
+          />
+        </div>
         {canWrite && (
           <button
             onClick={openNew}
@@ -141,7 +173,7 @@ export default function MeetingsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((m) => (
+              {filteredItems.map((m) => (
                 <tr key={m.id} className="hover:bg-gray-50/80">
                   <td className="px-4 py-3 font-medium text-gray-900">{m.title}</td>
                   <td className="px-4 py-3 text-gray-600">{m.project_id ? projectMap[m.project_id] || m.project_id : "—"}</td>

@@ -5,12 +5,17 @@ import { listTeams, listMyTeams } from "@/api/teams";
 import { useAuth } from "@/store/auth";
 
 const PIPELINE_STAGES = ["lead", "discovery", "proposal", "scoping", "design", "development", "qa", "deployment", "handover", "support"];
+const PROJECT_STATUS_OPTIONS = ["draft", "active", "on_hold", "completed"];
 
 export default function Projects() {
   const [items, setItems] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clientFilter, setClientFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [searchText, setSearchText] = useState("");
+  const [pipelineStageFilter, setPipelineStageFilter] = useState("");
   const [modal, setModal] = useState<"new" | Project | null>(null);
   const [form, setForm] = useState({
     client_id: "",
@@ -28,14 +33,18 @@ export default function Projects() {
   const load = () => {
     const teamList = isAdmin ? listTeams() : listMyTeams();
     const needsClients = hasPermission("clients:read") || hasPermission("projects:write");
+    const params: { client_id?: string; status_filter?: string } = {};
+    if (clientFilter) params.client_id = clientFilter;
+    if (statusFilter) params.status_filter = statusFilter;
+    const projectPromise = listProjects(Object.keys(params).length ? params : undefined);
     if (needsClients) {
-      Promise.all([listProjects(), listClients(), teamList]).then(([p, c, t]) => {
+      Promise.all([projectPromise, listClients(), teamList]).then(([p, c, t]) => {
         setItems(p);
         setClients(c);
         setTeams(t);
       }).finally(() => setLoading(false));
     } else {
-      Promise.all([listProjects(), teamList]).then(([p, t]) => {
+      Promise.all([projectPromise, teamList]).then(([p, t]) => {
         setItems(p);
         setTeams(t);
       }).finally(() => setLoading(false));
@@ -44,7 +53,7 @@ export default function Projects() {
 
   useEffect(() => {
     load();
-  }, [isAdmin]);
+  }, [isAdmin, clientFilter, statusFilter]);
 
   const openNew = () => {
     setForm({
@@ -112,13 +121,65 @@ export default function Projects() {
   const canWrite = hasPermission("projects:write");
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c.name]));
   const teamMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
-
+  const searchLower = searchText.trim().toLowerCase();
+  const filteredItems = items.filter((p) => {
+    if (searchLower) {
+      const nameMatch = (p.name ?? "").toLowerCase().includes(searchLower);
+      const clientName = (p.client_name ?? clientMap[p.client_id] ?? "").toLowerCase();
+      if (!nameMatch && !clientName.includes(searchLower)) return false;
+    }
+    if (pipelineStageFilter && (p.pipeline_stage || "") !== pipelineStageFilter) return false;
+    return true;
+  });
   const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-sm font-medium text-gray-700">Client</label>
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[160px]"
+          >
+            <option value="">All clients</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[120px]"
+          >
+            <option value="">All statuses</option>
+            {PROJECT_STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s.replace("_", " ")}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Stage</label>
+          <select
+            value={pipelineStageFilter}
+            onChange={(e) => setPipelineStageFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[120px]"
+          >
+            <option value="">All stages</option>
+            {PIPELINE_STAGES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Search</label>
+          <input
+            type="search"
+            placeholder="Project or client name..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[180px]"
+          />
+        </div>
         {canWrite && (
           <button
             onClick={openNew}
@@ -146,7 +207,7 @@ export default function Projects() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((p) => {
+              {filteredItems.map((p) => {
                 const total = p.task_count ?? 0;
                 const done = p.task_done_count ?? 0;
                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;

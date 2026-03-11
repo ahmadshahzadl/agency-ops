@@ -7,6 +7,8 @@ export default function ExpensesPage() {
   const [items, setItems] = useState<Expense[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [projectFilter, setProjectFilter] = useState("");
+  const [searchText, setSearchText] = useState("");
   const [modal, setModal] = useState<"new" | Expense | null>(null);
   const [form, setForm] = useState({
     project_id: "",
@@ -18,15 +20,14 @@ export default function ExpensesPage() {
   const { hasPermission } = useAuth();
 
   const load = () => {
-    Promise.all([listExpenses(), listProjects()]).then(([e, p]) => {
-      setItems(e);
-      setProjects(p);
-    }).finally(() => setLoading(false));
+    listProjects().then(setProjects).catch(() => setProjects([]));
+    const params = projectFilter ? { project_id: projectFilter } : undefined;
+    listExpenses(params).then(setItems).catch(() => setItems([])).finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-  }, []);
+  }, [projectFilter]);
 
   const openNew = () => {
     setForm({
@@ -84,12 +85,43 @@ export default function ExpensesPage() {
 
   const canWrite = hasPermission("finance:write");
   const projectMap = Object.fromEntries(projects.map((p) => [p.id, p.name]));
+  const searchLower = searchText.trim().toLowerCase();
+  const filteredItems = searchLower
+    ? items.filter(
+        (e) =>
+          (e.description ?? "").toLowerCase().includes(searchLower) ||
+          String(e.amount).includes(searchText.trim()) ||
+          (e.expense_date ?? "").toLowerCase().includes(searchLower) ||
+          (e.project_id && (projectMap[e.project_id] ?? "").toLowerCase().includes(searchLower))
+      )
+    : items;
   const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
   return (
-    <div>
-      <div className="flex items-center justify-end mb-4">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-sm font-medium text-gray-700">Project</label>
+          <select
+            value={projectFilter}
+            onChange={(e) => setProjectFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[180px]"
+          >
+            <option value="">All projects</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Search</label>
+          <input
+            type="search"
+            placeholder="Description, amount, date, project..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[200px]"
+          />
+        </div>
         {canWrite && (
           <button
             onClick={openNew}
@@ -115,7 +147,7 @@ export default function ExpensesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((e) => (
+              {filteredItems.map((e) => (
                 <tr key={e.id} className="hover:bg-gray-50/80">
                   <td className="px-4 py-3 font-medium text-gray-900">{e.description}</td>
                   <td className="px-4 py-3 text-gray-600">{e.project_id ? projectMap[e.project_id] || e.project_id : "—"}</td>

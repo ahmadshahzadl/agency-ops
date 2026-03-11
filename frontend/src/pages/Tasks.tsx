@@ -11,6 +11,10 @@ export default function TasksPage() {
   const [assignableUsers, setAssignableUsers] = useState<UserList[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("");
+  const [searchText, setSearchText] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<string>("");
   const [modal, setModal] = useState<"new" | Task | null>(null);
   const [form, setForm] = useState({
     title: "",
@@ -27,24 +31,28 @@ export default function TasksPage() {
 
   const load = () => {
     listProjectNames().then(setProjectNames).catch(() => setProjectNames([]));
-    listTasks(projectFilter ? { project_id: projectFilter } : undefined)
+    const params: { project_id?: string; status_filter?: string; assignee_id?: string } = {};
+    if (projectFilter) params.project_id = projectFilter;
+    if (statusFilter) params.status_filter = statusFilter;
+    if (assigneeFilter) params.assignee_id = assigneeFilter;
+    listTasks(Object.keys(params).length ? params : undefined)
       .then(setItems)
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-  }, [projectFilter]);
+  }, [projectFilter, statusFilter, assigneeFilter]);
 
   useEffect(() => {
     const onTasksUpdated = () => load();
     window.addEventListener("ws:tasks_updated", onTasksUpdated);
     return () => window.removeEventListener("ws:tasks_updated", onTasksUpdated);
-  }, [projectFilter]);
+  }, [projectFilter, statusFilter, assigneeFilter]);
 
   useEffect(() => {
-    if (canWrite) listAssignableUsers().then(setAssignableUsers).catch(() => {});
-  }, [canWrite]);
+    listAssignableUsers().then(setAssignableUsers).catch(() => []);
+  }, []);
 
   const openNew = () => {
     setForm({
@@ -121,23 +129,76 @@ export default function TasksPage() {
 
   const projectMap = Object.fromEntries(projectNames.map((p) => [p.id, p.name]));
   const assigneeMap = Object.fromEntries(assignableUsers.map((u) => [u.id, u.full_name || u.email]));
-
+  const searchLower = searchText.trim().toLowerCase();
+  const filteredItems = items.filter((t) => {
+    if (searchLower && !(t.title ?? "").toLowerCase().includes(searchLower) && !(t.description ?? "").toLowerCase().includes(searchLower))
+      return false;
+    if (priorityFilter && t.priority !== priorityFilter) return false;
+    return true;
+  });
   const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
+
+  const taskStatusOptions = ["todo", "in_progress", "review", "done"];
+  const taskPriorityOptions = ["low", "medium", "high"];
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <select
-          value={projectFilter}
-          onChange={(e) => setProjectFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
-        >
-          <option value="">All projects</option>
-          {projectNames.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-sm font-medium text-gray-700">Project</label>
+          <select
+            value={projectFilter}
+            onChange={(e) => setProjectFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[160px]"
+          >
+            <option value="">All projects</option>
+            {projectNames.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[120px]"
+          >
+            <option value="">All statuses</option>
+            {taskStatusOptions.map((s) => (
+              <option key={s} value={s}>{s.replace("_", " ")}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Priority</label>
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[100px]"
+          >
+            <option value="">All</option>
+            {taskPriorityOptions.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Assignee</label>
+          <select
+            value={assigneeFilter}
+            onChange={(e) => setAssigneeFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[160px]"
+          >
+            <option value="">All assignees</option>
+            {assignableUsers.map((u) => (
+              <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Search</label>
+          <input
+            type="search"
+            placeholder="Title or description..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[180px]"
+          />
+        </div>
         {canWrite && (
           <button
             onClick={openNew}
@@ -164,7 +225,7 @@ export default function TasksPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((t) => (
+              {filteredItems.map((t) => (
                 <tr key={t.id} className="hover:bg-gray-50/80">
                   <td className="px-4 py-3 font-medium text-gray-900">{t.title}</td>
                   <td className="px-4 py-3 text-gray-600">{t.project_id ? (projectMap[t.project_id] ?? "—") : "—"}</td>

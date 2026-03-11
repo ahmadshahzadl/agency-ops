@@ -10,10 +10,15 @@ import {
 import { listClients, type Client } from "@/api/clients";
 import { useAuth } from "@/store/auth";
 
+const INVOICE_STATUS_OPTIONS = ["draft", "sent", "paid", "overdue"];
+
 export default function InvoicesPage() {
   const [items, setItems] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clientFilter, setClientFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [searchText, setSearchText] = useState("");
   const [modal, setModal] = useState<"new" | Invoice | null>(null);
   const [paymentModal, setPaymentModal] = useState<Invoice | null>(null);
   const [form, setForm] = useState({
@@ -30,15 +35,19 @@ export default function InvoicesPage() {
   const { hasPermission } = useAuth();
 
   const load = () => {
-    Promise.all([listInvoices(), listClients()]).then(([i, c]) => {
-      setItems(i);
-      setClients(c);
-    }).finally(() => setLoading(false));
+    listClients().then(setClients).catch(() => setClients([]));
+    const params: { client_id?: string; status_filter?: string } = {};
+    if (clientFilter) params.client_id = clientFilter;
+    if (statusFilter) params.status_filter = statusFilter;
+    listInvoices(Object.keys(params).length ? params : undefined)
+      .then(setItems)
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-  }, []);
+  }, [clientFilter, statusFilter]);
 
   const openNew = () => {
     setForm({
@@ -121,12 +130,53 @@ export default function InvoicesPage() {
 
   const canWrite = hasPermission("finance:write");
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c.name]));
+  const searchLower = searchText.trim().toLowerCase();
+  const filteredItems = searchLower
+    ? items.filter(
+        (inv) =>
+          (inv.number ?? "").toLowerCase().includes(searchLower) ||
+          String(inv.amount).includes(searchText.trim()) ||
+          (clientMap[inv.client_id] ?? "").toLowerCase().includes(searchLower)
+      )
+    : items;
   const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
   return (
-    <div>
-      <div className="flex items-center justify-end mb-4">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-sm font-medium text-gray-700">Client</label>
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[160px]"
+          >
+            <option value="">All clients</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700 ml-2">Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[120px]"
+          >
+            <option value="">All statuses</option>
+            {INVOICE_STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <label className="text-sm font-medium text-gray-700">Search</label>
+          <input
+            type="search"
+            placeholder="Number, amount, client..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[180px]"
+          />
+        </div>
         {canWrite && (
           <button
             onClick={openNew}
@@ -152,7 +202,7 @@ export default function InvoicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((inv) => (
+              {filteredItems.map((inv) => (
                 <tr key={inv.id} className="hover:bg-gray-50/80">
                   <td className="px-4 py-3 font-medium text-gray-900">{inv.number}</td>
                   <td className="px-4 py-3 text-gray-600">{clientMap[inv.client_id] || inv.client_id}</td>

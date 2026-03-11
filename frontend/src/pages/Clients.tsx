@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { listClients, createClient, updateClient, deleteClient, type Client } from "@/api/clients";
 import { listTeams } from "@/api/teams";
 import { useAuth } from "@/store/auth";
@@ -7,6 +7,11 @@ export default function Clients() {
   const [items, setItems] = useState<Client[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
+  const [localSearch, setLocalSearch] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [modal, setModal] = useState<"new" | Client | null>(null);
   const [form, setForm] = useState({
     name: "",
@@ -21,8 +26,9 @@ export default function Clients() {
   const load = async () => {
     setLoading(true);
     try {
+      const params = searchQuery.trim() ? { q: searchQuery.trim() } : undefined;
       const [clientList, teamList] = await Promise.all([
-        listClients(),
+        listClients(params),
         isAdmin ? listTeams() : Promise.resolve([]),
       ]);
       setItems(clientList);
@@ -33,8 +39,19 @@ export default function Clients() {
   };
 
   useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(searchInput);
+      debounceRef.current = null;
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchInput]);
+
+  useEffect(() => {
     load();
-  }, [isAdmin]);
+  }, [isAdmin, searchQuery]);
 
   const openNew = () => {
     setForm({ name: "", contact_email: "", contact_phone: "", address: "", team_id: null });
@@ -85,10 +102,54 @@ export default function Clients() {
   };
 
   const canWrite = hasPermission("clients:write");
+  const localLower = localSearch.trim().toLowerCase();
+  const filteredItems = items.filter((c) => {
+    if (teamFilter && c.team_id !== teamFilter) return false;
+    if (localLower) {
+      const name = (c.name ?? "").toLowerCase();
+      const email = (c.contact_email ?? "").toLowerCase();
+      const phone = (c.contact_phone ?? "").toLowerCase();
+      if (!name.includes(localLower) && !email.includes(localLower) && !phone.includes(localLower)) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-sm font-medium text-gray-700">Search (name)</label>
+          <input
+            type="search"
+            placeholder="Search by name..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[200px]"
+          />
+          {isAdmin && (
+            <>
+              <label className="text-sm font-medium text-gray-700">Team</label>
+              <select
+                value={teamFilter}
+                onChange={(e) => setTeamFilter(e.target.value)}
+                className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[140px]"
+              >
+                <option value="">All teams</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </>
+          )}
+          <label className="text-sm font-medium text-gray-700">Filter list</label>
+          <input
+            type="search"
+            placeholder="Name, email, or phone..."
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[180px]"
+          />
+        </div>
         {canWrite && (
           <button
             onClick={openNew}
@@ -114,7 +175,7 @@ export default function Clients() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((c) => (
+              {filteredItems.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50/80">
                   <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
                   <td className="px-4 py-3 text-gray-600">{c.contact_email || "—"}</td>
