@@ -131,11 +131,16 @@ const PATH_TO_HEADER_TITLE: Record<string, string> = {
   "/profile": "Settings",
 };
 
+const LOGIN_TRANSITION_KEY = "loginTransition";
+
 export default function Layout() {
   const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showLoginMorph, setShowLoginMorph] = useState(() =>
+    typeof sessionStorage !== "undefined" ? !!sessionStorage.getItem(LOGIN_TRANSITION_KEY) : false
+  );
 
   useEffect(() => {
     applyTheme(getStoredTheme());
@@ -146,6 +151,16 @@ export default function Layout() {
     m.addEventListener("change", onChange);
     return () => m.removeEventListener("change", onChange);
   }, []);
+
+  useEffect(() => {
+    if (!showLoginMorph) return;
+    const done = () => {
+      sessionStorage.removeItem(LOGIN_TRANSITION_KEY);
+      setShowLoginMorph(false);
+    };
+    const t = setTimeout(done, 820);
+    return () => clearTimeout(t);
+  }, [showLoginMorph]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState<Notification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -252,6 +267,13 @@ export default function Layout() {
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#f5f6f8] dark:bg-gray-900">
+      {/* Post-login morph overlay: full-screen blue shrinks to sidebar then fades */}
+      {showLoginMorph && (
+        <div
+          className="fixed inset-y-0 left-0 w-full z-[100] bg-[#3a7eb9] dark:bg-gray-800 animate-login-morph pointer-events-none"
+          aria-hidden
+        />
+      )}
       {/* Sidebar - full viewport height, does not scroll */}
       <aside className="w-60 h-full flex flex-col shrink-0 shadow-lg overflow-hidden bg-[#3a7eb9] dark:bg-gray-800">
         <div className="p-6 flex justify-center">
