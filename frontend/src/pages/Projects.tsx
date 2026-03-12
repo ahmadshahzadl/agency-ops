@@ -3,6 +3,7 @@ import { listProjects, createProject, updateProject, deleteProject, type Project
 import { listClients, type Client } from "@/api/clients";
 import { listTeams, listMyTeams } from "@/api/teams";
 import { useAuth } from "@/store/auth";
+import { NotesSection } from "@/components/NotesSection";
 
 const PIPELINE_STAGES = ["lead", "discovery", "proposal", "scoping", "design", "development", "qa", "deployment", "handover", "support"];
 const PROJECT_STATUS_OPTIONS = ["draft", "active", "on_hold", "completed"];
@@ -295,6 +296,7 @@ export default function Projects() {
                 <input type="date" value={form.end_date} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))} className={inputClass} />
               </div>
             </div>
+            <NotesSection entityType="project" entityId={modal !== "new" ? (modal as Project).id : undefined} />
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">Cancel</button>
               <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">Save</button>
