@@ -32,6 +32,7 @@ class Notification(Base):
     link = Column(String(512))  # optional route or URL
     type = Column(String(32), default="announcement")
     reference_id = Column(UUID(as_uuid=True), ForeignKey("announcements.id", ondelete="SET NULL"), nullable=True)
+    message_id = Column(UUID(as_uuid=True), nullable=True)  # when type=message, link to messages.id
     read_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 

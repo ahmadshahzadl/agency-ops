@@ -1,9 +1,11 @@
+from uuid import UUID
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications
+from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications, notes, messages
 from app.websocket import activity_manager
+from app.websocket_messages import message_ws_manager
 from app.services.activity_service import (
     activity_logged_this_request,
     tasks_updated_this_request,
@@ -34,6 +36,33 @@ async def websocket_activity(websocket: WebSocket):
         pass
     finally:
         activity_manager.disconnect(websocket)
+
+
+@app.websocket("/api/v1/ws/messages")
+async def websocket_messages(websocket: WebSocket):
+    """Connect with ?token=JWT to receive real-time new-message events. Sends { \"type\": \"new_message\", \"message\": {...} }."""
+    from app.core.security import decode_token
+    token = websocket.query_params.get("token") or ""
+    if not token:
+        await websocket.close(code=4001)
+        return
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "access":
+        await websocket.close(code=4001)
+        return
+    try:
+        user_id = UUID(payload["sub"])
+    except (KeyError, ValueError, TypeError):
+        await websocket.close(code=4001)
+        return
+    await message_ws_manager.connect(websocket, user_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        message_ws_manager.disconnect(websocket, user_id)
 
 
 class ActivityBroadcastMiddleware(BaseHTTPMiddleware):
@@ -77,6 +106,8 @@ app.include_router(leads.router, prefix="/api/v1")
 app.include_router(team_activity.router, prefix="/api/v1")
 app.include_router(announcements.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(notes.router, prefix="/api/v1")
+app.include_router(messages.router, prefix="/api/v1")
 
 
 @app.get("/health")
