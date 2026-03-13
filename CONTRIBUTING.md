@@ -14,6 +14,7 @@ Thank you for your interest in contributing! AgencyOps is open-source and welcom
 ## Development workflow
 
 ### Backend (FastAPI + Python)
+
 - Code lives in `backend/app/`
 - Run tests before submitting: `cd backend && pytest`
 - Follow existing patterns for new endpoints (router → service → model)
@@ -24,6 +25,7 @@ Thank you for your interest in contributing! AgencyOps is open-source and welcom
   ```
 
 ### Frontend (React + TypeScript)
+
 - Code lives in `frontend/src/`
 - Run the dev server: `cd frontend && npm run dev`
 - Follow existing component and API client patterns
@@ -38,6 +40,7 @@ Thank you for your interest in contributing! AgencyOps is open-source and welcom
 ## Reporting bugs
 
 Open a [GitHub Issue](../../issues) with:
+
 - A clear title and description
 - Steps to reproduce
 - Expected vs actual behaviour

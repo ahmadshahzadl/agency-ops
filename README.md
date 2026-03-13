@@ -26,13 +26,13 @@
 
 ### Tech stack
 
-| Layer | Technology |
-|---|---|
+| Layer       | Technology                                |
+| ----------- | ----------------------------------------- |
 | Backend API | Python, FastAPI, SQLAlchemy, Alembic, JWT |
-| Database | PostgreSQL |
-| Frontend | React, TypeScript, Tailwind CSS, Vite |
-| Desktop | Electron |
-| Auth | JWT + role-based access control |
+| Database    | PostgreSQL                                |
+| Frontend    | React, TypeScript, Tailwind CSS, Vite     |
+| Desktop     | Electron                                  |
+| Auth        | JWT + role-based access control           |
 
 ## Quick start
 
