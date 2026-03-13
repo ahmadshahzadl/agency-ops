@@ -33,6 +33,7 @@ class User(Base):
     meetings_created = relationship("Meeting", back_populates="created_by_user", foreign_keys="Meeting.created_by")
     announcements_created = relationship("Announcement", back_populates="created_by_user", foreign_keys="Announcement.created_by_id")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    notes = relationship("Note", back_populates="creator", cascade="all, delete-orphan")
 
 
 class UserRole(Base):

@@ -20,6 +20,7 @@ PERMISSIONS = [
     "finance:read", "finance:write",
     "analytics:read",
     "team_activity:read",  # managers see their reports' activity and progress
+    "notes:read", "notes:write",
 ]
 
 # Role name -> list of permission codes (admin gets all via code below)
@@ -35,6 +36,7 @@ ROLE_PERMISSIONS = {
         "finance:read", "finance:write",
         "analytics:read",
         "team_activity:read",
+        "notes:read", "notes:write",
     ],
     "member": [
         "dashboard:read",
@@ -45,12 +47,14 @@ ROLE_PERMISSIONS = {
         "meetings:read", "meetings:write",
         "finance:read", "finance:write",
         "analytics:read",
+        "notes:read", "notes:write",
     ],
     "viewer": [
         "dashboard:read",
         "leads:read",
         "clients:read", "projects:read", "tasks:read",
         "meetings:read", "finance:read", "analytics:read",
+        "notes:read",
     ],
     "sales": [
         "dashboard:read",
@@ -58,6 +62,7 @@ ROLE_PERMISSIONS = {
         "projects:read",
         "meetings:read", "meetings:write",
         "tasks:read", "tasks:write",
+        "notes:read", "notes:write",
     ],
 }
 

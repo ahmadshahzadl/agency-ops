@@ -8,6 +8,7 @@ import {
   type AnnouncementCreate,
 } from "@/api/announcements";
 import { listUsers } from "@/api/users";
+import { NotesSection } from "@/components/NotesSection";
 
 export default function AnnouncementsPage() {
   const [items, setItems] = useState<Announcement[]>([]);
@@ -226,6 +227,7 @@ export default function AnnouncementsPage() {
                 </div>
               )}
             </div>
+            <NotesSection entityType="announcement" entityId={modal !== "new" ? (modal as Announcement).id : undefined} />
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">
                 Cancel
