@@ -1,6 +1,6 @@
 # Backend API tests
 
-Pytest tests for the Software House Management System API, including **roles, permissions, and the updated flow** (Admin, Manager, Employee).
+Pytest tests for the AgencyOps API, including **roles, permissions, and the updated flow** (Admin, Manager, Employee).
 
 ## Setup (required before running tests)
 
@@ -15,7 +15,7 @@ Pytest tests for the Software House Management System API, including **roles, pe
    ```
    This creates:
    - **admin@example.com** / **admin123** (admin role)
-   - Roles: **admin**, **manager**, **employee**, **member** with permissions per `docs/roles-permissions-flow.md`
+   - Roles: **admin**, **manager**, **employee**, **member** with seeded RBAC permissions
 
 3. **Run tests**
    ```bash

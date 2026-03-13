@@ -1,6 +1,6 @@
 # Deployment on DigitalOcean
 
-This guide walks you through deploying the **Software House Management System** so that:
+This guide walks you through deploying **AgencyOps** so that:
 
 - **PostgreSQL** runs on DigitalOcean Managed Database.
 - **Backend (FastAPI)** runs on DigitalOcean (App Platform or Droplet).
@@ -39,7 +39,7 @@ After deployment you will:
 2. Choose **PostgreSQL** (recommended: PostgreSQL 15 or 16).
 3. Select a region close to where you will run the backend (e.g. same as your App/Droplet).
 4. Choose a plan (e.g. **Basic** with 1 node to start).
-5. Set a **cluster name** (e.g. `office-software-db`).
+5. Set a **cluster name** (e.g. `agency-ops-db`).
 6. Create the cluster and wait until it is **Online**.
 
 ### 1.2 Get the connection string
@@ -69,8 +69,8 @@ postgresql://doadmin:yourpassword@db-postgresql-xxx-xxx.db.ondigitalocean.com:25
 The default database is often `defaultdb`. To use a dedicated DB:
 
 1. In the cluster, open **Users & Databases**.
-2. Add a database, e.g. `office_software`.
-3. Use it in the connection string: `.../office_software?sslmode=require`.
+2. Add a database, e.g. `agency_ops`.
+3. Use it in the connection string: `.../agency_ops?sslmode=require`.
 
 ### 1.4 Allow the backend to connect
 
@@ -198,8 +198,8 @@ apt update && apt install -y python3 python3-pip python3-venv git
 
 ```bash
 cd /opt
-git clone https://github.com/YOUR_ORG/office-software.git
-cd office-software/backend
+git clone https://github.com/YOUR_ORG/agency-ops.git
+cd agency-ops/backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -236,18 +236,18 @@ pip install gunicorn
 gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
 ```
 
-Use a process manager (systemd) so it restarts on reboot. Example unit `/etc/systemd/system/office-backend.service`:
+Use a process manager (systemd) so it restarts on reboot. Example unit `/etc/systemd/system/agencyops-backend.service`:
 
 ```ini
 [Unit]
-Description=Office Software API
+Description=AgencyOps API
 After=network.target
 
 [Service]
 User=root
-WorkingDirectory=/opt/office-software/backend
-Environment="PATH=/opt/office-software/backend/.venv/bin"
-ExecStart=/opt/office-software/backend/.venv/bin/gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
+WorkingDirectory=/opt/agency-ops/backend
+Environment="PATH=/opt/agency-ops/backend/.venv/bin"
+ExecStart=/opt/agency-ops/backend/.venv/bin/gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
 Restart=always
 
 [Install]
@@ -256,8 +256,8 @@ WantedBy=multi-user.target
 
 ```bash
 systemctl daemon-reload
-systemctl enable office-backend
-systemctl start office-backend
+systemctl enable agencyops-backend
+systemctl start agencyops-backend
 ```
 
 #### B.7 HTTPS (Nginx + Let’s Encrypt)
@@ -329,7 +329,7 @@ For quick testing you can use `*`; restrict origins in production.
 
 ## Part 5: Updating the deployment
 
-1. **Code changes**: Push to the connected branch; App Platform will redeploy. On a Droplet, `git pull` in `/opt/office-software`, then restart the service.
+1. **Code changes**: Push to the connected branch; App Platform will redeploy. On a Droplet, `git pull` in `/opt/agency-ops`, then restart the service.
 2. **New migrations**: Run `alembic upgrade head` (via one-off job on App Platform or SSH on Droplet).
 3. **Env changes**: Update environment variables in App Platform or in `.env` on the Droplet and restart.
 4. **Desktop clients**: Rebuild the Electron app with the same `VITE_API_URL`, bump version, and redistribute the new installer so users can “check for updates” and install the new build (see main README / update flow).

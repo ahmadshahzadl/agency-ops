@@ -7,7 +7,7 @@ const env = import.meta.env;
 
 export const APP_NAME = (typeof env.VITE_APP_NAME === "string" && env.VITE_APP_NAME.trim())
   ? env.VITE_APP_NAME.trim()
-  : "Software House";
+  : "AgencyOps";
 
 export const APP_LOGO = (typeof env.VITE_APP_LOGO === "string" && env.VITE_APP_LOGO.trim())
   ? env.VITE_APP_LOGO.trim()

@@ -1,6 +1,6 @@
-# Software House Management System
+# AgencyOps
 
-Desktop application for managing clients, projects, tasks, meetings, finance, and analytics. Built with **FastAPI** (backend), **React + TypeScript + Tailwind** (frontend), and **Electron** (desktop shell). **PostgreSQL** with **SQLAlchemy** and **JWT + RBAC** for auth.
+Open-source agency operations platform for managing clients, projects, tasks, meetings, finance, and analytics. Built with **FastAPI** (backend), **React + TypeScript + Tailwind** (frontend), and **Electron** (desktop shell). **PostgreSQL** with **SQLAlchemy** and **JWT + RBAC** for auth.
 
 ## Quick start
 
@@ -83,7 +83,7 @@ To deploy the backend and PostgreSQL on **DigitalOcean** so you can install the 
 
 - **backend/** — FastAPI app, SQLAlchemy models, Alembic migrations, RBAC, JWT
 - **frontend/** — React + Vite + TypeScript + Tailwind, API client, pages
-- **docs/** — architecture, database schema, API, roadmap, **deployment**
+- **docs/** — architecture, database schema, **deployment**
 - **agents/** — agent role definitions (architect, backend, frontend, etc.)
 - **tasks/** — current-task.md for agent handoffs
 
@@ -94,4 +94,4 @@ To deploy the backend and PostgreSQL on **DigitalOcean** so you can install the 
 
 ## API base path
 
-All API routes are under `/api/v1`: auth, users, roles, clients,  0.+98projects, tasks, meetings, finance (invoices, payments, expenses), analytics.
+All API routes are under `/api/v1`: auth, users, roles, clients, projects, tasks, meetings, finance (invoices, payments, expenses), analytics.

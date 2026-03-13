@@ -8,7 +8,7 @@ _ENV_FILE = _BACKEND_DIR / ".env"
 
 
 class Settings(BaseSettings):
-    app_name: str = "Software House Management API"
+    app_name: str = "AgencyOps API"
     app_version: str = "0.0.1"
     debug: bool = False
 

@@ -1,4 +1,4 @@
-# Software House Management System — Database Schema
+# AgencyOps — Database Schema
 
 ## 1. Conventions
 

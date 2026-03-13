@@ -1,8 +1,8 @@
-# Software House Management System — System Architecture
+# AgencyOps — System Architecture
 
 ## 1. Overview
 
-The system is a **Software House Management System** used to manage clients, projects, tasks, meetings, finance, and analytics. It consists of a desktop frontend (React + Electron), a REST API backend (FastAPI), and a PostgreSQL database. Authentication is JWT-based with role-based access control (RBAC).
+The system is **AgencyOps**, an agency operations platform used to manage clients, projects, tasks, meetings, finance, and analytics. It consists of a desktop frontend (React + Electron), a REST API backend (FastAPI), and a PostgreSQL database. Authentication is JWT-based with role-based access control (RBAC).
 
 ## 2. High-Level Architecture
 
