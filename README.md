@@ -1,6 +1,38 @@
 # AgencyOps
 
-Open-source agency operations platform for managing clients, projects, tasks, meetings, finance, and analytics. Built with **FastAPI** (backend), **React + TypeScript + Tailwind** (frontend), and **Electron** (desktop shell). **PostgreSQL** with **SQLAlchemy** and **JWT + RBAC** for auth.
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Backend: FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688)](https://fastapi.tiangolo.com/)
+[![Frontend: React](https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-61DAFB)](https://react.dev/)
+[![Desktop: Electron](https://img.shields.io/badge/Desktop-Electron-47848F)](https://www.electronjs.org/)
+
+**AgencyOps** is a free, open-source agency management software for software houses, marketing agencies, and creative studios. Manage your entire agency from one platform — clients, projects, tasks, leads, meetings, finance, and team collaboration.
+
+> Self-hostable alternative to tools like Monday.com, ClickUp, or HubSpot CRM — built for agencies.
+
+### Key features
+
+- **CRM & Lead management** — pipeline tracking, lead assignment, status workflow
+- **Client management** — profiles, contact info, linked projects
+- **Project & task management** — assign tasks, set deadlines, track progress
+- **Meeting scheduling** — log and track client meetings
+- **Finance** — invoices, payments, and expense tracking
+- **Team management** — multi-team support with team leads
+- **Role-based access control (RBAC)** — Admin, Manager, Sales, Developer, Finance, Viewer roles
+- **Announcements & notifications** — broadcast to the team
+- **Real-time messaging** — WebSocket-powered chat
+- **Analytics & reporting** — cross-module insights
+- **REST API** — fully documented, versioned API (`/api/v1`)
+- **Desktop app** — Electron shell for Windows, macOS, Linux
+
+### Tech stack
+
+| Layer | Technology |
+|---|---|
+| Backend API | Python, FastAPI, SQLAlchemy, Alembic, JWT |
+| Database | PostgreSQL |
+| Frontend | React, TypeScript, Tailwind CSS, Vite |
+| Desktop | Electron |
+| Auth | JWT + role-based access control |
 
 ## Quick start
 
@@ -95,3 +127,11 @@ To deploy the backend and PostgreSQL on **DigitalOcean** so you can install the 
 ## API base path
 
 All API routes are under `/api/v1`: auth, users, roles, clients, projects, tasks, meetings, finance (invoices, payments, expenses), analytics.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).
