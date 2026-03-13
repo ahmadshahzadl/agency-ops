@@ -8,6 +8,7 @@ import {
   type NoteEntityType,
 } from "@/api/notes";
 import { useAuth } from "@/store/auth";
+import { useModal } from "@/contexts/ModalContext";
 
 interface NotesSectionProps {
   entityType: NoteEntityType;
@@ -17,6 +18,7 @@ interface NotesSectionProps {
 
 export function NotesSection({ entityType, entityId, className = "" }: NotesSectionProps) {
   const { user, hasPermission } = useAuth();
+  const { showConfirm, showAlert } = useModal();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState("");
@@ -62,7 +64,7 @@ export function NotesSection({ entityType, entityId, className = "" }: NotesSect
       setContent("");
       loadNotes();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to add note");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to add note" });
     }
   };
 
@@ -79,19 +81,28 @@ export function NotesSection({ entityType, entityId, className = "" }: NotesSect
       setEditingId(null);
       loadNotes();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to update note");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to update note" });
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this note?") || !canWrite) return;
-    try {
-      await deleteNote(id);
-      setEditingId(null);
-      loadNotes();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to delete note");
-    }
+  const handleDelete = (id: string) => {
+    if (!canWrite) return;
+    showConfirm({
+      title: "Delete note",
+      message: "Delete this note?",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteNote(id);
+          setEditingId(null);
+          loadNotes();
+        } catch (e) {
+          showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to delete note" });
+          throw e;
+        }
+      },
+    });
   };
 
   const isAuthor = (n: Note) => user?.id === n.created_by;

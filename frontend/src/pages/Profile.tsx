@@ -55,7 +55,7 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       const payload: { full_name?: string; current_password?: string; new_password?: string } = {
-        full_name: fullName || null,
+        full_name: fullName || undefined,
       };
       if (newPassword) {
         payload.current_password = currentPassword;

@@ -5,9 +5,17 @@ import { listAssignableUsers, type UserList } from "@/api/users";
 import { SearchableUserMultiSelect } from "@/components/SearchableUserMultiSelect";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
+import { useModal } from "@/contexts/ModalContext";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 export default function MeetingsPage() {
+  const { showConfirm, showAlert } = useModal();
+  const { hasPermission } = useAuth();
+  const canBulk = hasPermission("admin:all");
+  const canWrite = hasPermission("meetings:write");
   const [items, setItems] = useState<Meeting[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [projectNames, setProjectNames] = useState<{ id: string; name: string }[]>([]);
   const [assignableUsers, setAssignableUsers] = useState<UserList[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,9 +30,6 @@ export default function MeetingsPage() {
     location: "",
     attendee_ids: [] as string[],
   });
-  const { hasPermission } = useAuth();
-
-  const canWrite = hasPermission("meetings:write");
 
   const load = () => {
     listProjectNames().then(setProjectNames).catch(() => setProjectNames([]));
@@ -96,19 +101,72 @@ export default function MeetingsPage() {
       setModal(null);
       load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this meeting?")) return;
-    try {
-      await deleteMeeting(id);
-      setModal(null);
-      load();
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
-    }
+  const remove = (id: string) => {
+    showConfirm({
+      title: "Delete meeting",
+      message: "Delete this meeting?",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteMeeting(id);
+          setModal(null);
+          setSelectedIds((s) => {
+            const next = new Set(s);
+            next.delete(id);
+            return next;
+          });
+          load();
+        } catch (e: unknown) {
+          showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+          throw e;
+        }
+      },
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredItems.map((m) => m.id)));
+  };
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    showConfirm({
+      title: "Delete meetings",
+      message: `Delete ${ids.length} meeting(s)? This cannot be undone.`,
+      confirmLabel: "Delete all",
+      variant: "danger",
+      onConfirm: async () => {
+        setBulkDeleting(true);
+        try {
+          for (const id of ids) {
+            try {
+              await deleteMeeting(id);
+            } catch (e) {
+              showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to delete meeting" });
+              throw e;
+            }
+          }
+          setSelectedIds(new Set());
+          setModal(null);
+          load();
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
   };
 
   const projectMap = Object.fromEntries(projectNames.map((p) => [p.id, p.name]));
@@ -159,6 +217,16 @@ export default function MeetingsPage() {
         )}
       </div>
 
+      {canBulk && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          entityName="meetings"
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={bulkDelete}
+          loading={bulkDeleting}
+        />
+      )}
+
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
@@ -166,6 +234,16 @@ export default function MeetingsPage() {
           <table className="w-full">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
+                {canBulk && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3">Title</th>
                 <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Start</th>
@@ -175,7 +253,17 @@ export default function MeetingsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredItems.map((m) => (
-                <tr key={m.id} className="hover:bg-gray-50/80">
+                <tr key={m.id} className={`hover:bg-gray-50/80 ${selectedIds.has(m.id) ? "bg-primary/5" : ""}`}>
+                  {canBulk && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(m.id)}
+                        onChange={() => toggleSelect(m.id)}
+                        className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-gray-900">{m.title}</td>
                   <td className="px-4 py-3 text-gray-600">{m.project_id ? projectMap[m.project_id] || m.project_id : "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{new Date(m.start_at).toLocaleString()}</td>

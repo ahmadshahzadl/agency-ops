@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:3000,http://localhost:5173,app://."
 
+    # Super admin (god mode): one email with full access and no activity/audit logs. Empty = disabled.
+    super_admin_email: str = ""
+
     class Config:
         env_file = _ENV_FILE
         env_file_encoding = "utf-8"

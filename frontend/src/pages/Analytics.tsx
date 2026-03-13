@@ -79,7 +79,7 @@ function groupBySource(leads: Lead[]): { source: string; count: number }[] {
 }
 
 export default function AnalyticsPage() {
-  const { hasPermission } = useAuth();
+  useAuth();
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -460,12 +460,12 @@ export default function AnalyticsPage() {
                     margin={{ top: 0, right: 0, left: 0, bottom: 64 }}
                     slotProps={{
                       legend: {
-                        direction: "row",
-                        position: { vertical: "bottom", horizontal: "middle" },
+                        direction: "row" as never,
+                        position: { vertical: "bottom", horizontal: "center" },
                         padding: 8,
                         itemGap: 16,
                         sx: { flexWrap: "nowrap", justifyContent: "center" },
-                      },
+                      } as any,
                     }}
                   />
                 </Box>
@@ -503,12 +503,12 @@ export default function AnalyticsPage() {
                     margin={{ top: 0, right: 0, left: 0, bottom: 64 }}
                     slotProps={{
                       legend: {
-                        direction: "row",
-                        position: { vertical: "bottom", horizontal: "middle" },
+                        direction: "row" as never,
+                        position: { vertical: "bottom", horizontal: "center" },
                         padding: 8,
                         itemGap: 16,
                         sx: { flexWrap: "nowrap", justifyContent: "center" },
-                      },
+                      } as any,
                     }}
                   />
                 </Box>

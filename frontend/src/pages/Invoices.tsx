@@ -10,11 +10,18 @@ import {
 import { listClients, type Client } from "@/api/clients";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
+import { useModal } from "@/contexts/ModalContext";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 const INVOICE_STATUS_OPTIONS = ["draft", "sent", "paid", "overdue"];
 
 export default function InvoicesPage() {
+  const { showConfirm, showAlert } = useModal();
+  const { hasPermission } = useAuth();
+  const canBulk = hasPermission("admin:all");
   const [items, setItems] = useState<Invoice[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientFilter, setClientFilter] = useState("");
@@ -33,7 +40,6 @@ export default function InvoicesPage() {
     issued_at: "",
   });
   const [paymentForm, setPaymentForm] = useState({ amount: "", paid_at: "", reference: "" });
-  const { hasPermission } = useAuth();
 
   const load = () => {
     listClients().then(setClients).catch(() => setClients([]));
@@ -98,19 +104,72 @@ export default function InvoicesPage() {
       setModal(null);
       load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this invoice?")) return;
-    try {
-      await deleteInvoice(id);
-      setModal(null);
-      load();
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
-    }
+  const remove = (id: string) => {
+    showConfirm({
+      title: "Delete invoice",
+      message: "Delete this invoice?",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteInvoice(id);
+          setModal(null);
+          setSelectedIds((s) => {
+            const next = new Set(s);
+            next.delete(id);
+            return next;
+          });
+          load();
+        } catch (e: unknown) {
+          showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+          throw e;
+        }
+      },
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredItems.map((inv) => inv.id)));
+  };
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    showConfirm({
+      title: "Delete invoices",
+      message: `Delete ${ids.length} invoice(s)? This cannot be undone.`,
+      confirmLabel: "Delete all",
+      variant: "danger",
+      onConfirm: async () => {
+        setBulkDeleting(true);
+        try {
+          for (const id of ids) {
+            try {
+              await deleteInvoice(id);
+            } catch (e) {
+              showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to delete invoice" });
+              throw e;
+            }
+          }
+          setSelectedIds(new Set());
+          setModal(null);
+          load();
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
   };
 
   const submitPayment = async () => {
@@ -120,12 +179,12 @@ export default function InvoicesPage() {
         invoice_id: paymentModal.id,
         amount: Number(paymentForm.amount),
         paid_at: paymentForm.paid_at,
-        reference: paymentForm.reference || undefined,
+        reference: paymentForm.reference || null,
       });
       setPaymentModal(null);
       load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
@@ -188,6 +247,16 @@ export default function InvoicesPage() {
         )}
       </div>
 
+      {canBulk && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          entityName="invoices"
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={bulkDelete}
+          loading={bulkDeleting}
+        />
+      )}
+
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
@@ -195,6 +264,16 @@ export default function InvoicesPage() {
           <table className="w-full">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
+                {canBulk && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3">Number</th>
                 <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">Amount</th>
@@ -204,7 +283,17 @@ export default function InvoicesPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredItems.map((inv) => (
-                <tr key={inv.id} className="hover:bg-gray-50/80">
+                <tr key={inv.id} className={`hover:bg-gray-50/80 ${selectedIds.has(inv.id) ? "bg-primary/5" : ""}`}>
+                  {canBulk && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(inv.id)}
+                        onChange={() => toggleSelect(inv.id)}
+                        className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-gray-900">{inv.number}</td>
                   <td className="px-4 py-3 text-gray-600">{clientMap[inv.client_id] || inv.client_id}</td>
                   <td className="px-4 py-3 text-gray-600">

@@ -199,7 +199,7 @@ def _member_dashboard_charts(db: Session, user_id):
 @router.get("/dashboard", response_model=DashboardResponse)
 def dashboard(
     db: Session = Depends(get_db),
-    user=Depends(require_any_permission("analytics:read", "dashboard:read")),
+    user=Depends(get_current_user),
     permissions=Depends(get_user_permissions),
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),
@@ -303,6 +303,20 @@ def dashboard(
             .all()
         )
         projects_by_stage = [StatusCount(status=s or "unknown", count=c) for s, c in projects_by_stage_rows]
+        week_start = today - timedelta(days=6)
+        leads_today = db.query(func.count(Lead.id)).filter(
+            Lead.assigned_to.in_(manager_scope), func.date(Lead.created_at) == today,
+        ).scalar() or 0
+        leads_this_week = db.query(func.count(Lead.id)).filter(
+            Lead.assigned_to.in_(manager_scope),
+            func.date(Lead.created_at) >= week_start,
+            func.date(Lead.created_at) <= today,
+        ).scalar() or 0
+        leads_this_month = db.query(func.count(Lead.id)).filter(
+            Lead.assigned_to.in_(manager_scope),
+            func.date(Lead.created_at) >= month_start,
+            func.date(Lead.created_at) <= month_end,
+        ).scalar() or 0
         chart_data = {"conversion_rate": None, "conversion_over_time": [], "leads_by_status": [], "tasks_by_status": [
             StatusCount(status="todo", count=tasks_todo),
             StatusCount(status="in_progress", count=tasks_in_progress),

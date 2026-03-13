@@ -5,8 +5,11 @@ import { listAssignableUsers, type UserList } from "@/api/users";
 import { SearchableUserSelect } from "@/components/SearchableUserSelect";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
+import { useModal } from "@/contexts/ModalContext";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 export default function TasksPage() {
+  const { showConfirm, showAlert } = useModal();
   const [items, setItems] = useState<Task[]>([]);
   const [projectNames, setProjectNames] = useState<{ id: string; name: string }[]>([]);
   const [assignableUsers, setAssignableUsers] = useState<UserList[]>([]);
@@ -28,7 +31,10 @@ export default function TasksPage() {
   const { user, hasPermission } = useAuth();
 
   const canWrite = hasPermission("tasks:write");
+  const canBulk = hasPermission("admin:all");
   const canManageTasks = user?.can_manage_tasks ?? false;
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const load = () => {
     listProjectNames().then(setProjectNames).catch(() => setProjectNames([]));
@@ -81,7 +87,7 @@ export default function TasksPage() {
   const save = async () => {
     if (modal === null) return;
     if (modal === "new" && !form.title?.trim()) {
-      alert("Please enter a title.");
+      showAlert({ title: "Validation", message: "Please enter a title." });
       return;
     }
     try {
@@ -113,19 +119,72 @@ export default function TasksPage() {
       setModal(null);
       load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this task?")) return;
-    try {
-      await deleteTask(id);
-      setModal(null);
-      load();
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
-    }
+  const remove = (id: string) => {
+    showConfirm({
+      title: "Delete task",
+      message: "Delete this task?",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteTask(id);
+          setModal(null);
+          setSelectedIds((s) => {
+            const next = new Set(s);
+            next.delete(id);
+            return next;
+          });
+          load();
+        } catch (e: unknown) {
+          showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+          throw e;
+        }
+      },
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredItems.map((t) => t.id)));
+  };
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    showConfirm({
+      title: "Delete tasks",
+      message: `Delete ${ids.length} task(s)? This cannot be undone.`,
+      confirmLabel: "Delete all",
+      variant: "danger",
+      onConfirm: async () => {
+        setBulkDeleting(true);
+        try {
+          for (const id of ids) {
+            try {
+              await deleteTask(id);
+            } catch (e) {
+              showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to delete task" });
+              throw e;
+            }
+          }
+          setSelectedIds(new Set());
+          setModal(null);
+          load();
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
   };
 
   const projectMap = Object.fromEntries(projectNames.map((p) => [p.id, p.name]));
@@ -210,6 +269,16 @@ export default function TasksPage() {
         )}
       </div>
 
+      {canBulk && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          entityName="tasks"
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={bulkDelete}
+          loading={bulkDeleting}
+        />
+      )}
+
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
@@ -217,6 +286,16 @@ export default function TasksPage() {
           <table className="w-full">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
+                {canBulk && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3">Title</th>
                 <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Assignee</th>
@@ -227,7 +306,17 @@ export default function TasksPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredItems.map((t) => (
-                <tr key={t.id} className="hover:bg-gray-50/80">
+                <tr key={t.id} className={`hover:bg-gray-50/80 ${selectedIds.has(t.id) ? "bg-primary/5" : ""}`}>
+                  {canBulk && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(t.id)}
+                        onChange={() => toggleSelect(t.id)}
+                        className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-gray-900">{t.title}</td>
                   <td className="px-4 py-3 text-gray-600">{t.project_id ? (projectMap[t.project_id] ?? "—") : "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{t.assignee_id ? (assigneeMap[t.assignee_id] ?? "—") : "—"}</td>

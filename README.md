@@ -73,11 +73,17 @@ cd frontend
 npm run electron:dev
 ```
 
+## Deployment
+
+To deploy the backend and PostgreSQL on **DigitalOcean** so you can install the app on other devices and connect them to one server, see:
+
+- **[Deployment on DigitalOcean](docs/deployment-digitalocean.md)** — Managed PostgreSQL, App Platform or Droplet, env vars, migrations, and client setup.
+
 ## Project structure
 
 - **backend/** — FastAPI app, SQLAlchemy models, Alembic migrations, RBAC, JWT
 - **frontend/** — React + Vite + TypeScript + Tailwind, API client, pages
-- **docs/** — architecture, database schema, API, roadmap
+- **docs/** — architecture, database schema, API, roadmap, **deployment**
 - **agents/** — agent role definitions (architect, backend, frontend, etc.)
 - **tasks/** — current-task.md for agent handoffs
 
@@ -88,4 +94,4 @@ npm run electron:dev
 
 ## API base path
 
-All API routes are under `/api/v1`: auth, users, roles, clients, projects, tasks, meetings, finance (invoices, payments, expenses), analytics.
+All API routes are under `/api/v1`: auth, users, roles, clients,  0.+98projects, tasks, meetings, finance (invoices, payments, expenses), analytics.

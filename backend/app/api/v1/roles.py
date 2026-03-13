@@ -1,9 +1,10 @@
-"""Admin-only: list roles, create role with permissions."""
+"""Admin-only: list roles, create role with permissions, delete role."""
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
-from app.models import Role as RoleModel, RolePermission, Permission
+from app.models import Role as RoleModel, RolePermission, Permission, UserRole
 from app.schemas.role import RoleCreate, RoleUpdate, RoleResponse, PermissionResponse
 from app.api.deps import get_current_user, require_admin
 
@@ -87,3 +88,23 @@ def update_role(
     db.commit()
     db.refresh(role)
     return _role_to_response(role)
+
+
+@router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_role(
+    role_id: UUID,
+    db: Session = Depends(get_db),
+    _user=Depends(require_admin),
+):
+    role = db.query(RoleModel).filter(RoleModel.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+    user_count = db.query(func.count(UserRole.user_id)).filter(UserRole.role_id == role_id).scalar() or 0
+    if user_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete role: {user_count} user(s) have this role. Reassign them to another role first.",
+        )
+    db.query(RolePermission).filter(RolePermission.role_id == role_id).delete()
+    db.query(RoleModel).filter(RoleModel.id == role_id).delete()
+    db.commit()

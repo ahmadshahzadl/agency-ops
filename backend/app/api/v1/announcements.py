@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Announcement as AnnouncementModel, Notification as NotificationModel, User
 from app.schemas.announcement import AnnouncementCreate, AnnouncementUpdate, AnnouncementResponse
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import get_current_user, require_admin, require_any_permission
 from app.services.activity_service import log_activity, notifications_updated_this_request
 
 router = APIRouter(prefix="/announcements", tags=["announcements"])
@@ -33,7 +33,7 @@ def _deliver_announcement(db: Session, announcement: AnnouncementModel) -> None:
 @router.get("", response_model=list[AnnouncementResponse])
 def list_announcements(
     db: Session = Depends(get_db),
-    user=Depends(require_admin),
+    user=Depends(require_any_permission("announcements:read")),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ):
@@ -70,7 +70,7 @@ def create_announcement(
 def get_announcement(
     announcement_id: UUID,
     db: Session = Depends(get_db),
-    user=Depends(require_admin),
+    user=Depends(require_any_permission("announcements:read")),
 ):
     ann = db.query(AnnouncementModel).filter(AnnouncementModel.id == announcement_id).first()
     if not ann:

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   listAnnouncements,
   createAnnouncement,
@@ -9,9 +9,18 @@ import {
 } from "@/api/announcements";
 import { listUsers } from "@/api/users";
 import { NotesSection } from "@/components/NotesSection";
+import { useModal } from "@/contexts/ModalContext";
+import { useAuth } from "@/store/auth";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 export default function AnnouncementsPage() {
+  const { showConfirm, showAlert } = useModal();
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission("admin:all") || hasPermission("announcements:write");
+  const canBulk = canCreate;
   const [items, setItems] = useState<Announcement[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [users, setUsers] = useState<{ id: string; email: string; full_name: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<"new" | Announcement | null>(null);
@@ -22,20 +31,25 @@ export default function AnnouncementsPage() {
     target_user_ids: string[];
   }>({ title: "", body: "", target_type: "all", target_user_ids: [] });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [anns, userList] = await Promise.all([listAnnouncements(), listUsers()]);
-      setItems(anns);
-      setUsers(userList.map((u) => ({ id: u.id, email: u.email, full_name: u.full_name })));
+      if (canCreate) {
+        const [anns, userList] = await Promise.all([listAnnouncements(), listUsers()]);
+        setItems(anns);
+        setUsers(userList.map((u) => ({ id: u.id, email: u.email, full_name: u.full_name })));
+      } else {
+        const anns = await listAnnouncements();
+        setItems(anns);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [canCreate]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const openNew = () => {
     setForm({ title: "", body: "", target_type: "all", target_user_ids: [] });
@@ -63,25 +77,78 @@ export default function AnnouncementsPage() {
       };
       if (modal === "new") {
         await createAnnouncement(payload);
-      } else {
+      } else if (modal) {
         await updateAnnouncement(modal.id, payload);
       }
       setModal(null);
       load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this announcement? Notifications already sent will remain.")) return;
-    try {
-      await deleteAnnouncement(id);
-      setModal(null);
-      load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed");
-    }
+  const remove = (id: string) => {
+    showConfirm({
+      title: "Delete announcement",
+      message: "Delete this announcement? Notifications already sent will remain.",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteAnnouncement(id);
+          setModal(null);
+          setSelectedIds((s) => {
+            const next = new Set(s);
+            next.delete(id);
+            return next;
+          });
+          load();
+        } catch (e) {
+          showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+          throw e;
+        }
+      },
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === items.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(items.map((a) => a.id)));
+  };
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    showConfirm({
+      title: "Delete announcements",
+      message: `Delete ${ids.length} announcement(s)? Notifications already sent will remain.`,
+      confirmLabel: "Delete all",
+      variant: "danger",
+      onConfirm: async () => {
+        setBulkDeleting(true);
+        try {
+          for (const id of ids) {
+            try {
+              await deleteAnnouncement(id);
+            } catch (e) {
+              showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to delete announcement" });
+              throw e;
+            }
+          }
+          setSelectedIds(new Set());
+          setModal(null);
+          load();
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
   };
 
   const toggleUser = (id: string) => {
@@ -99,13 +166,25 @@ export default function AnnouncementsPage() {
   return (
     <div>
       <div className="flex items-center justify-end mb-4">
-        <button
-          onClick={openNew}
-          className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover"
-        >
-          New announcement
-        </button>
+        {canCreate && (
+          <button
+            onClick={openNew}
+            className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover"
+          >
+            New announcement
+          </button>
+        )}
       </div>
+
+      {canBulk && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          entityName="announcements"
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={bulkDelete}
+          loading={bulkDeleting}
+        />
+      )}
 
       {loading ? (
         <p className="text-gray-500">Loading…</p>
@@ -114,15 +193,35 @@ export default function AnnouncementsPage() {
           <table className="w-full">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
+                {canBulk && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={items.length > 0 && selectedIds.size === items.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3">Title</th>
                 <th className="px-4 py-3">Target</th>
                 <th className="px-4 py-3">Created</th>
-                <th className="px-4 py-3 w-24 text-right">Actions</th>
+                {canCreate && <th className="px-4 py-3 w-24 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {items.map((a) => (
-                <tr key={a.id} className="hover:bg-gray-50/80">
+                <tr key={a.id} className={`hover:bg-gray-50/80 ${selectedIds.has(a.id) ? "bg-primary/5" : ""}`}>
+                  {canBulk && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(a.id)}
+                        onChange={() => toggleSelect(a.id)}
+                        className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-gray-900">{a.title}</td>
                   <td className="px-4 py-3 text-gray-600">
                     {a.target_type === "all" ? "All users" : `${(a.target_user_ids || []).length} users`}
@@ -130,30 +229,32 @@ export default function AnnouncementsPage() {
                   <td className="px-4 py-3 text-gray-600">
                     {new Date(a.created_at).toLocaleString()}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(a)}
-                        title="Edit"
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => remove(a.id)}
-                        title="Delete"
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
+                  {canCreate && (
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(a)}
+                          title="Edit"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => remove(a.id)}
+                          title="Delete"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

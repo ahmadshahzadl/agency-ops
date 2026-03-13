@@ -11,7 +11,13 @@ export const APP_NAME = (typeof env.VITE_APP_NAME === "string" && env.VITE_APP_N
 
 export const APP_LOGO = (typeof env.VITE_APP_LOGO === "string" && env.VITE_APP_LOGO.trim())
   ? env.VITE_APP_LOGO.trim()
-  : "/logo.png";
+  : "/logo.svg";
+
+/** Use relative path when loaded via file:// (Electron) so the logo resolves from dist/. */
+export function getLogoUrl(): string {
+  if (typeof window !== "undefined" && window.location?.protocol === "file:") return "./logo.svg";
+  return APP_LOGO;
+}
 
 /** Frontend app version; used when checking for updates (compare with server). */
 export const APP_VERSION =

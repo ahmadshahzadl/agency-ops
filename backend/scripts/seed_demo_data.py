@@ -1,5 +1,5 @@
-"""Seed demo data: all team types, all user types (admin, manager, member, viewer, sales), consistent data for testing.
-Run after migrations and seed_db.py."""
+"""Seed demo data: all team types, user types (admin, manager, member, employee) per roles-permissions-flow.
+Run after migrations and seed_db.py. Uses roles: admin, manager, employee, member only."""
 import os
 import sys
 import uuid
@@ -100,33 +100,49 @@ def seed_demo():
         for t in teams_by_type.values():
             db.refresh(t)
 
-        # --- All user types: admin, manager, member, viewer, sales (lead manager), sales_member ---
-        manager_user = _get_or_create_user(
-            db, "manager@example.com", "Demo Manager", DEMO_PASSWORD, "manager",
-            phone="+1-555-1001", job_title="Engineering Manager",
-        )
-        member_user = _get_or_create_user(
-            db, "member@example.com", "Demo Member", DEMO_PASSWORD, "member",
-            phone="+1-555-1002", job_title="Software Developer",
-        )
-        viewer_user = _get_or_create_user(
-            db, "viewer@example.com", "Demo Viewer", DEMO_PASSWORD, "viewer",
-            phone="+1-555-1003", job_title="QA Analyst",
-        )
-        sales_user = _get_or_create_user(
-            db, "sales@example.com", "Demo Sales Lead", DEMO_PASSWORD, "sales",
-            phone="+1-555-1004", job_title="Sales Lead",
-        )
-        sales_member_user = _get_or_create_user(
-            db, "sales_member@example.com", "Demo Sales Rep", DEMO_PASSWORD, "sales",
-            phone="+1-555-1005", job_title="Sales Representative",
-        )
+        # --- Per-team users: one manager, one employee, one member per team (each employee/member reports to that team's manager) ---
+        team_managers = {}
+        team_employees = {}
+        team_members = {}
+        for display_name, team_type, _ in TEAM_TYPES:
+            safe = team_type.replace("-", "_")
+            team_managers[team_type] = _get_or_create_user(
+                db, f"manager_{safe}@example.com", f"Manager {display_name}", DEMO_PASSWORD, "manager",
+                phone=None, job_title=f"Manager ({display_name})",
+            )
+            team_employees[team_type] = _get_or_create_user(
+                db, f"employee_{safe}@example.com", f"Employee {display_name}", DEMO_PASSWORD, "employee",
+                phone=None, job_title=f"Staff ({display_name})",
+            )
+            team_members[team_type] = _get_or_create_user(
+                db, f"member_{safe}@example.com", f"Member {display_name}", DEMO_PASSWORD, "member",
+                phone=None, job_title=f"Member ({display_name})",
+            )
+        db.commit()
+        for u in list(team_managers.values()) + list(team_employees.values()) + list(team_members.values()):
+            db.refresh(u)
 
-        # --- Team membership: admin in ALL teams; others spread across teams for testing ---
+        # --- Team membership: admin in ALL teams; each team has its manager, employee, and member ---
         all_teams = list(teams_by_type.values())
         team_memberships = []
         for t in all_teams:
             team_memberships.append(TeamMember(team_id=t.id, user_id=admin.id))
+        for team_type, t in teams_by_type.items():
+            team_memberships.append(TeamMember(team_id=t.id, user_id=team_managers[team_type].id))
+            team_memberships.append(TeamMember(team_id=t.id, user_id=team_employees[team_type].id))
+            team_memberships.append(TeamMember(team_id=t.id, user_id=team_members[team_type].id))
+        db.add_all(team_memberships)
+
+        # --- Manager hierarchy: each team's employee and member report to that team's manager ---
+        for team_type in teams_by_type:
+            team_employees[team_type].manager_id = team_managers[team_type].id
+            team_members[team_type].manager_id = team_managers[team_type].id
+        db.commit()
+        for team_type in teams_by_type:
+            db.refresh(team_employees[team_type])
+            db.refresh(team_members[team_type])
+
+        # Aliases for demo data below (use product_pm and sales_marketing teams for leads/projects/etc.)
         team_pm = teams_by_type["product_pm"]
         team_sales = teams_by_type["sales_marketing"]
         team_frontend = teams_by_type["frontend"]
@@ -136,22 +152,11 @@ def seed_demo():
         team_management = teams_by_type["management"]
         team_fullstack = teams_by_type["fullstack"]
         team_devops = teams_by_type["devops"]
-
-        for tid in [team_pm.id, team_sales.id, team_frontend.id, team_backend.id]:
-            team_memberships.append(TeamMember(team_id=tid, user_id=manager_user.id))
-        for tid in [team_frontend.id, team_backend.id, team_qa.id]:
-            team_memberships.append(TeamMember(team_id=tid, user_id=member_user.id))
-        for tid in [team_qa.id, team_design.id]:
-            team_memberships.append(TeamMember(team_id=tid, user_id=viewer_user.id))
-        team_memberships.append(TeamMember(team_id=team_sales.id, user_id=sales_user.id))
-        team_memberships.append(TeamMember(team_id=team_sales.id, user_id=sales_member_user.id))
-        db.add_all(team_memberships)
-
-        # --- Manager hierarchy: manager has member & viewer as reports; sales (lead manager) has sales_member ---
-        member_user.manager_id = manager_user.id
-        viewer_user.manager_id = manager_user.id
-        sales_member_user.manager_id = sales_user.id
-        db.commit()
+        manager_user = team_managers["product_pm"]
+        member_user = team_members["frontend"]
+        employee_user = team_employees["qa"]
+        sales_user = team_managers["sales_marketing"]
+        sales_member_user = team_employees["sales_marketing"]
 
         # --- Leads: by manager (team leads), by sales lead manager, by sales member (own leads) ---
         leads = [
@@ -324,14 +329,14 @@ def seed_demo():
         tasks_data = [
             (p1.id, "Design homepage", "todo", "high", 0, admin.id, member_user.id),
             (p1.id, "Implement backend", "in_progress", "high", 1, admin.id, member_user.id),
-            (p1.id, "Code review", "todo", "medium", 2, admin.id, viewer_user.id),
+            (p1.id, "Code review", "todo", "medium", 2, admin.id, employee_user.id),
             (p2.id, "Setup project", "done", "medium", 0, admin.id, admin.id),
             (p2.id, "Auth flow", "in_progress", "high", 1, admin.id, member_user.id),
             (p3.id, "Requirements doc", "todo", "low", 0, admin.id, None),
             (p4.id, "Discovery call", "done", "high", 0, manager_user.id, manager_user.id),
             (p4.id, "Proposal draft", "in_progress", "medium", 1, manager_user.id, member_user.id),
             (p5.id, "Kickoff meeting", "todo", "high", 0, manager_user.id, None),
-            (p5.id, "Requirements gathering", "todo", "medium", 1, manager_user.id, viewer_user.id),
+            (p5.id, "Requirements gathering", "todo", "medium", 1, manager_user.id, employee_user.id),
             (p6.id, "Sales follow-up", "todo", "high", 0, sales_user.id, sales_member_user.id),
             (p6.id, "Demo prep", "in_progress", "medium", 1, sales_user.id, sales_member_user.id),
         ]
@@ -395,7 +400,7 @@ def seed_demo():
         db.add(MeetingAttendee(meeting_id=m1.id, user_id=member_user.id))
         db.add(MeetingAttendee(meeting_id=m2.id, user_id=admin.id))
         db.add(MeetingAttendee(meeting_id=m2.id, user_id=member_user.id))
-        db.add(MeetingAttendee(meeting_id=m2.id, user_id=viewer_user.id))
+        db.add(MeetingAttendee(meeting_id=m2.id, user_id=employee_user.id))
         db.add(MeetingAttendee(meeting_id=m3.id, user_id=manager_user.id))
         db.add(MeetingAttendee(meeting_id=m4.id, user_id=admin.id))
         db.add(MeetingAttendee(meeting_id=m5.id, user_id=sales_user.id))
@@ -510,14 +515,12 @@ def seed_demo():
         print(
             "Demo data seeded.\n"
             "  Users (password: admin123 for admin, demo123 for others):\n"
-            "    admin@example.com (admin) – all teams, full access\n"
-            "    manager@example.com (manager) – product_pm, sales_marketing, frontend, backend; reports: member, viewer\n"
-            "    member@example.com (member) – frontend, backend, qa; sees only tasks assigned to them\n"
-            "    viewer@example.com (viewer) – qa, design; read-only, sees only assigned tasks\n"
-            "    sales@example.com (sales lead manager) – sales_marketing; reports: sales_member\n"
-            "    sales_member@example.com (sales) – sales_marketing; sees own leads/meetings, assigned tasks only\n"
+            "    admin@example.com (admin) – in all 12 teams, full access\n"
+            "    Per team (one manager + one employee + one member per team, employee/member report to manager):\n"
+            "      manager_<team>@example.com (manager), employee_<team>@example.com (employee), member_<team>@example.com (member)\n"
+            "      e.g. manager_frontend@example.com, employee_frontend@example.com, member_frontend@example.com\n"
             "  Teams: 12 (management, product_pm, frontend, backend, fullstack, mobile, design, qa, devops, data_ai, sales_marketing, support)\n"
-            "  Data: 4 leads (1 converted), 6 clients, 6 projects, 12 tasks (assigned to member/viewer/sales_member), 5 meetings, 5 invoices, 2 payments, 4 expenses"
+            "  Data: 4 leads (1 converted), 6 clients, 6 projects, 12 tasks, 5 meetings, 5 invoices, 2 payments, 4 expenses"
         )
     finally:
         db.close()

@@ -3,6 +3,8 @@ import contextvars
 from uuid import UUID
 from sqlalchemy.orm import Session
 from app.models import ActivityLog
+from app.models.user import User
+from app.config import get_settings
 
 # Set when any activity is logged this request; middleware broadcasts and clears after response.
 activity_logged_this_request: contextvars.ContextVar[bool] = contextvars.ContextVar("activity_logged", default=False)
@@ -21,7 +23,12 @@ def log_activity(
     entity_id: UUID | None = None,
     details: str | None = None,
 ) -> None:
-    """Append an activity record for the given user (visible to their manager)."""
+    """Append an activity record for the given user (visible to their manager). No log for super admin (ghost)."""
+    super_email = (get_settings().super_admin_email or "").strip().lower()
+    if super_email:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and (user.email or "").strip().lower() == super_email:
+            return
     log = ActivityLog(
         user_id=user_id,
         action=action,

@@ -24,7 +24,9 @@ import {
 } from "@/api/finance";
 import {
   listTeamActivity,
+  listMyReports,
   type ActivityLogWithUser,
+  type ReportSummary,
 } from "@/api/team_activity";
 import { useAuth } from "@/store/auth";
 
@@ -77,6 +79,8 @@ const PROJECTS_BAR_COLOR = "#3a7eb9";
 type FinanceTab = "invoices" | "expenses";
 type LeadsPeriod = "today" | "this_week" | "this_month";
 
+type MetricCard = { label: string; value: string | number; to: string; highlight: boolean };
+
 export default function Dashboard() {
   const { user, hasPermission } = useAuth();
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -88,6 +92,7 @@ export default function Dashboard() {
   const [financeLoading, setFinanceLoading] = useState(false);
   const [activities, setActivities] = useState<ActivityLogWithUser[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [reports, setReports] = useState<ReportSummary[]>([]);
   const isAdminOrManager =
     hasPermission("admin:all") || user?.roles?.includes("manager");
   const canReadActivity = hasPermission("team_activity:read");
@@ -114,9 +119,15 @@ export default function Dashboard() {
   const fetchActivities = useCallback(() => {
     if (!canReadActivity) return;
     setActivitiesLoading(true);
-    listTeamActivity({ limit: 10 })
-      .then(setActivities)
-      .catch(() => setActivities([]))
+    Promise.all([listTeamActivity({ limit: 10 }), listMyReports()])
+      .then(([activityList, reportsList]) => {
+        setActivities(activityList);
+        setReports(reportsList);
+      })
+      .catch(() => {
+        setActivities([]);
+        setReports([]);
+      })
       .finally(() => setActivitiesLoading(false));
   }, [canReadActivity]);
 
@@ -151,7 +162,7 @@ export default function Dashboard() {
     data.active_projects === 0 &&
     (data.revenue_total == null || Number(data.revenue_total) === 0);
 
-  const metricCards = [
+  const metricCards: MetricCard[] = [
     ...(data.total_clients > 0 || !isMemberView
       ? [
           {
@@ -216,7 +227,7 @@ export default function Dashboard() {
     metricCards.push({
       label: "Conversion rate",
       value: `${(data.conversion_rate * 100).toFixed(1)}%`,
-      to: "/leads" as const,
+      to: "/leads",
       highlight: true,
     });
   }
@@ -517,7 +528,7 @@ export default function Dashboard() {
                         ]}
                         colors={[PROJECTS_BAR_COLOR]}
                         margin={{ top: 20, right: 20, left: 40, bottom: 70 }}
-                        slotProps={{ legend: { hidden: true } }}
+                        slotProps={{}}
                       />
                     </Box>
                   </div>
@@ -560,13 +571,10 @@ export default function Dashboard() {
                         margin={{ top: 10, right: 10, left: 10, bottom: 60 }}
                         slotProps={{
                           legend: {
-                            position: {
-                              vertical: "bottom",
-                              horizontal: "middle",
-                            },
-                            direction: "row",
+                            position: { vertical: "bottom", horizontal: "center" },
+                            direction: "row" as never,
                             padding: 8,
-                          },
+                          } as any,
                         }}
                       />
                     </Box>
@@ -685,6 +693,39 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Team members (direct reports) for managers */}
+      {canReadActivity && reports.length > 0 ? (
+        <div className="rounded-xl bg-white border border-gray-100 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Your team members
+            </h2>
+            <Link
+              to="/team-activity"
+              className="text-sm font-medium text-[#347ab7] hover:underline"
+            >
+              View activity
+            </Link>
+          </div>
+          <p className="text-sm text-gray-600 mb-3">
+            Employees and members who report to you.
+          </p>
+          <ul className="flex flex-wrap gap-2">
+            {reports.map((r) => (
+              <li
+                key={r.id}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-100"
+              >
+                <span className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-xs">
+                  {(r.full_name || r.email || "?").charAt(0).toUpperCase()}
+                </span>
+                <span className="font-medium text-gray-900 text-sm">{r.full_name || r.email}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {/* Last 10 team activities (real-time) or Quick links */}
       {canReadActivity ? (

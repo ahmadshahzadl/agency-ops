@@ -14,7 +14,7 @@ import {
 import { getWsUrl, getToken } from "@/api/client";
 
 const navItems: { to: string; label: string; permission?: string }[] = [
-  { to: "/dashboard", label: "Overview", permission: "dashboard:read" },
+  { to: "/dashboard", label: "Overview" },
   { to: "/leads", label: "Leads", permission: "leads:read" },
   { to: "/clients", label: "Clients", permission: "clients:read" },
   { to: "/projects", label: "Projects", permission: "projects:read" },
@@ -22,10 +22,10 @@ const navItems: { to: string; label: string; permission?: string }[] = [
   { to: "/meetings", label: "Meetings", permission: "meetings:read" },
   { to: "/messages", label: "Messages" },
   { to: "/invoices", label: "Invoices", permission: "finance:read" },
-  { to: "/expenses", label: "Expenses", permission: "finance:read" },
+  { to: "/expenses", label: "Expenses", permission: "expenses:read" },
   { to: "/analytics", label: "Reports", permission: "analytics:read" },
   { to: "/team-activity", label: "Team activity", permission: "team_activity:read" },
-  { to: "/announcements", label: "Announcements", permission: "admin:all" },
+  { to: "/announcements", label: "Announcements", permission: "announcements:read" },
   { to: "/users", label: "Users", permission: "admin:all" },
   { to: "/teams", label: "Teams", permission: "admin:all" },
   { to: "/roles", label: "Roles", permission: "admin:all" },
@@ -289,7 +289,7 @@ export default function Layout() {
             <span className="font-semibold text-lg text-white tracking-tight text-center">{APP_NAME}</span>
           </div>
         </div>
-        <nav className="flex-1 px-3 pb-4 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-3 pb-4 space-y-0.5 overflow-y-auto sidebar-nav-scroll">
           {visibleNav.map((item) => (
             <NavLink
               key={item.to}

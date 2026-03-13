@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "@/store/auth";
-import { APP_NAME, APP_LOGO } from "@/config";
+import { APP_NAME, getLogoUrl } from "@/config";
 import { BrandLogo } from "@/components/BrandLogo";
 
 export default function Login() {
@@ -9,6 +9,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
   const { user, loading, login } = useAuth();
   const navigate = useNavigate();
 
@@ -41,11 +42,16 @@ export default function Login() {
         className="hidden md:flex w-1/2 min-h-screen items-center justify-center pl-8 pr-4 py-12 pointer-events-none shrink-0"
         aria-hidden
       >
-        <img
-          src={APP_LOGO}
-          alt=""
-          className="h-full max-h-full w-auto max-w-full object-contain object-center opacity-50"
-        />
+        {logoFailed ? (
+          <div className="text-white/40 text-6xl font-bold tracking-tight select-none">{APP_NAME}</div>
+        ) : (
+          <img
+            src={getLogoUrl()}
+            alt=""
+            className="h-full max-h-full w-auto max-w-full object-contain object-center opacity-50"
+            onError={() => setLogoFailed(true)}
+          />
+        )}
       </div>
 
       {/* Right: login modal */}

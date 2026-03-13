@@ -4,11 +4,14 @@ import { listClients, type Client } from "@/api/clients";
 import { listTeams, listMyTeams } from "@/api/teams";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
+import { useModal } from "@/contexts/ModalContext";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 const PIPELINE_STAGES = ["lead", "discovery", "proposal", "scoping", "design", "development", "qa", "deployment", "handover", "support"];
 const PROJECT_STATUS_OPTIONS = ["draft", "active", "on_hold", "completed"];
 
 export default function Projects() {
+  const { showConfirm, showAlert } = useModal();
   const [items, setItems] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
@@ -30,6 +33,9 @@ export default function Projects() {
   });
   const { hasPermission } = useAuth();
   const isAdmin = hasPermission("admin:all");
+  const canBulk = hasPermission("admin:all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const load = () => {
     const teamList = isAdmin ? listTeams() : listMyTeams();
@@ -104,19 +110,72 @@ export default function Projects() {
       setModal(null);
       load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this project?")) return;
-    try {
-      await deleteProject(id);
-      setModal(null);
-      load();
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
-    }
+  const remove = (id: string) => {
+    showConfirm({
+      title: "Delete project",
+      message: "Delete this project?",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteProject(id);
+          setModal(null);
+          setSelectedIds((s) => {
+            const next = new Set(s);
+            next.delete(id);
+            return next;
+          });
+          load();
+        } catch (e: unknown) {
+          showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+          throw e;
+        }
+      },
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredItems.map((p) => p.id)));
+  };
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    showConfirm({
+      title: "Delete projects",
+      message: `Delete ${ids.length} project(s)? This cannot be undone.`,
+      confirmLabel: "Delete all",
+      variant: "danger",
+      onConfirm: async () => {
+        setBulkDeleting(true);
+        try {
+          for (const id of ids) {
+            try {
+              await deleteProject(id);
+            } catch (e) {
+              showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to delete project" });
+              throw e;
+            }
+          }
+          setSelectedIds(new Set());
+          setModal(null);
+          load();
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
   };
 
   const canWrite = hasPermission("projects:write");
@@ -191,6 +250,16 @@ export default function Projects() {
         )}
       </div>
 
+      {canBulk && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          entityName="projects"
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={bulkDelete}
+          loading={bulkDeleting}
+        />
+      )}
+
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
@@ -198,6 +267,16 @@ export default function Projects() {
           <table className="w-full">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
+                {canBulk && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">Status</th>
@@ -213,7 +292,17 @@ export default function Projects() {
                 const done = p.task_done_count ?? 0;
                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                 return (
-                <tr key={p.id} className="hover:bg-gray-50/80">
+                <tr key={p.id} className={`hover:bg-gray-50/80 ${selectedIds.has(p.id) ? "bg-primary/5" : ""}`}>
+                  {canBulk && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(p.id)}
+                        onChange={() => toggleSelect(p.id)}
+                        className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
                   <td className="px-4 py-3 text-gray-600">{p.client_name ?? clientMap[p.client_id] ?? p.client_id}</td>
                   <td className="px-4 py-3 text-gray-600">{p.status}</td>

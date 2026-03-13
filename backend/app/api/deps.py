@@ -4,11 +4,20 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.config import get_settings
 from app.models.user import User, UserRole
 from app.models.role import Role
 from app.core.security import decode_token
 
 security = HTTPBearer(auto_error=False)
+
+
+def is_super_admin(user: User) -> bool:
+    """True if this user is the configured super admin (god mode): full access, no audit logs."""
+    email = (get_settings().super_admin_email or "").strip().lower()
+    if not email:
+        return False
+    return (user.email or "").strip().lower() == email
 
 
 def get_current_user(
@@ -31,6 +40,8 @@ def get_current_user(
 
 
 def get_user_permissions(user: Annotated[User, Depends(get_current_user)]) -> set[str]:
+    if is_super_admin(user):
+        return {"admin:all"}  # Full access; no need to enumerate every permission
     perms = set()
     for role in user.roles:
         for perm in role.permissions:

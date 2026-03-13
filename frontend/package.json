@@ -1,7 +1,9 @@
 {
-  "name": "office-software-frontend",
+  "name": "BinaryBrains",
   "private": true,
   "version": "0.0.1",
+  "description": "Software House Management System - Desktop",
+  "author": "Ahmad Shahzad",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -9,7 +11,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder"
+    "electron:build": "vite build && electron-builder",
+    "electron:build:clean": "node -e \"try{require('fs').rmSync('dist',{recursive:true,force:true});}catch(e){}\" && npm run electron:build"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -34,5 +37,26 @@
     "typescript": "^5.3.3",
     "vite": "^5.1.0",
     "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.softwarehouse.office",
+    "productName": "Binary Brains",
+    "forceCodeSigning": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": ["dist/**/*", "electron/**/*"],
+    "win": {
+      "target": ["nsis"],
+      "signAndEditExecutable": false,
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    }
   }
 }

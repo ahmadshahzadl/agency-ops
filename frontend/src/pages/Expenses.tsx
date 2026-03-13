@@ -3,9 +3,17 @@ import { listExpenses, createExpense, updateExpense, deleteExpense, type Expense
 import { listProjects, type Project } from "@/api/projects";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
+import { useModal } from "@/contexts/ModalContext";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 export default function ExpensesPage() {
+  const { showConfirm, showAlert } = useModal();
+  const { hasPermission } = useAuth();
+  const canBulk = hasPermission("admin:all");
+  const canWrite = hasPermission("finance:write");
   const [items, setItems] = useState<Expense[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState("");
@@ -18,7 +26,6 @@ export default function ExpensesPage() {
     currency: "USD",
     expense_date: "",
   });
-  const { hasPermission } = useAuth();
 
   const load = () => {
     listProjects().then(setProjects).catch(() => setProjects([]));
@@ -69,22 +76,74 @@ export default function ExpensesPage() {
       setModal(null);
       load();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed");
+      showAlert({ title: "Error", message: err instanceof Error ? err.message : "Failed" });
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this expense?")) return;
-    try {
-      await deleteExpense(id);
-      setModal(null);
-      load();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed");
-    }
+  const remove = (id: string) => {
+    showConfirm({
+      title: "Delete expense",
+      message: "Delete this expense?",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteExpense(id);
+          setModal(null);
+          setSelectedIds((s) => {
+            const next = new Set(s);
+            next.delete(id);
+            return next;
+          });
+          load();
+        } catch (err: unknown) {
+          showAlert({ title: "Error", message: err instanceof Error ? err.message : "Failed" });
+          throw err;
+        }
+      },
+    });
   };
 
-  const canWrite = hasPermission("finance:write");
+  const toggleSelect = (id: string) => {
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredItems.map((e) => e.id)));
+  };
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    showConfirm({
+      title: "Delete expenses",
+      message: `Delete ${ids.length} expense(s)? This cannot be undone.`,
+      confirmLabel: "Delete all",
+      variant: "danger",
+      onConfirm: async () => {
+        setBulkDeleting(true);
+        try {
+          for (const id of ids) {
+            try {
+              await deleteExpense(id);
+            } catch (err) {
+              showAlert({ title: "Error", message: err instanceof Error ? err.message : "Failed to delete expense" });
+              throw err;
+            }
+          }
+          setSelectedIds(new Set());
+          setModal(null);
+          load();
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
+  };
+
   const projectMap = Object.fromEntries(projects.map((p) => [p.id, p.name]));
   const searchLower = searchText.trim().toLowerCase();
   const filteredItems = searchLower
@@ -133,6 +192,16 @@ export default function ExpensesPage() {
         )}
       </div>
 
+      {canBulk && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          entityName="expenses"
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={bulkDelete}
+          loading={bulkDeleting}
+        />
+      )}
+
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
@@ -140,6 +209,16 @@ export default function ExpensesPage() {
           <table className="w-full">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
+                {canBulk && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3">Description</th>
                 <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Amount</th>
@@ -149,7 +228,17 @@ export default function ExpensesPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredItems.map((e) => (
-                <tr key={e.id} className="hover:bg-gray-50/80">
+                <tr key={e.id} className={`hover:bg-gray-50/80 ${selectedIds.has(e.id) ? "bg-primary/5" : ""}`}>
+                  {canBulk && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(e.id)}
+                        onChange={() => toggleSelect(e.id)}
+                        className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-gray-900">{e.description}</td>
                   <td className="px-4 py-3 text-gray-600">{e.project_id ? projectMap[e.project_id] || e.project_id : "—"}</td>
                   <td className="px-4 py-3 text-gray-600">

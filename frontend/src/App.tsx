@@ -1,5 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/store/auth";
+import { ModalProvider } from "@/contexts/ModalContext";
 import Layout from "@/layouts/Layout";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
@@ -69,12 +70,18 @@ function AppRoutes() {
   );
 }
 
+/** Use HashRouter when loaded via file:// (Electron packaged app); BrowserRouter for web. */
+const isFileProtocol = typeof window !== "undefined" && window.location?.protocol === "file:";
+const Router = isFileProtocol ? HashRouter : BrowserRouter;
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <Router>
       <AuthProvider>
-        <AppRoutes />
+        <ModalProvider>
+          <AppRoutes />
+        </ModalProvider>
       </AuthProvider>
-    </BrowserRouter>
+    </Router>
   );
 }

@@ -2,9 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { listUsers, createUser, updateUser, deleteUser, type UserList } from "@/api/users";
 import { listRoles } from "@/api/roles";
 import { listTeams } from "@/api/teams";
+import { useModal } from "@/contexts/ModalContext";
+import { useAuth } from "@/store/auth";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 export default function Users() {
+  const { showConfirm, showAlert } = useModal();
+  const { hasPermission } = useAuth();
+  const canBulk = hasPermission("admin:all");
   const [items, setItems] = useState<UserList[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,19 +143,72 @@ export default function Users() {
       setModal(null);
       load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this user?")) return;
-    try {
-      await deleteUser(id);
-      setModal(null);
-      load();
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
-    }
+  const remove = (id: string) => {
+    showConfirm({
+      title: "Delete user",
+      message: "Delete this user?",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteUser(id);
+          setModal(null);
+          setSelectedIds((s) => {
+            const next = new Set(s);
+            next.delete(id);
+            return next;
+          });
+          load();
+        } catch (e: unknown) {
+          showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+          throw e;
+        }
+      },
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredItems.map((u) => u.id)));
+  };
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    showConfirm({
+      title: "Delete users",
+      message: `Delete ${ids.length} user(s)? This cannot be undone.`,
+      confirmLabel: "Delete all",
+      variant: "danger",
+      onConfirm: async () => {
+        setBulkDeleting(true);
+        try {
+          for (const id of ids) {
+            try {
+              await deleteUser(id);
+            } catch (e) {
+              showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to delete user" });
+              throw e;
+            }
+          }
+          setSelectedIds(new Set());
+          setModal(null);
+          load();
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
   };
 
   const roleMap = Object.fromEntries(roles.map((r) => [r.id, r.name]));
@@ -206,6 +267,16 @@ export default function Users() {
         </button>
       </div>
 
+      {canBulk && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          entityName="users"
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={bulkDelete}
+          loading={bulkDeleting}
+        />
+      )}
+
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
@@ -213,6 +284,16 @@ export default function Users() {
           <table className="w-full">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
+                {canBulk && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Phone</th>
@@ -227,7 +308,7 @@ export default function Users() {
             <tbody className="divide-y divide-gray-100">
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={canBulk ? 8 : 7} className="px-4 py-8 text-center text-gray-500">
                     {search || statusFilter || roleFilter || teamFilter
                       ? "No users match your filters."
                       : "No users yet."}
@@ -235,7 +316,17 @@ export default function Users() {
                 </tr>
               ) : (
                 filteredItems.map((u) => (
-                  <tr key={u.id} className="hover:bg-gray-50/80">
+                  <tr key={u.id} className={`hover:bg-gray-50/80 ${selectedIds.has(u.id) ? "bg-primary/5" : ""}`}>
+                    {canBulk && (
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(u.id)}
+                          onChange={() => toggleSelect(u.id)}
+                          className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-medium text-gray-900">{u.email}</td>
                     <td className="px-4 py-3 text-gray-600">{u.full_name || "—"}</td>
                     <td className="px-4 py-3 text-gray-600 text-sm">{u.phone || "—"}</td>

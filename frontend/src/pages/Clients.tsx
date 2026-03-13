@@ -3,9 +3,18 @@ import { listClients, createClient, updateClient, deleteClient, type Client } fr
 import { listTeams } from "@/api/teams";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
+import { useModal } from "@/contexts/ModalContext";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 export default function Clients() {
+  const { showConfirm, showAlert } = useModal();
+  const { hasPermission } = useAuth();
+  const isAdmin = hasPermission("admin:all");
+  const canWrite = hasPermission("clients:write");
+  const canBulk = isAdmin || canWrite;
   const [items, setItems] = useState<Client[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -21,8 +30,6 @@ export default function Clients() {
     address: "",
     team_id: "" as string | null,
   });
-  const { hasPermission } = useAuth();
-  const isAdmin = hasPermission("admin:all");
 
   const load = async () => {
     setLoading(true);
@@ -76,7 +83,7 @@ export default function Clients() {
       contact_email: form.contact_email || null,
       contact_phone: form.contact_phone || null,
       address: form.address || null,
-      ...(isAdmin && form.team_id ? { team_id: form.team_id } : {}),
+      team_id: (isAdmin && form.team_id) ? form.team_id : null,
     };
     try {
       if (modal === "new") {
@@ -87,22 +94,74 @@ export default function Clients() {
       setModal(null);
       load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this client?")) return;
-    try {
-      await deleteClient(id);
-      setModal(null);
-      load();
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
-    }
+  const remove = (id: string) => {
+    showConfirm({
+      title: "Delete client",
+      message: "Delete this client?",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteClient(id);
+          setModal(null);
+          setSelectedIds((s) => {
+            const next = new Set(s);
+            next.delete(id);
+            return next;
+          });
+          load();
+        } catch (e: unknown) {
+          showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+          throw e;
+        }
+      },
+    });
   };
 
-  const canWrite = hasPermission("clients:write");
+  const toggleSelect = (id: string) => {
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredItems.map((c) => c.id)));
+  };
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    showConfirm({
+      title: "Delete clients",
+      message: `Delete ${ids.length} client(s)? This cannot be undone.`,
+      confirmLabel: "Delete all",
+      variant: "danger",
+      onConfirm: async () => {
+        setBulkDeleting(true);
+        try {
+          for (const id of ids) {
+            try {
+              await deleteClient(id);
+            } catch (e) {
+              showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to delete client" });
+              throw e;
+            }
+          }
+          setSelectedIds(new Set());
+          setModal(null);
+          load();
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
+  };
+
   const localLower = localSearch.trim().toLowerCase();
   const filteredItems = items.filter((c) => {
     if (teamFilter && c.team_id !== teamFilter) return false;
@@ -161,6 +220,16 @@ export default function Clients() {
         )}
       </div>
 
+      {canBulk && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          entityName="clients"
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={bulkDelete}
+          loading={bulkDeleting}
+        />
+      )}
+
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
@@ -168,6 +237,16 @@ export default function Clients() {
           <table className="w-full">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
+                {canBulk && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Phone</th>
@@ -177,7 +256,17 @@ export default function Clients() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredItems.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50/80">
+                <tr key={c.id} className={`hover:bg-gray-50/80 ${selectedIds.has(c.id) ? "bg-primary/5" : ""}`}>
+                  {canBulk && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                        className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
                   <td className="px-4 py-3 text-gray-600">{c.contact_email || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{c.contact_phone || "—"}</td>

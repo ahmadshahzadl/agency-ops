@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { APP_LOGO } from "@/config";
+import { getLogoUrl } from "@/config";
 
 const FallbackIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -25,7 +25,7 @@ export function BrandLogo({ variant = "sidebar", className = "" }: BrandLogoProp
 
   return (
     <img
-      src={APP_LOGO}
+      src={getLogoUrl()}
       alt=""
       className={`${size} object-contain flex-shrink-0 ${className}`}
       onError={() => setFailed(true)}

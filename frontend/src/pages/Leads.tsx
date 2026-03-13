@@ -10,6 +10,8 @@ import {
 import { listTeams, listMyTeams } from "@/api/teams";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
+import { useModal } from "@/contexts/ModalContext";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 const PIPELINE_STAGES = [
   "lead",
@@ -55,8 +57,12 @@ export default function Leads() {
     project_assigned_team_id: "" as string | null,
   });
   const { hasPermission, user } = useAuth();
+  const { showConfirm, showAlert } = useModal();
   const isAdmin = hasPermission("admin:all");
+  const canBulk = hasPermission("admin:all");
   const canManageLeads = user?.can_manage_leads ?? false; // manager or admin: create client/project, edit converted/closed
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -138,7 +144,7 @@ export default function Leads() {
       setModal(null);
       load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
@@ -154,9 +160,9 @@ export default function Leads() {
       });
       setConvertModal(null);
       load();
-      alert("Lead converted to client. You can open Clients and Projects to see the new records.");
+      showAlert({ title: "Success", message: "Lead converted to client. You can open Clients and Projects to see the new records." });
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
       load(); // refresh so any backend "marked as lost" is visible
     }
   };
@@ -168,7 +174,7 @@ export default function Leads() {
       setMarkLostModal(null);
       load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
@@ -176,26 +182,79 @@ export default function Leads() {
     try {
       await updateLead(l.id, { status: "converted" });
       load();
-      alert("Lead marked as converted. Management will create the client and project.");
+      showAlert({ title: "Success", message: "Lead marked as converted. Management will create the client and project." });
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
     }
   };
 
   const canWrite = hasPermission("leads:write");
   const lockedForMember = (l: Lead) => l.status === "converted" || l.status === "closed";
   const memberCanEdit = (l: Lead) => canWrite && !canManageLeads && !lockedForMember(l);
-  const managementCanEdit = (l: Lead) => canWrite && canManageLeads;
+  const managementCanEdit = (_lead: Lead) => canWrite && canManageLeads;
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this lead?")) return;
-    try {
-      await deleteLead(id);
-      setModal(null);
-      load();
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
-    }
+  const remove = (id: string) => {
+    showConfirm({
+      title: "Delete lead",
+      message: "Delete this lead?",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteLead(id);
+          setModal(null);
+          setSelectedIds((s) => {
+            const next = new Set(s);
+            next.delete(id);
+            return next;
+          });
+          load();
+        } catch (e: unknown) {
+          showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+          throw e;
+        }
+      },
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredItems.map((l) => l.id)));
+  };
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    showConfirm({
+      title: "Delete leads",
+      message: `Delete ${ids.length} lead(s)? This cannot be undone.`,
+      confirmLabel: "Delete all",
+      variant: "danger",
+      onConfirm: async () => {
+        setBulkDeleting(true);
+        try {
+          for (const id of ids) {
+            try {
+              await deleteLead(id);
+            } catch (e) {
+              showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to delete lead" });
+              throw e;
+            }
+          }
+          setSelectedIds(new Set());
+          setModal(null);
+          load();
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
   };
 
   const teamMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
@@ -267,6 +326,16 @@ export default function Leads() {
         )}
       </div>
 
+      {canBulk && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          entityName="leads"
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={bulkDelete}
+          loading={bulkDeleting}
+        />
+      )}
+
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
@@ -274,6 +343,16 @@ export default function Leads() {
           <table className="w-full">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
+                {canBulk && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3">Company</th>
                 <th className="px-4 py-3">Contact</th>
                 <th className="px-4 py-3">Status</th>
@@ -286,7 +365,17 @@ export default function Leads() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredItems.map((l) => (
-                <tr key={l.id} className="hover:bg-gray-50/80">
+                <tr key={l.id} className={`hover:bg-gray-50/80 ${selectedIds.has(l.id) ? "bg-primary/5" : ""}`}>
+                  {canBulk && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(l.id)}
+                        onChange={() => toggleSelect(l.id)}
+                        className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-gray-900">{l.company_name}</td>
                   <td className="px-4 py-3 text-gray-600">
                     {l.contact_name || l.contact_email || "—"}

@@ -158,6 +158,37 @@ export default function TeamActivity() {
         </div>
       ) : (
         <>
+          <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-5 mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">
+              {isAdmin ? "Users" : "Your team members"}
+            </h2>
+            <p className="text-sm text-gray-600 mb-3">
+              {isAdmin
+                ? "All active users (admins see everyone). Filter activity by user below."
+                : "Employees and members who report to you. You can filter their activity below."}
+            </p>
+            <ul className="flex flex-wrap gap-3">
+              {reports.length === 0 ? (
+                <li className="text-gray-500 text-sm">No users</li>
+              ) : (
+                reports.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-800"
+                  >
+                    <span className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm">
+                      {(r.full_name || r.email || "?").charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                      <span className="font-medium text-gray-900">{r.full_name || "—"}</span>
+                      <span className="text-gray-500 text-sm block">{r.email}</span>
+                    </div>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+
           <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-4 mb-4 space-y-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative flex-1 min-w-[200px] max-w-sm">

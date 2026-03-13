@@ -189,11 +189,11 @@ def create_payment(
     return pay
 
 
-# --- Expenses ---
+# --- Expenses (Admin only per roles-permissions-flow: Manager and Employee have no access) ---
 @router.get("/expenses", response_model=list[ExpenseResponse])
 def list_expenses(
     db: Session = Depends(get_db),
-    user=Depends(require_permission("finance:read")),
+    user=Depends(require_permission("expenses:read")),
     permissions=Depends(get_user_permissions),
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),
@@ -218,7 +218,7 @@ def list_expenses(
 def create_expense(
     data: ExpenseCreate,
     db: Session = Depends(get_db),
-    user=Depends(require_permission("finance:write")),
+    user=Depends(require_permission("expenses:write")),
     permissions=Depends(get_user_permissions),
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),
@@ -252,7 +252,7 @@ def update_expense(
     expense_id: UUID,
     data: ExpenseUpdate,
     db: Session = Depends(get_db),
-    user=Depends(require_permission("finance:write")),
+    user=Depends(require_permission("expenses:write")),
     permissions=Depends(get_user_permissions),
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),
@@ -275,7 +275,7 @@ def update_expense(
 def delete_expense(
     expense_id: UUID,
     db: Session = Depends(get_db),
-    user=Depends(require_permission("finance:write")),
+    user=Depends(require_permission("expenses:write")),
     permissions=Depends(get_user_permissions),
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),

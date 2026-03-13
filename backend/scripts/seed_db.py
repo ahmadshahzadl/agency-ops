@@ -11,19 +11,22 @@ from app.core.security import get_password_hash
 
 PERMISSIONS = [
     "admin:all",
-    "dashboard:read",  # dashboard page (overview); sales team has this but not analytics:read
+    "dashboard:read",
     "leads:read", "leads:write",
     "clients:read", "clients:write",
     "projects:read", "projects:write",
     "tasks:read", "tasks:write",
     "meetings:read", "meetings:write",
     "finance:read", "finance:write",
+    "expenses:read", "expenses:write",
     "analytics:read",
-    "team_activity:read",  # managers see their reports' activity and progress
+    "team_activity:read",
     "notes:read", "notes:write",
+    "announcements:read", "announcements:write",
 ]
 
-# Role name -> list of permission codes (admin gets all via code below)
+# Three primary roles per docs/roles-permissions-flow.md: Admin, Manager, Employee
+# "member" kept with same as employee for backward compatibility.
 ROLE_PERMISSIONS = {
     "admin": None,  # all permissions
     "manager": [
@@ -33,36 +36,29 @@ ROLE_PERMISSIONS = {
         "projects:read", "projects:write",
         "tasks:read", "tasks:write",
         "meetings:read", "meetings:write",
-        "finance:read", "finance:write",
+        "finance:read",
         "analytics:read",
         "team_activity:read",
         "notes:read", "notes:write",
+        "announcements:read",
+    ],
+    "employee": [
+        "dashboard:read",
+        "leads:read",
+        "projects:read",
+        "tasks:read", "tasks:write",
+        "meetings:read",
+        "notes:read", "notes:write",
+        "announcements:read",
     ],
     "member": [
         "dashboard:read",
-        "leads:read", "leads:write",
-        "clients:read", "clients:write",
-        "projects:read", "projects:write",
-        "tasks:read", "tasks:write",
-        "meetings:read", "meetings:write",
-        "finance:read", "finance:write",
-        "analytics:read",
-        "notes:read", "notes:write",
-    ],
-    "viewer": [
-        "dashboard:read",
         "leads:read",
-        "clients:read", "projects:read", "tasks:read",
-        "meetings:read", "finance:read", "analytics:read",
-        "notes:read",
-    ],
-    "sales": [
-        "dashboard:read",
-        "leads:read", "leads:write",
         "projects:read",
-        "meetings:read", "meetings:write",
         "tasks:read", "tasks:write",
+        "meetings:read",
         "notes:read", "notes:write",
+        "announcements:read",
     ],
 }
 
@@ -87,11 +83,10 @@ def seed():
                     id=uuid.uuid4(),
                     name=role_name,
                     description={
-                        "admin": "Administrator",
-                        "manager": "Manager: full access except admin",
-                        "member": "Member: same as manager",
-                        "viewer": "Viewer: read-only",
-                        "sales": "Sales: leads, meetings, tasks only; own data for members, team for lead managers",
+                        "admin": "Administrator: full system access",
+                        "manager": "Manager: team-scoped access; view team invoices; no expenses, no user/team/role management",
+                        "employee": "Employee: assigned tasks/projects/meetings only; no clients, finance, reports, or team activity",
+                    "member": "Member: same as Employee (backward compatibility)",
                     }.get(role_name, role_name),
                 )
                 db.add(role)
@@ -125,7 +120,7 @@ def seed():
         db.refresh(admin_user)
         db.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
         db.commit()
-        print("Seeded: permissions, roles (admin, manager, member, viewer, sales), admin@example.com / admin123")
+        print("Seeded: permissions, roles (admin, manager, employee, member), admin@example.com / admin123")
     finally:
         db.close()
 

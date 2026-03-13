@@ -37,3 +37,7 @@ export async function updateRole(
     body: JSON.stringify(data),
   });
 }
+
+export async function deleteRole(id: string): Promise<void> {
+  return apiFetch(`/api/v1/roles/${id}`, { method: "DELETE" });
+}

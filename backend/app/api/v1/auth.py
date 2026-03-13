@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.schemas.auth import LoginRequest, Token, UserResponse, ProfileUpdate
-from app.api.deps import get_current_user
+from app.schemas.auth import LoginRequest, RefreshRequest, Token, UserResponse, ProfileUpdate
+from app.api.deps import get_current_user, is_super_admin
 from app.models import User
 from app.core.security import verify_password, get_password_hash
 from app.services.auth_service import authenticate_user, create_tokens_for_user, refresh_access_token
@@ -21,27 +21,27 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=Token)
-def refresh(
-    payload: dict = Body(..., embed=True),
-    db: Session = Depends(get_db),
-):
-    refresh_token = payload.get("refresh_token")
-    if not refresh_token:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="refresh_token required")
-    tokens = refresh_access_token(db, refresh_token)
+def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
+    tokens = refresh_access_token(db, data.refresh_token)
     return Token(**tokens)
 
 
 def _user_response(user: User):
-    permissions = []
-    role_names = []
-    for role in user.roles:
-        role_names.append(role.name)
-        for perm in role.permissions:
-            permissions.append(perm.code)
-    report_ids = [r.id for r in user.reports] if getattr(user, "reports", None) else []
-    can_manage_tasks = "admin:all" in permissions or len(report_ids) > 0
-    can_manage_leads = "admin:all" in permissions or len(report_ids) > 0
+    if is_super_admin(user):
+        permissions = ["admin:all"]
+        role_names = [r.name for r in user.roles]
+        can_manage_tasks = True
+        can_manage_leads = True
+    else:
+        permissions = []
+        role_names = []
+        for role in user.roles:
+            role_names.append(role.name)
+            for perm in role.permissions:
+                permissions.append(perm.code)
+        report_ids = [r.id for r in user.reports] if getattr(user, "reports", None) else []
+        can_manage_tasks = "admin:all" in permissions or len(report_ids) > 0
+        can_manage_leads = "admin:all" in permissions or len(report_ids) > 0
     return UserResponse(
         id=user.id,
         email=user.email,
@@ -68,7 +68,7 @@ def update_profile(
     user: User = Depends(get_current_user),
 ):
     role_names = [r.name for r in user.roles]
-    can_edit_contact = "admin:all" in [p.code for r in user.roles for p in r.permissions] or "manager" in role_names
+    can_edit_contact = is_super_admin(user) or "admin:all" in [p.code for r in user.roles for p in r.permissions] or "manager" in role_names
 
     if data.full_name is not None:
         user.full_name = data.full_name

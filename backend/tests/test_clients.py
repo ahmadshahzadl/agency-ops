@@ -3,6 +3,12 @@ def test_list_clients_unauthorized(client):
     assert resp.status_code == 401
 
 
+def test_list_clients_employee_forbidden(client, employee_headers):
+    """Employee has no clients:read -> 403 (per roles-permissions-flow)."""
+    resp = client.get("/api/v1/clients", headers=employee_headers)
+    assert resp.status_code == 403
+
+
 def test_list_clients(client, auth_headers):
     resp = client.get("/api/v1/clients", headers=auth_headers)
     assert resp.status_code == 200
