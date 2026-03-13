@@ -46,9 +46,14 @@
       "output": "dist",
       "buildResources": "build"
     },
-    "files": ["dist/**/*", "electron/**/*"],
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "signAndEditExecutable": false,
       "icon": "build/icon.ico"
     },

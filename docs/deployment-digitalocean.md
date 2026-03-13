@@ -10,11 +10,11 @@ This guide walks you through deploying **AgencyOps** so that:
 
 ## Overview
 
-| Component   | Where it runs              | Purpose |
-|------------|----------------------------|---------|
-| PostgreSQL | DigitalOcean Managed DB   | Database (data, users, migrations) |
-| Backend    | DigitalOcean App Platform or Droplet | REST API (`/api/v1/*`) |
-| Frontend   | Your machines (Electron or browser) | UI; points to backend URL via `VITE_API_URL` |
+| Component  | Where it runs                        | Purpose                                      |
+| ---------- | ------------------------------------ | -------------------------------------------- |
+| PostgreSQL | DigitalOcean Managed DB              | Database (data, users, migrations)           |
+| Backend    | DigitalOcean App Platform or Droplet | REST API (`/api/v1/*`)                       |
+| Frontend   | Your machines (Electron or browser)  | UI; points to backend URL via `VITE_API_URL` |
 
 After deployment you will:
 
@@ -126,25 +126,27 @@ App Platform sets `PORT`; the Procfile is in the **backend** directory (see **A.
      - Run: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
    If the **Root Directory** is set to `backend`, put the **Procfile** in the repo at `backend/Procfile` with:
+
    ```text
    web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
    ```
+
    and use **Procfile** as the run type if the UI offers it.
 
 3. **Environment Variables** (required):
 
-   | Name           | Value / notes |
-  |----------------|----------------|
-   | `DATABASE_URL` | Your PostgreSQL URI from Part 1 (with `?sslmode=require`). |
-   | `JWT_SECRET`   | A long random string (e.g. 32+ chars). Generate with `openssl rand -hex 32`. |
+   | Name           | Value / notes                                                                                            |
+   | -------------- | -------------------------------------------------------------------------------------------------------- |
+   | `DATABASE_URL` | Your PostgreSQL URI from Part 1 (with `?sslmode=require`).                                               |
+   | `JWT_SECRET`   | A long random string (e.g. 32+ chars). Generate with `openssl rand -hex 32`.                             |
    | `CORS_ORIGINS` | Allowed origins. For Electron + web: `https://your-frontend-domain.com,app://.` or `*` for testing only. |
-   | `DEBUG`        | `false` in production. |
+   | `DEBUG`        | `false` in production.                                                                                   |
 
    Optional:
 
-   | Name                | Value |
-   |---------------------|--------|
-   | `APP_VERSION`       | e.g. `0.0.1` (for `/api/v1/version`). |
+   | Name                | Value                                                                                                |
+   | ------------------- | ---------------------------------------------------------------------------------------------------- |
+   | `APP_VERSION`       | e.g. `0.0.1` (for `/api/v1/version`).                                                                |
    | `SUPER_ADMIN_EMAIL` | One user email with full access and no activity/audit logs (ghost/god-mode). Leave empty to disable. |
 
 4. Save and deploy. Note the **Live URL** (e.g. `https://your-app-xxxxx.ondigitalocean.app`).
@@ -338,13 +340,13 @@ For quick testing you can use `*`; restrict origins in production.
 
 ## Quick reference: environment variables
 
-| Variable       | Required | Description |
-|----------------|----------|-------------|
-| `DATABASE_URL`| Yes      | PostgreSQL URI with `?sslmode=require` for Managed DB. |
-| `JWT_SECRET`  | Yes      | Secret for signing JWTs (e.g. `openssl rand -hex 32`). |
-| `CORS_ORIGINS`| Yes      | Comma-separated origins (e.g. `https://app.example.com,app://.`). |
-| `DEBUG`             | No       | `false` in production. |
-| `APP_VERSION`       | No       | Returned by `GET /api/v1/version` for update checks. |
+| Variable            | Required | Description                                                                          |
+| ------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `DATABASE_URL`      | Yes      | PostgreSQL URI with `?sslmode=require` for Managed DB.                               |
+| `JWT_SECRET`        | Yes      | Secret for signing JWTs (e.g. `openssl rand -hex 32`).                               |
+| `CORS_ORIGINS`      | Yes      | Comma-separated origins (e.g. `https://app.example.com,app://.`).                    |
+| `DEBUG`             | No       | `false` in production.                                                               |
+| `APP_VERSION`       | No       | Returned by `GET /api/v1/version` for update checks.                                 |
 | `SUPER_ADMIN_EMAIL` | No       | One user email with full access and no activity logs (ghost user). Empty = disabled. |
 
 ---

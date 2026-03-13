@@ -7,6 +7,7 @@ Files in this folder are served at the root URL.
 - **Logo:** Add your logo as `logo.png` (or `logo.svg` / `logo.webp`) in this folder.  
   The app will use `/logo.png` by default.  
   To use a different path or filename, set in `.env`:
+
   ```
   VITE_APP_LOGO=/your-logo.svg
   ```
