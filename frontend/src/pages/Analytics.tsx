@@ -19,7 +19,7 @@ const TASK_PIE_COLORS = [
   "#ec4899",
   "#6366f1",
 ];
-const CHART_COLORS = ["#3a7eb9", "#5791c4", "#347ab7", "#2d6a9a", "#8b5cf6", "#ec4899"];
+const CHART_COLORS = ["#01184e", "#5791c4", "#347ab7", "#2d6a9a", "#8b5cf6", "#ec4899"];
 // Easily differentiating hues (distinct, not chromatic)
 const INVOICE_PIE_COLORS = ["#2563eb", "#059669", "#d97706", "#dc2626", "#7c3aed", "#0891b2"];
 const LEADS_PIE_COLORS = ["#ea580c", "#16a34a", "#9333ea", "#0d9488", "#e11d48", "#ca8a04"];
@@ -37,7 +37,7 @@ const LEAD_STATUS_LABELS: Record<string, string> = {
   closed: "Closed",
   dead: "Dead",
 };
-const PROJECTS_BAR_COLOR = "#3a7eb9";
+const PROJECTS_BAR_COLOR = "#01184e";
 
 function formatStatus(s: string, labels: Record<string, string>) {
   return labels[s] ?? s;
@@ -537,7 +537,7 @@ export default function AnalyticsPage() {
                   {
                     data: dashboard.conversion_over_time.map((d) => d.converted_count),
                     label: "Converted",
-                    color: "#3a7eb9",
+                    color: "#01184e",
                   },
                 ]}
                 xAxis={[

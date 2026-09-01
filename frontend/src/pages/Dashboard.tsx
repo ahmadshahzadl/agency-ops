@@ -74,7 +74,7 @@ const PIPELINE_STAGES_ORDER = [
   "handover",
   "support",
 ];
-const PROJECTS_BAR_COLOR = "#3a7eb9";
+const PROJECTS_BAR_COLOR = "#01184e";
 
 type FinanceTab = "invoices" | "expenses";
 type LeadsPeriod = "today" | "this_week" | "this_month";

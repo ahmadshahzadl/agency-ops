@@ -277,12 +277,12 @@ export default function Layout() {
       {/* Post-login morph overlay: full-screen blue shrinks to sidebar then fades */}
       {showLoginMorph && (
         <div
-          className="fixed inset-y-0 left-0 w-full z-[100] bg-[#3a7eb9] dark:bg-gray-800 animate-login-morph pointer-events-none"
+          className="fixed inset-y-0 left-0 w-full z-[100] bg-[#01184e] dark:bg-gray-800 animate-login-morph pointer-events-none"
           aria-hidden
         />
       )}
       {/* Sidebar - full viewport height, does not scroll */}
-      <aside className="w-60 h-full flex flex-col shrink-0 shadow-lg overflow-hidden bg-[#3a7eb9] dark:bg-gray-800">
+      <aside className="w-60 h-full flex flex-col shrink-0 shadow-lg overflow-hidden bg-[#01184e] dark:bg-gray-800">
         <div className="p-6 flex justify-center">
           <div className="flex flex-col items-center gap-2">
             <BrandLogo variant="sidebar" />
@@ -336,7 +336,7 @@ export default function Layout() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 min-w-[1rem] h-4 px-1 flex items-center justify-center bg-[#3a7eb9] text-white text-xs font-semibold rounded-full">
+                <span className="absolute top-1 right-1 min-w-[1rem] h-4 px-1 flex items-center justify-center bg-[#01184e] text-white text-xs font-semibold rounded-full">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
@@ -346,7 +346,7 @@ export default function Layout() {
               onClick={() => navigate("/profile")}
               className="flex items-center gap-2 rounded-lg py-1.5 pl-1 pr-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium bg-primary dark:bg-primary" style={{ backgroundColor: "#3a7eb9" }}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium bg-primary dark:bg-primary" style={{ backgroundColor: "#01184e" }}>
                 {(user?.full_name || user?.email || "?").charAt(0).toUpperCase()}
               </div>
               <span className="text-sm font-medium text-gray-700 dark:text-gray-200 hidden sm:inline truncate max-w-[160px]">
@@ -383,7 +383,7 @@ export default function Layout() {
                   <button
                     type="button"
                     onClick={handleMarkAllNotificationsRead}
-                    className="text-sm font-medium text-[#3a7eb9] hover:underline"
+                    className="text-sm font-medium text-[#01184e] hover:underline"
                   >
                     Mark all read
                   </button>
@@ -432,7 +432,7 @@ export default function Layout() {
                                 handleMarkNotificationRead(n.id);
                                 navigate(n.link!);
                               }}
-                              className={`inline-block mt-2 text-sm font-medium text-left hover:underline ${n.read_at ? "text-[#3a7eb9]" : "text-white underline-offset-2"}`}
+                              className={`inline-block mt-2 text-sm font-medium text-left hover:underline ${n.read_at ? "text-[#01184e]" : "text-white underline-offset-2"}`}
                             >
                               View
                             </button>

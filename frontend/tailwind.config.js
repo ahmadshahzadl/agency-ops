@@ -9,11 +9,11 @@ export default {
         titillium: ["Titillium Web", "sans-serif"],
       },
       colors: {
-        "steel-blue": "#3a7eb9",
+        "steel-blue": "#01184e",
         "cloudy-sky": "#5791c4",
         "rich-cerulean": "#347ab7",
-        primary: "#347ab7",
-        "primary-hover": "#2d6a9a",
+        primary: "#01184e",
+        "primary-hover": "#032a75",
       },
       keyframes: {
         "login-morph": {

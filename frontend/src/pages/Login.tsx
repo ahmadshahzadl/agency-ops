@@ -29,14 +29,14 @@ export default function Login() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#3a7eb9] dark:bg-gray-800 text-white">
+      <div className="min-h-screen flex items-center justify-center bg-[#01184e] dark:bg-gray-800 text-white">
         Loading...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex bg-[#3a7eb9] dark:bg-gray-800">
+    <div className="min-h-screen flex bg-[#01184e] dark:bg-gray-800">
       {/* Left: logo, full height, 50% opacity */}
       <div
         className="hidden md:flex w-1/2 min-h-screen items-center justify-center pl-8 pr-4 py-12 pointer-events-none shrink-0"
@@ -88,7 +88,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#3a7eb9]/40 focus:border-[#3a7eb9] dark:focus:ring-[#3a7eb9]/50 transition-shadow"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#01184e]/40 focus:border-[#01184e] dark:focus:ring-[#01184e]/50 transition-shadow"
                 placeholder="you@company.com"
                 required
               />
@@ -106,14 +106,14 @@ export default function Login() {
                   type={passwordVisible ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#3a7eb9]/40 focus:border-[#3a7eb9] dark:focus:ring-[#3a7eb9]/50 transition-shadow"
+                  className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#01184e]/40 focus:border-[#01184e] dark:focus:ring-[#01184e]/50 transition-shadow"
                   placeholder="Enter your password"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setPasswordVisible((v) => !v)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-[#3a7eb9]/30 focus:ring-offset-0 transition-colors active:scale-95"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-[#01184e]/30 focus:ring-offset-0 transition-colors active:scale-95"
                   aria-label={passwordVisible ? "Hide password" : "Show password"}
                   tabIndex={-1}
                 >
@@ -145,7 +145,7 @@ export default function Login() {
             </div>
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl font-semibold text-white bg-[#3a7eb9] hover:bg-[#2d6a9a] dark:bg-[#3a7eb9] dark:hover:bg-[#347ab7] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#3a7eb9] transition-colors shadow-md hover:shadow-lg"
+              className="w-full py-3.5 rounded-xl font-semibold text-white bg-[#01184e] hover:bg-[#032a75] dark:bg-[#01184e] dark:hover:bg-[#032a75] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#01184e] transition-colors shadow-md hover:shadow-lg"
             >
               Sign in
             </button>

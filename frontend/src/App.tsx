@@ -24,7 +24,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#3a7eb9] dark:bg-gray-800 text-white">
+      <div className="min-h-screen flex items-center justify-center bg-[#01184e] dark:bg-gray-800 text-white">
         Loading...
       </div>
     );
