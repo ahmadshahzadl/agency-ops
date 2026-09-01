@@ -11,8 +11,11 @@ from app.models.finance import Invoice, Payment, Expense
 from app.models.announcement import Announcement, Notification
 from app.models.note import Note
 from app.models.message import Message
+from app.models.board import Board, BoardMember
 
 __all__ = [
+    "Board",
+    "BoardMember",
     "User",
     "UserRole",
     "Role",

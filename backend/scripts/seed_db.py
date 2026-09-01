@@ -20,7 +20,7 @@ PERMISSIONS = [
     "leads:read", "leads:write",
     "clients:read", "clients:write",
     "projects:read", "projects:write",
-    "tasks:read", "tasks:write",
+    "tasks:read", "tasks:write", "tasks:qa_approve",
     "meetings:read", "meetings:write",
     "finance:read", "finance:write",
     "expenses:read", "expenses:write",
@@ -65,6 +65,14 @@ ROLE_PERMISSIONS = {
         "notes:read", "notes:write",
         "announcements:read",
     ],
+    "qa": [
+        "dashboard:read",
+        "projects:read",
+        "tasks:read", "tasks:write", "tasks:qa_approve",
+        "meetings:read",
+        "notes:read", "notes:write",
+        "announcements:read",
+    ],
 }
 
 
@@ -92,6 +100,7 @@ def seed():
                         "manager": "Manager: team-scoped access; view team invoices; no expenses, no user/team/role management",
                         "employee": "Employee: assigned tasks/projects/meetings only; no clients, finance, reports, or team activity",
                     "member": "Member: same as Employee (backward compatibility)",
+                        "qa": "QA: employee access plus approving/failing tasks in review",
                     }.get(role_name, role_name),
                 )
                 db.add(role)

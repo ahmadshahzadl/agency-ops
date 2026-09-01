@@ -81,6 +81,18 @@ def manager_headers(client: TestClient, auth_headers: dict):
 
 
 @pytest.fixture
+def qa_headers(client: TestClient, auth_headers: dict):
+    """Headers for a user with qa role (employee access + tasks:qa_approve)."""
+    h = _ensure_user_and_login(
+        client, auth_headers,
+        "qa@test.com", "test123", "qa", "Test QA",
+    )
+    if h is None:
+        pytest.skip("Role 'qa' not found or could not create qa user - run seed_db.py")
+    return h
+
+
+@pytest.fixture
 def employee_headers(client: TestClient, auth_headers: dict):
     """Headers for a user with employee role (assigned tasks/projects only; no clients, finance, expenses, reports)."""
     h = _ensure_user_and_login(

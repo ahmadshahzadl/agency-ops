@@ -63,9 +63,9 @@ def can_access_entity(
         project = db.query(Project).filter(Project.id == entity_id).first()
         return project is not None and _can_access_project(project, user.id, team_ids, is_admin, manager_scope, db)
     if entity_type == "task":
-        from app.api.v1.tasks import _can_access_task
+        from app.api.v1.tasks import _can_access_task, get_user_board_ids
         task = db.query(Task).filter(Task.id == entity_id).first()
-        return task is not None and _can_access_task(task, user.id, is_admin, manager_scope)
+        return task is not None and _can_access_task(task, user.id, is_admin, manager_scope, get_user_board_ids(db, user.id))
     if entity_type == "meeting":
         from app.api.v1.meetings import _can_access_meeting
         meeting = db.query(Meeting).filter(Meeting.id == entity_id).first()

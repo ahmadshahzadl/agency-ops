@@ -3,6 +3,10 @@ from typing import Optional
 from uuid import UUID
 from datetime import datetime, date
 
+VALID_STATUSES = ("todo", "in_progress", "review", "qa_failed", "done")
+VALID_ITEM_TYPES = ("task", "bug")
+VALID_SEVERITIES = ("low", "medium", "high", "critical")
+
 
 class TaskBase(BaseModel):
     project_id: Optional[UUID] = None
@@ -13,6 +17,12 @@ class TaskBase(BaseModel):
     assignee_id: Optional[UUID] = None
     due_date: Optional[date] = None
     order_index: int = 0
+    item_type: str = "task"
+    severity: Optional[str] = None
+    steps_to_reproduce: Optional[str] = None
+    environment: Optional[str] = None
+    board_id: Optional[UUID] = None
+    column_order: int = 0
 
 
 class TaskCreate(TaskBase):
@@ -28,10 +38,20 @@ class TaskUpdate(BaseModel):
     assignee_id: Optional[UUID] = None
     due_date: Optional[date] = None
     order_index: Optional[int] = None
+    item_type: Optional[str] = None
+    severity: Optional[str] = None
+    steps_to_reproduce: Optional[str] = None
+    environment: Optional[str] = None
+    qa_notes: Optional[str] = None
+    board_id: Optional[UUID] = None
+    column_order: Optional[int] = None
 
 
 class TaskResponse(TaskBase):
     id: UUID
+    qa_notes: Optional[str] = None
+    qa_by: Optional[UUID] = None
+    qa_at: Optional[datetime] = None
     created_by: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
