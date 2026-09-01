@@ -25,10 +25,27 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     user = authenticate_user(db, data.email, data.password)
     if not user:
         login_limiter.record_failure(limiter_key)
+        known = db.query(User).filter(User.email == data.email).first()
+        if known:
+            log_activity(db, known.id, "login_failed", "user", known.id, details="Failed sign-in attempt")
+            db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     login_limiter.reset(limiter_key)
+    log_activity(db, user.id, "user_login", "user", user.id, details="Signed in")
+    db.commit()
     tokens = create_tokens_for_user(user)
     return Token(**tokens)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Sign out everywhere: bumps token_version so every issued token for this user is invalid."""
+    user.token_version = (user.token_version or 0) + 1
+    log_activity(db, user.id, "user_logout", "user", user.id, details="Signed out (all sessions)")
+    db.commit()
 
 
 @router.post("/refresh", response_model=Token)
@@ -90,15 +107,25 @@ def update_profile(
             user.phone = data.phone
         if data.job_title is not None:
             user.job_title = data.job_title
+    password_changed = False
     if data.new_password is not None:
         if not data.current_password:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password required to set a new password")
         if not verify_password(data.current_password, user.password_hash):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
         user.password_hash = get_password_hash(data.new_password)
+        # Invalidate every existing token (including any stolen ones)
+        user.token_version = (user.token_version or 0) + 1
+        password_changed = True
     db.flush()
     if data.full_name is not None or data.new_password is not None or data.phone is not None or data.job_title is not None:
         log_activity(db, user.id, "profile_updated", "profile", user.id, details="Profile updated")
     db.commit()
     db.refresh(user)
-    return _user_response(user)
+    response = _user_response(user)
+    if password_changed:
+        # Issue fresh tokens so this session survives its own revocation
+        tokens = create_tokens_for_user(user)
+        response.access_token = tokens["access_token"]
+        response.refresh_token = tokens["refresh_token"]
+    return response

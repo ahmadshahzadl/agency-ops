@@ -27,7 +27,9 @@ app.add_middleware(
 
 def _ws_user_id(websocket: WebSocket) -> UUID | None:
     """Validate the ?token=JWT access token on a WebSocket connection. None = reject."""
-    from app.core.security import decode_token
+    from app.core.security import decode_token, token_version_matches
+    from app.database import SessionLocal
+    from app.models import User
     token = websocket.query_params.get("token") or ""
     if not token:
         return None
@@ -35,9 +37,17 @@ def _ws_user_id(websocket: WebSocket) -> UUID | None:
     if not payload or payload.get("type") != "access":
         return None
     try:
-        return UUID(payload["sub"])
+        user_id = UUID(payload["sub"])
     except (KeyError, ValueError, TypeError):
         return None
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+        if not user or not token_version_matches(payload, user):
+            return None
+        return user_id
+    finally:
+        db.close()
 
 
 @app.websocket("/api/v1/ws/activity")

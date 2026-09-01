@@ -7,7 +7,7 @@ from app.database import get_db
 from app.config import get_settings
 from app.models.user import User, UserRole
 from app.models.role import Role
-from app.core.security import decode_token
+from app.core.security import decode_token, token_version_matches
 
 security = HTTPBearer(auto_error=False)
 
@@ -36,6 +36,8 @@ def get_current_user(
     user = db.query(UserModel).filter(UserModel.id == UUID(user_id), UserModel.is_active == True).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+    if not token_version_matches(payload, user):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
     return user
 
 

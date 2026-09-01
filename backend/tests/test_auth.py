@@ -1,4 +1,23 @@
-from tests.conftest import TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD
+import uuid
+
+from tests.conftest import TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD, _get_role_id
+
+
+def _throwaway_user(client, auth_headers, password="throwaway123"):
+    """Create a fresh employee user and return (email, password, bearer headers)."""
+    email = f"tv-{uuid.uuid4().hex[:10]}@test.com"
+    role_id = _get_role_id(client, auth_headers, "employee")
+    assert role_id, "employee role missing - run seed_db.py"
+    resp = client.post(
+        "/api/v1/users",
+        headers=auth_headers,
+        json={"email": email, "password": password, "full_name": "Token Test", "role_ids": [role_id]},
+    )
+    assert resp.status_code in (200, 201)
+    login = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert login.status_code == 200
+    data = login.json()
+    return email, password, {"Authorization": f"Bearer {data['access_token']}"}, data["refresh_token"]
 
 
 def test_login_success(client):
@@ -72,6 +91,37 @@ def test_refresh_token(client, auth_headers):
     )
     assert resp.status_code == 200
     assert "access_token" in resp.json()
+
+
+def test_logout_revokes_all_tokens(client, auth_headers):
+    email, password, headers, refresh_token = _throwaway_user(client, auth_headers)
+    assert client.get("/api/v1/auth/me", headers=headers).status_code == 200
+    assert client.post("/api/v1/auth/logout", headers=headers).status_code == 204
+    # Old access token and refresh token are both dead
+    assert client.get("/api/v1/auth/me", headers=headers).status_code == 401
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token}).status_code == 401
+    # Logging in again works and issues valid tokens
+    login = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert login.status_code == 200
+
+
+def test_password_change_revokes_old_tokens(client, auth_headers):
+    email, password, headers, refresh_token = _throwaway_user(client, auth_headers)
+    resp = client.patch(
+        "/api/v1/auth/me",
+        headers=headers,
+        json={"current_password": password, "new_password": "newpass456"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    # Response carries fresh tokens so the active session survives
+    assert data["access_token"] and data["refresh_token"]
+    # The pre-change tokens are revoked
+    assert client.get("/api/v1/auth/me", headers=headers).status_code == 401
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token}).status_code == 401
+    # The fresh pair works
+    new_headers = {"Authorization": f"Bearer {data['access_token']}"}
+    assert client.get("/api/v1/auth/me", headers=new_headers).status_code == 200
 
 
 def test_activity_websocket_rejects_missing_token(client):

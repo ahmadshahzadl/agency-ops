@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -16,6 +16,8 @@ class User(Base):
     phone = Column(String(64))
     job_title = Column(String(128))
     is_active = Column(Boolean, default=True)
+    # Embedded in every JWT as "tv"; bump to invalidate all of a user's tokens
+    token_version = Column(Integer, nullable=False, default=0, server_default="0")
     manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

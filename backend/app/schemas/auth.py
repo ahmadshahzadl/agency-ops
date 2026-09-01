@@ -35,6 +35,9 @@ class UserResponse(BaseModel):
     roles: list[str] = []  # role names e.g. ["sales"], ["manager", "sales"]
     can_manage_tasks: bool = False  # true if admin or has direct reports (can create/assign/delete tasks)
     can_manage_leads: bool = False  # true if admin or manager (can create client/project from lead, edit converted/closed)
+    # Set only when the request invalidated existing tokens (password change) so the client can stay signed in
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
 
     class Config:
         from_attributes = True
