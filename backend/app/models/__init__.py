@@ -12,10 +12,12 @@ from app.models.announcement import Announcement, Notification
 from app.models.note import Note
 from app.models.message import Message
 from app.models.board import Board, BoardMember
+from app.models.share_link import ProjectShareLink
 
 __all__ = [
     "Board",
     "BoardMember",
+    "ProjectShareLink",
     "User",
     "UserRole",
     "Role",

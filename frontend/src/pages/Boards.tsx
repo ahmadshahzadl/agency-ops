@@ -5,6 +5,7 @@ import { listProjectNames } from "@/api/projects";
 import { listBoards, createBoard, deleteBoard, listBoardTasks, addBoardMember, removeBoardMember, type Board } from "@/api/boards";
 import { createTask, updateTask, type Task } from "@/api/tasks";
 import { listAssignableUsers, type UserList } from "@/api/users";
+import { createShareLink, listShareLinks, revokeShareLink, shareUrlFor, type ShareLink } from "@/api/share";
 
 const COLUMNS = [
   { key: "todo", label: "To do", accent: "border-gray-300" },
@@ -130,6 +131,9 @@ export default function Boards() {
   const [newBoardName, setNewBoardName] = useState("");
   const [newTask, setNewTask] = useState({ title: "", description: "", item_type: "task", severity: "", steps_to_reproduce: "", environment: "", priority: "medium", assignee_id: "", due_date: "" });
   const [addMemberId, setAddMemberId] = useState("");
+  const [showShare, setShowShare] = useState(false);
+  const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const board = boards.find((b) => b.id === boardId) || null;
@@ -251,6 +255,15 @@ export default function Boards() {
           <div className="ml-auto flex items-center gap-2">
             {canManage && (
               <>
+                <button
+                  onClick={async () => {
+                    setShowShare(true);
+                    setShareLinks(await listShareLinks(projectId).catch(() => [] as ShareLink[]));
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                >
+                  Share progress
+                </button>
                 <button onClick={() => setShowMembers(true)} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
                   Members ({board.members.length})
                 </button>
@@ -382,6 +395,67 @@ export default function Boards() {
               >
                 Fail QA
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share progress modal */}
+      {showShare && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowShare(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Client progress links</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Anyone with a link sees a read-only progress page for this project — task titles and status only, no assignees, notes, or internal details.
+            </p>
+            <ul className="mt-4 space-y-2">
+              {shareLinks.map((l) => (
+                <li key={l.id} className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{l.label || "Progress link"}</p>
+                    <p className="text-xs text-gray-400 truncate">{shareUrlFor(l.token)}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(shareUrlFor(l.token)).catch(() => {});
+                      setCopiedId(l.id);
+                      window.setTimeout(() => setCopiedId(null), 1500);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20"
+                  >
+                    {copiedId === l.id ? "Copied!" : "Copy"}
+                  </button>
+                  <a href={shareUrlFor(l.token)} target="_blank" rel="noreferrer" className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200">
+                    Open
+                  </a>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await revokeShareLink(l.id);
+                        setShareLinks((ls) => ls.filter((x) => x.id !== l.id));
+                      } catch (e) { showError(e instanceof Error ? e.message : "Revoke failed"); }
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    Revoke
+                  </button>
+                </li>
+              ))}
+              {shareLinks.length === 0 && <li className="text-sm text-gray-400 py-2">No active links.</li>}
+            </ul>
+            <div className="mt-4 flex justify-between">
+              <button
+                onClick={async () => {
+                  try {
+                    const l = await createShareLink(projectId);
+                    setShareLinks((ls) => [l, ...ls]);
+                  } catch (e) { showError(e instanceof Error ? e.message : "Could not create link"); }
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white hover:bg-primary-hover"
+              >
+                + New link
+              </button>
+              <button onClick={() => setShowShare(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">Close</button>
             </div>
           </div>
         </div>

@@ -20,6 +20,7 @@ import Roles from "@/pages/Roles";
 import Profile from "@/pages/Profile";
 import Announcements from "@/pages/Announcements";
 import Messages from "@/pages/Messages";
+import PublicStatus from "@/pages/PublicStatus";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -40,6 +41,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/status/:token" element={<PublicStatus />} />
       <Route
         path="/"
         element={
