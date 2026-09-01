@@ -21,10 +21,15 @@ def test_analytics_overview_admin(client, auth_headers):
     assert isinstance(data["active_projects"], int)
 
 
-def test_analytics_overview_employee_forbidden(client, employee_headers):
-    """Employee has no analytics:read or dashboard:read -> 403 on overview."""
+def test_analytics_overview_employee_finance_zeroed(client, employee_headers):
+    """Employee has dashboard:read so overview loads, but without finance:read all finance figures are zeroed."""
     resp = client.get("/api/v1/analytics/overview", headers=employee_headers)
-    assert resp.status_code == 403
+    assert resp.status_code == 200
+    data = resp.json()
+    assert float(data["revenue_total"]) == 0
+    assert float(data["outstanding_total"]) == 0
+    assert float(data["revenue_this_month"]) == 0
+    assert float(data["expenses_this_month"]) == 0
 
 
 def test_dashboard_unauthorized(client):

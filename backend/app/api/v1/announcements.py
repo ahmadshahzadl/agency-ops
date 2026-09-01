@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Announcement as AnnouncementModel, Notification as NotificationModel, User
 from app.schemas.announcement import AnnouncementCreate, AnnouncementUpdate, AnnouncementResponse
-from app.api.deps import get_current_user, require_admin, require_any_permission
+from app.api.deps import get_current_user, require_admin, require_any_permission, get_user_permissions
 from app.services.activity_service import log_activity, notifications_updated_this_request
 
 router = APIRouter(prefix="/announcements", tags=["announcements"])
@@ -30,15 +30,25 @@ def _deliver_announcement(db: Session, announcement: AnnouncementModel) -> None:
     db.flush()
 
 
+def _can_see_announcement(ann: AnnouncementModel, user, is_admin: bool) -> bool:
+    """Broadcast announcements are visible to all; targeted ones only to their targets (and admins/author)."""
+    if is_admin or ann.target_type == "all" or ann.created_by_id == user.id:
+        return True
+    return user.id in (ann.target_user_ids or [])
+
+
 @router.get("", response_model=list[AnnouncementResponse])
 def list_announcements(
     db: Session = Depends(get_db),
     user=Depends(require_any_permission("announcements:read")),
+    permissions=Depends(get_user_permissions),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ):
+    is_admin = "admin:all" in permissions
     q = db.query(AnnouncementModel).order_by(AnnouncementModel.created_at.desc())
-    return q.offset(skip).limit(limit).all()
+    visible = [a for a in q.all() if _can_see_announcement(a, user, is_admin)]
+    return visible[skip:skip + limit]
 
 
 @router.post("", response_model=AnnouncementResponse, status_code=status.HTTP_201_CREATED)
@@ -71,9 +81,10 @@ def get_announcement(
     announcement_id: UUID,
     db: Session = Depends(get_db),
     user=Depends(require_any_permission("announcements:read")),
+    permissions=Depends(get_user_permissions),
 ):
     ann = db.query(AnnouncementModel).filter(AnnouncementModel.id == announcement_id).first()
-    if not ann:
+    if not ann or not _can_see_announcement(ann, user, "admin:all" in permissions):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Announcement not found")
     return ann
 

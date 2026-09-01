@@ -103,6 +103,12 @@ def overview(
         outstanding_total = Decimal("0")
         revenue_this_month = Decimal("0")
         expenses_this_month = Decimal("0")
+    # Finance figures require finance:read, not just having direct reports
+    if "admin:all" not in permissions and "finance:read" not in permissions:
+        revenue_total = Decimal("0")
+        outstanding_total = Decimal("0")
+        revenue_this_month = Decimal("0")
+        expenses_this_month = Decimal("0")
     return AnalyticsOverview(
         total_clients=total_clients,
         active_projects=active_projects,
@@ -338,6 +344,12 @@ def dashboard(
         outstanding_total = Decimal("0")
         chart_data = _member_dashboard_charts(db, user.id)
 
+    # Finance figures require finance:read, not just having direct reports
+    if "admin:all" not in permissions and "finance:read" not in permissions:
+        revenue_total = Decimal("0")
+        outstanding_total = Decimal("0")
+        revenue_this_month = Decimal("0")
+        expenses_this_month = Decimal("0")
     return DashboardResponse(
         total_clients=total_clients,
         active_projects=active_projects,

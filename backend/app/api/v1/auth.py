@@ -7,15 +7,26 @@ from app.models import User
 from app.core.security import verify_password, get_password_hash
 from app.services.auth_service import authenticate_user, create_tokens_for_user, refresh_access_token
 from app.services.activity_service import log_activity
+from app.core.rate_limit import login_limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=Token)
 def login(data: LoginRequest, db: Session = Depends(get_db)):
+    limiter_key = data.email.strip().lower()
+    retry_after = login_limiter.retry_after(limiter_key)
+    if retry_after:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
     user = authenticate_user(db, data.email, data.password)
     if not user:
+        login_limiter.record_failure(limiter_key)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    login_limiter.reset(limiter_key)
     tokens = create_tokens_for_user(user)
     return Token(**tokens)
 

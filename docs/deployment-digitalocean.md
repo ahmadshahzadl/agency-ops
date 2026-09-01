@@ -139,7 +139,7 @@ App Platform sets `PORT`; the Procfile is in the **backend** directory (see **A.
    | -------------- | -------------------------------------------------------------------------------------------------------- |
    | `DATABASE_URL` | Your PostgreSQL URI from Part 1 (with `?sslmode=require`).                                               |
    | `JWT_SECRET`   | A long random string (e.g. 32+ chars). Generate with `openssl rand -hex 32`.                             |
-   | `CORS_ORIGINS` | Allowed origins. For Electron + web: `https://your-frontend-domain.com,app://.` or `*` for testing only. |
+   | `CORS_ORIGINS` | Explicit allowed origins. For Electron + web: `https://your-frontend-domain.com,app://.`. `*` is rejected at startup. |
    | `DEBUG`        | `false` in production.                                                                                   |
 
    Optional:
@@ -218,10 +218,12 @@ Contents (replace with your values):
 ```env
 DATABASE_URL=postgresql://doadmin:PASSWORD@db-xxx.db.ondigitalocean.com:25060/defaultdb?sslmode=require
 JWT_SECRET=your-long-random-secret-from-openssl-rand-hex-32
-CORS_ORIGINS=*
+CORS_ORIGINS=https://your-frontend-domain.com,app://.
 DEBUG=false
 APP_VERSION=0.0.1
 ```
+
+Note: `CORS_ORIGINS` must list explicit origins — the app refuses to start with `*`, and refuses to start without a `JWT_SECRET` unless `DEBUG=true`.
 
 #### B.5 Run migrations and seed
 
@@ -313,7 +315,7 @@ Set in backend env:
 CORS_ORIGINS=https://your-frontend-domain.com,app://.
 ```
 
-For quick testing you can use `*`; restrict origins in production.
+Origins must be explicit — the app refuses to start if `CORS_ORIGINS` contains `*`.
 
 ---
 
@@ -322,9 +324,9 @@ For quick testing you can use `*`; restrict origins in production.
 - [ ] PostgreSQL: connection string uses `?sslmode=require`; trusted sources limited to backend only.
 - [ ] Backend: `JWT_SECRET` is strong and unique; never commit it.
 - [ ] Backend: `DEBUG=false` in production.
-- [ ] Backend: `CORS_ORIGINS` set to real frontend origins (no `*` in production if possible).
+- [ ] Backend: `CORS_ORIGINS` set to real frontend origins (`*` is rejected at startup).
 - [ ] Migrations: run `alembic upgrade head` after each deploy that includes migration files.
-- [ ] Admin user: seed run once (`python scripts/seed_db.py`); change default password after first login.
+- [ ] Admin user: seed run once with `ADMIN_EMAIL`/`ADMIN_PASSWORD` set (`python scripts/seed_db.py`); change the password after first login.
 - [ ] HTTPS: use HTTPS for the backend URL in production (App Platform provides it; on Droplet use Nginx + Certbot).
 
 ---

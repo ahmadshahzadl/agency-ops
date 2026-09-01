@@ -15,15 +15,36 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 def list_project_names(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
+    permissions=Depends(get_user_permissions),
+    team_ids=Depends(get_user_team_ids),
+    manager_scope=Depends(get_manager_scope_user_ids),
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=500),
 ):
-    """Return project id and name only. All authenticated users can call this (for displaying project names in meetings/tasks)."""
+    """Return id and name of projects the user can see: assigned projects, plus projects of their own tasks (for labels)."""
     qry = (
         db.query(ProjectModel.id, ProjectModel.name)
         .filter(ProjectModel.deleted_at.is_(None))
         .order_by(ProjectModel.name)
     )
+    if "admin:all" not in permissions:
+        has_own_task = exists().where(
+            TaskModel.project_id == ProjectModel.id,
+            TaskModel.assignee_id == user.id,
+        )
+        member_exists = exists().where(
+            ProjectMemberModel.project_id == ProjectModel.id,
+            ProjectMemberModel.user_id == user.id,
+        )
+        owner_ids = manager_scope if manager_scope is not None else {user.id}
+        qry = qry.filter(
+            or_(
+                ProjectModel.owner_id.in_(owner_ids),
+                (ProjectModel.assigned_team_id.isnot(None) & ProjectModel.assigned_team_id.in_(team_ids)),
+                member_exists,
+                has_own_task,
+            )
+        )
     rows = qry.offset(skip).limit(limit).all()
     return [ProjectNameResponse(id=r.id, name=r.name) for r in rows]
 
@@ -148,6 +169,9 @@ def create_project(
     if getattr(data, "assigned_team_id", None) and "admin:all" not in permissions:
         if data.assigned_team_id not in team_ids:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign project to this team")
+    if data.owner_id is not None and data.owner_id != user.id and "admin:all" not in permissions:
+        if manager_scope is None or data.owner_id not in manager_scope:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot set project owner outside your team")
     project = ProjectModel(
         client_id=data.client_id,
         name=data.name,
@@ -209,6 +233,9 @@ def update_project(
     if "assigned_team_id" in updates and updates["assigned_team_id"] and "admin:all" not in permissions:
         if updates["assigned_team_id"] not in team_ids:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign project to this team")
+    if "owner_id" in updates and updates["owner_id"] != user.id and "admin:all" not in permissions:
+        if updates["owner_id"] is None or manager_scope is None or updates["owner_id"] not in manager_scope:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot set project owner outside your team")
     for k, v in updates.items():
         setattr(project, k, v)
     db.flush()

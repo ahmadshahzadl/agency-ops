@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Note as NoteModel, User
 from app.schemas.note import NoteCreate, NoteUpdate, NoteResponse
-from app.api.deps import get_current_user, require_permission
-from app.services.note_service import entity_exists
+from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
+from app.services.note_service import entity_exists, can_access_entity
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -20,10 +20,15 @@ def list_notes(
     entity_id: UUID = Query(..., description="Entity ID"),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("notes:read")),
+    permissions=Depends(get_user_permissions),
+    team_ids=Depends(get_user_team_ids),
+    manager_scope=Depends(get_manager_scope_user_ids),
 ):
     if entity_type not in VALID_ENTITY_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid entity_type")
     if not entity_exists(db, entity_type, entity_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
+    if not can_access_entity(db, entity_type, entity_id, user, permissions, team_ids, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
     qry = (
         db.query(NoteModel)
@@ -55,10 +60,15 @@ def create_note(
     data: NoteCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("notes:write")),
+    permissions=Depends(get_user_permissions),
+    team_ids=Depends(get_user_team_ids),
+    manager_scope=Depends(get_manager_scope_user_ids),
 ):
     if data.entity_type not in VALID_ENTITY_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid entity_type")
     if not entity_exists(db, data.entity_type, data.entity_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
+    if not can_access_entity(db, data.entity_type, data.entity_id, user, permissions, team_ids, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
     note = NoteModel(
         entity_type=data.entity_type,

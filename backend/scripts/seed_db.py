@@ -1,5 +1,10 @@
-"""Seed permissions, roles, and default admin user. Run after migrations."""
+"""Seed permissions, roles, and default admin user. Run after migrations.
+
+Admin credentials come from ADMIN_EMAIL / ADMIN_PASSWORD env vars. If
+ADMIN_PASSWORD is unset, a random password is generated and printed once.
+"""
 import os
+import secrets
 import sys
 import uuid
 
@@ -102,14 +107,20 @@ def seed():
             db.commit()
 
         # Default admin user if not exists
-        if db.query(User).filter(User.email == "admin@example.com").first():
-            print("Admin user already exists. Permissions and roles are up to date.")
+        admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com").strip().lower()
+        if db.query(User).filter(User.email == admin_email).first():
+            print(f"Admin user {admin_email} already exists. Permissions and roles are up to date.")
             return
+        admin_password = os.environ.get("ADMIN_PASSWORD")
+        generated = False
+        if not admin_password:
+            admin_password = secrets.token_urlsafe(12)
+            generated = True
         admin_role = db.query(Role).filter(Role.name == "admin").first()
         admin_user = User(
             id=uuid.uuid4(),
-            email="admin@example.com",
-            password_hash=get_password_hash("admin123"),
+            email=admin_email,
+            password_hash=get_password_hash(admin_password),
             full_name="Admin",
             phone="+1-555-0000",
             job_title="Administrator",
@@ -120,7 +131,10 @@ def seed():
         db.refresh(admin_user)
         db.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
         db.commit()
-        print("Seeded: permissions, roles (admin, manager, employee, member), admin@example.com / admin123")
+        print(f"Seeded: permissions, roles (admin, manager, employee, member), admin user {admin_email}")
+        if generated:
+            print(f"Generated admin password (save it now, it will not be shown again): {admin_password}")
+        print("Change the admin password after first login.")
     finally:
         db.close()
 

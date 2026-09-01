@@ -97,6 +97,14 @@ def create_task(
         assignee_id = user.id
     else:
         assignee_id = data.assignee_id
+        # Mirror update_task: non-admin managers may only assign within their scope
+        if (
+            "admin:all" not in permissions
+            and assignee_id is not None
+            and assignee_id != user.id
+            and assignee_id not in manager_scope
+        ):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers can only assign tasks to themselves or to their team members")
     if data.project_id is not None and not _can_access_task_project(data.project_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot add task to this project")
     task = TaskModel(

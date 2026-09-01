@@ -174,7 +174,15 @@ def create_payment(
     data: PaymentCreate,
     db: Session = Depends(get_db),
     user=Depends(require_permission("finance:write")),
+    permissions=Depends(get_user_permissions),
+    team_ids=Depends(get_user_team_ids),
+    manager_scope=Depends(get_manager_scope_user_ids),
 ):
+    invoice = db.query(InvoiceModel).filter(InvoiceModel.id == data.invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    if not _can_access_invoice_client(invoice.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     pay = PaymentModel(
         invoice_id=data.invoice_id,
         amount=data.amount,

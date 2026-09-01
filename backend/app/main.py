@@ -25,9 +25,27 @@ app.add_middleware(
 )
 
 
+def _ws_user_id(websocket: WebSocket) -> UUID | None:
+    """Validate the ?token=JWT access token on a WebSocket connection. None = reject."""
+    from app.core.security import decode_token
+    token = websocket.query_params.get("token") or ""
+    if not token:
+        return None
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "access":
+        return None
+    try:
+        return UUID(payload["sub"])
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
 @app.websocket("/api/v1/ws/activity")
 async def websocket_activity(websocket: WebSocket):
-    """Connect to receive instant activity updates. Sends { \"type\": \"activity_updated\" } when any user logs activity."""
+    """Connect with ?token=JWT to receive instant activity updates. Sends { \"type\": \"activity_updated\" } when any user logs activity."""
+    if _ws_user_id(websocket) is None:
+        await websocket.close(code=4001)
+        return
     await activity_manager.connect(websocket)
     try:
         while True:
@@ -41,18 +59,8 @@ async def websocket_activity(websocket: WebSocket):
 @app.websocket("/api/v1/ws/messages")
 async def websocket_messages(websocket: WebSocket):
     """Connect with ?token=JWT to receive real-time new-message events. Sends { \"type\": \"new_message\", \"message\": {...} }."""
-    from app.core.security import decode_token
-    token = websocket.query_params.get("token") or ""
-    if not token:
-        await websocket.close(code=4001)
-        return
-    payload = decode_token(token)
-    if not payload or payload.get("type") != "access":
-        await websocket.close(code=4001)
-        return
-    try:
-        user_id = UUID(payload["sub"])
-    except (KeyError, ValueError, TypeError):
+    user_id = _ws_user_id(websocket)
+    if user_id is None:
         await websocket.close(code=4001)
         return
     await message_ws_manager.connect(websocket, user_id)
