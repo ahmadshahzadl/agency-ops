@@ -10,6 +10,15 @@ export interface Task {
   assignee_id: string | null;
   due_date: string | null;
   order_index: number;
+  item_type: string;
+  severity: string | null;
+  steps_to_reproduce: string | null;
+  environment: string | null;
+  qa_notes: string | null;
+  qa_by: string | null;
+  qa_at: string | null;
+  board_id: string | null;
+  column_order: number;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -32,7 +41,7 @@ export async function listTasks(params?: {
   return apiFetch<Task[]>(`/api/v1/tasks${qs ? `?${qs}` : ""}`);
 }
 
-export async function createTask(data: Omit<Task, "id" | "created_at" | "updated_at" | "created_by">): Promise<Task> {
+export async function createTask(data: Partial<Task> & { title: string }): Promise<Task> {
   return apiFetch<Task>("/api/v1/tasks", {
     method: "POST",
     body: JSON.stringify(data),
