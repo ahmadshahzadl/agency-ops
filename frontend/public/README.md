@@ -12,9 +12,9 @@ Files in this folder are served at the root URL.
   VITE_APP_LOGO=/your-logo.svg
   ```
 
-- **App name:** The default name is "AgencyOps". To change it, set in `.env`:
+- **App name:** The default name is "Fuorix". To change it, set in `.env`:
   ```
-  VITE_APP_NAME=AgencyOps
+  VITE_APP_NAME=Fuorix
   ```
 
 Create a `.env` file in the `frontend` folder (same level as `package.json`) with the variables above. Restart the dev server after changing `.env`.

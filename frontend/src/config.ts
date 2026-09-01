@@ -8,17 +8,17 @@ const env = import.meta.env;
 export const APP_NAME =
   typeof env.VITE_APP_NAME === "string" && env.VITE_APP_NAME.trim()
     ? env.VITE_APP_NAME.trim()
-    : "AgencyOps";
+    : "Fuorix";
 
 export const APP_LOGO =
   typeof env.VITE_APP_LOGO === "string" && env.VITE_APP_LOGO.trim()
     ? env.VITE_APP_LOGO.trim()
-    : "/logo.svg";
+    : "/logo.png";
 
 /** Use relative path when loaded via file:// (Electron) so the logo resolves from dist/. */
 export function getLogoUrl(): string {
   if (typeof window !== "undefined" && window.location?.protocol === "file:")
-    return "./logo.svg";
+    return "./logo.png";
   return APP_LOGO;
 }
 

@@ -1,6 +1,6 @@
 # Backend API tests
 
-Pytest tests for the AgencyOps API, including **roles, permissions, and the updated flow** (Admin, Manager, Employee).
+Pytest tests for the Fuorix API, including **roles, permissions, and the updated flow** (Admin, Manager, Employee).
 
 ## Setup (required before running tests)
 

@@ -1,11 +1,11 @@
-# AgencyOps
+# Fuorix
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Backend: FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688)](https://fastapi.tiangolo.com/)
 [![Frontend: React](https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-61DAFB)](https://react.dev/)
 [![Desktop: Electron](https://img.shields.io/badge/Desktop-Electron-47848F)](https://www.electronjs.org/)
 
-**AgencyOps** is a free, open-source agency management software for software houses, marketing agencies, and creative studios. Manage your entire agency from one platform — clients, projects, tasks, leads, meetings, finance, and team collaboration.
+**Fuorix** is a free, open-source agency management software for software houses, marketing agencies, and creative studios. Manage your entire agency from one platform — clients, projects, tasks, leads, meetings, finance, and team collaboration.
 
 > Self-hostable alternative to tools like Monday.com, ClickUp, or HubSpot CRM — built for agencies.
 

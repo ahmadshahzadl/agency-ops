@@ -1,8 +1,8 @@
 {
-  "name": "agency-ops-frontend",
+  "name": "fuorix-frontend",
   "private": true,
   "version": "0.0.1",
-  "description": "AgencyOps - Open-source agency operations platform (desktop + web)",
+  "description": "Fuorix - Open-source agency operations platform (desktop + web)",
   "author": "Ahmad Shahzad",
   "main": "electron/main.cjs",
   "type": "module",
@@ -39,8 +39,8 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.agencyops.desktop",
-    "productName": "AgencyOps",
+    "appId": "com.fuorix.desktop",
+    "productName": "Fuorix",
     "forceCodeSigning": false,
     "directories": {
       "output": "dist",

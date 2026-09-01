@@ -1,4 +1,4 @@
-# AgencyOps — Database Schema
+# Fuorix — Database Schema
 
 ## 1. Conventions
 

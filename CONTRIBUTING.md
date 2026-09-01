@@ -1,6 +1,6 @@
-# Contributing to AgencyOps
+# Contributing to Fuorix
 
-Thank you for your interest in contributing! AgencyOps is open-source and welcomes contributions of all kinds — bug fixes, new features, documentation improvements, and more.
+Thank you for your interest in contributing! Fuorix is open-source and welcomes contributions of all kinds — bug fixes, new features, documentation improvements, and more.
 
 ## Getting started
 

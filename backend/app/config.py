@@ -11,7 +11,7 @@ _DEFAULT_JWT_SECRET = "change-me-in-production-use-env"
 
 
 class Settings(BaseSettings):
-    app_name: str = "AgencyOps API"
+    app_name: str = "Fuorix API"
     app_version: str = "0.0.1"
     debug: bool = False
 
