@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
 from datetime import datetime, date
+from decimal import Decimal
 
 
 class ProjectBase(BaseModel):
@@ -13,6 +14,7 @@ class ProjectBase(BaseModel):
     assigned_team_id: Optional[UUID] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    hourly_rate: Optional[Decimal] = None
     owner_id: Optional[UUID] = None
 
 
@@ -28,6 +30,7 @@ class ProjectUpdate(BaseModel):
     assigned_team_id: Optional[UUID] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    hourly_rate: Optional[Decimal] = None
     owner_id: Optional[UUID] = None
 
 

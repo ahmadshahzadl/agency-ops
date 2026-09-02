@@ -15,9 +15,11 @@ from app.models.board import Board, BoardMember
 from app.models.share_link import ProjectShareLink
 from app.models.attachment import Attachment
 from app.models.password_reset import PasswordResetToken
+from app.models.time_entry import TimeEntry
 
 __all__ = [
     "PasswordResetToken",
+    "TimeEntry",
     "Board",
     "BoardMember",
     "ProjectShareLink",

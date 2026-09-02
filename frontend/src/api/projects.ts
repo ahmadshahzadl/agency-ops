@@ -10,6 +10,7 @@ export interface Project {
   assigned_team_id: string | null;
   start_date: string | null;
   end_date: string | null;
+  hourly_rate: number | string | null;
   owner_id: string | null;
   created_at: string;
   updated_at: string;

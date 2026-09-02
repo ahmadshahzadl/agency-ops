@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Column, String, Text, DateTime, Date, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Date, ForeignKey, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -18,6 +18,7 @@ class Project(Base):
     assigned_team_id = Column(UUID(as_uuid=True), ForeignKey("teams.id", ondelete="SET NULL"))
     start_date = Column(Date)
     end_date = Column(Date)
+    hourly_rate = Column(Numeric(10, 2))  # default billing rate for time entries
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -8,6 +8,8 @@ import {
   type Invoice,
 } from "@/api/finance";
 import { listClients, type Client } from "@/api/clients";
+import { listProjectNames } from "@/api/projects";
+import { invoiceFromTime } from "@/api/time";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
 import { AttachmentsSection } from "@/components/AttachmentsSection";
@@ -41,6 +43,9 @@ export default function InvoicesPage() {
     issued_at: "",
   });
   const [paymentForm, setPaymentForm] = useState({ amount: "", paid_at: "", reference: "" });
+  const [fromTimeModal, setFromTimeModal] = useState(false);
+  const [projectNames, setProjectNames] = useState<{ id: string; name: string }[]>([]);
+  const [fromTimeForm, setFromTimeForm] = useState({ project_id: "", date_from: "", date_to: "", hourly_rate: "", number: "" });
 
   const load = () => {
     listClients().then(setClients).catch(() => setClients([]));
@@ -239,14 +244,76 @@ export default function InvoicesPage() {
           />
         </div>
         {canWrite && (
-          <button
-            onClick={openNew}
-            className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover"
-          >
-            Add invoice
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                setProjectNames(await listProjectNames({ limit: 500 }).catch(() => []));
+                setFromTimeForm({ project_id: "", date_from: "", date_to: "", hourly_rate: "", number: "" });
+                setFromTimeModal(true);
+              }}
+              className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 font-medium hover:bg-gray-200"
+            >
+              From time
+            </button>
+            <button
+              onClick={openNew}
+              className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover"
+            >
+              Add invoice
+            </button>
+          </div>
         )}
       </div>
+
+      {fromTimeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Generate invoice from time</h2>
+            <p className="text-sm text-gray-500 mb-4">Bills all unbilled billable hours on the project (optionally limited to a date range). Rate precedence: entry rate, then the rate below, then the project rate.</p>
+            <div className="space-y-3">
+              <select
+                value={fromTimeForm.project_id}
+                onChange={(e) => setFromTimeForm((f) => ({ ...f, project_id: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              >
+                <option value="">Select project…</option>
+                {projectNames.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" value={fromTimeForm.date_from} onChange={(e) => setFromTimeForm((f) => ({ ...f, date_from: e.target.value }))} className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900" />
+                <input type="date" value={fromTimeForm.date_to} onChange={(e) => setFromTimeForm((f) => ({ ...f, date_to: e.target.value }))} className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900" />
+              </div>
+              <input type="number" min="0" step="0.01" placeholder="Hourly rate override (optional)" value={fromTimeForm.hourly_rate} onChange={(e) => setFromTimeForm((f) => ({ ...f, hourly_rate: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900" />
+              <input placeholder="Invoice number (auto if empty)" value={fromTimeForm.number} onChange={(e) => setFromTimeForm((f) => ({ ...f, number: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900" />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setFromTimeModal(false)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">Cancel</button>
+              <button
+                disabled={!fromTimeForm.project_id}
+                onClick={async () => {
+                  try {
+                    const inv = await invoiceFromTime({
+                      project_id: fromTimeForm.project_id,
+                      date_from: fromTimeForm.date_from || undefined,
+                      date_to: fromTimeForm.date_to || undefined,
+                      hourly_rate: fromTimeForm.hourly_rate ? Number(fromTimeForm.hourly_rate) : undefined,
+                      number: fromTimeForm.number || undefined,
+                    });
+                    setFromTimeModal(false);
+                    load();
+                    showAlert({ title: "Invoice created", message: `${inv.number} for ${inv.amount} ${inv.currency} (draft)` });
+                  } catch (e) {
+                    showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover disabled:opacity-50"
+              >
+                Generate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {canBulk && (
         <BulkActionsBar

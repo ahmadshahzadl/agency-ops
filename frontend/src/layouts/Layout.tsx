@@ -20,6 +20,7 @@ const navItems: { to: string; label: string; permission?: string }[] = [
   { to: "/projects", label: "Projects", permission: "projects:read" },
   { to: "/tasks", label: "Tasks", permission: "tasks:read" },
   { to: "/boards", label: "Boards", permission: "tasks:read" },
+  { to: "/timesheet", label: "Timesheet", permission: "time:read" },
   { to: "/meetings", label: "Meetings", permission: "meetings:read" },
   { to: "/messages", label: "Messages" },
   { to: "/invoices", label: "Invoices", permission: "finance:read" },
@@ -62,6 +63,11 @@ const NavIcon = ({ path, className = "w-5 h-5 shrink-0" }: { path: string; class
     "/boards": (
       <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h3a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM10.5 5a1 1 0 011-1h3a1 1 0 011 1v9a1 1 0 01-1 1h-3a1 1 0 01-1-1V5zM17 5a1 1 0 011-1h1a1 1 0 011 1v6a1 1 0 01-1 1h-1a1 1 0 01-1-1V5z" />
+      </svg>
+    ),
+    "/timesheet": (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
     "/meetings": (
@@ -132,6 +138,7 @@ const PATH_TO_HEADER_TITLE: Record<string, string> = {
   "/projects": "Projects",
   "/tasks": "Tasks",
   "/boards": "Boards",
+  "/timesheet": "Timesheet",
   "/meetings": "Meetings",
   "/messages": "Messages",
   "/invoices": "Invoices",

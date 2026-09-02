@@ -31,6 +31,7 @@ export default function Projects() {
     assigned_team_id: "" as string | null,
     start_date: "",
     end_date: "",
+    hourly_rate: "",
   });
   const { hasPermission } = useAuth();
   const isAdmin = hasPermission("admin:all");
@@ -73,6 +74,7 @@ export default function Projects() {
       assigned_team_id: null,
       start_date: "",
       end_date: "",
+      hourly_rate: "",
     });
     setModal("new");
   };
@@ -86,6 +88,7 @@ export default function Projects() {
       assigned_team_id: p.assigned_team_id || null,
       start_date: p.start_date || "",
       end_date: p.end_date || "",
+      hourly_rate: p.hourly_rate != null ? String(p.hourly_rate) : "",
     });
     setModal(p);
   };
@@ -101,6 +104,7 @@ export default function Projects() {
       assigned_team_id: form.assigned_team_id || null,
       start_date: form.start_date || null,
       end_date: form.end_date || null,
+      hourly_rate: form.hourly_rate ? Number(form.hourly_rate) : null,
     };
     try {
       if (modal === "new") {
@@ -385,6 +389,15 @@ export default function Projects() {
                 <input type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} className={inputClass} />
                 <input type="date" value={form.end_date} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))} className={inputClass} />
               </div>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Hourly rate (for time billing, optional)"
+                value={form.hourly_rate}
+                onChange={(e) => setForm((f) => ({ ...f, hourly_rate: e.target.value }))}
+                className={inputClass}
+              />
             </div>
             <NotesSection entityType="project" entityId={modal !== "new" ? (modal as Project).id : undefined} />
             <AttachmentsSection entityType="project" entityId={modal !== "new" ? (modal as Project).id : undefined} />
