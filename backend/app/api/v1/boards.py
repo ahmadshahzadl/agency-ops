@@ -6,11 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.database import get_db
-from app.models import Board as BoardModel, BoardMember as BoardMemberModel, Project as ProjectModel, Task as TaskModel, User as UserModel
+from app.models import Board as BoardModel, BoardMember as BoardMemberModel, Project as ProjectModel, Task as TaskModel, User as UserModel, Notification as NotificationModel
 from app.schemas.board import BoardCreate, BoardUpdate, BoardResponse, BoardMemberAdd, BoardMemberResponse
 from app.schemas.task import TaskResponse
 from app.api.deps import require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
-from app.services.activity_service import log_activity, tasks_updated_this_request
+from app.services.activity_service import log_activity, tasks_updated_this_request, notifications_updated_this_request
+from app.services import email_service
 
 router = APIRouter(prefix="/boards", tags=["boards"])
 
@@ -214,6 +215,19 @@ def add_board_member(
     ).first()
     if not existing:
         db.add(BoardMemberModel(board_id=board_id, user_id=data.user_id))
+        if data.user_id != user.id:
+            db.add(NotificationModel(
+                user_id=data.user_id,
+                title="Added to board",
+                message=f'You were added to the board "{board.name}"',
+                link="/boards",
+                type="board",
+                reference_id=None,
+            ))
+            email_service.send_notification(target.email, "Added to board", f'You were added to the board "{board.name}"', "/boards")
+        notifications_updated_this_request.set(True)
+        tasks_updated_this_request.set(True)
+        log_activity(db, user.id, "board_member_added", "board", board.id, details=f"{target.full_name or target.email} added to board: {board.name}")
         db.commit()
     return _board_response(db, board)
 

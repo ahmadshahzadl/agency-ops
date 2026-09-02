@@ -24,6 +24,11 @@ from app.models import (
     Invoice,
     Payment,
     Expense,
+    Board,
+    BoardMember,
+    TimeEntry,
+    Quote,
+    QuoteItem,
 )
 from app.core.security import get_password_hash
 
@@ -512,6 +517,63 @@ def seed_demo():
         db.add_all([e1, e2, e3, e4])
         db.commit()
 
+        # --- Boards + QA pipeline tasks (p1) ---
+        p1.hourly_rate = Decimal("75.00")
+        board = Board(project_id=p1.id, name="Sprint 1", created_by=admin.id)
+        db.add(board)
+        db.flush()
+        for uid in {admin.id, manager_user.id, employee_user.id}:
+            db.add(BoardMember(board_id=board.id, user_id=uid))
+        board_tasks = [
+            ("Design landing page", "done", "task", None),
+            ("Implement auth flow", "in_progress", "task", None),
+            ("Checkout crashes on mobile", "review", "bug", "high"),
+            ("Broken layout on Safari", "qa_failed", "bug", "medium"),
+            ("Payment webhook retries", "todo", "task", None),
+        ]
+        for i, (title, status_val, item_type, severity) in enumerate(board_tasks):
+            db.add(Task(
+                project_id=p1.id, board_id=board.id, title=title, status=status_val,
+                item_type=item_type, severity=severity,
+                steps_to_reproduce="1. Open checkout 2. Pay on mobile" if item_type == "bug" else None,
+                qa_notes="Crashes on iOS 17 — see attached log" if status_val == "qa_failed" else None,
+                assignee_id=employee_user.id, created_by=manager_user.id, column_order=i,
+            ))
+        db.commit()
+
+        # --- Time entries on p1 ---
+        for days_ago, hours, desc, billable in [
+            (1, "6.0", "Auth flow implementation", True),
+            (2, "4.5", "Bug triage and fixes", True),
+            (3, "2.0", "Internal sync", False),
+            (5, "7.5", "Landing page build", True),
+        ]:
+            db.add(TimeEntry(
+                user_id=employee_user.id, project_id=p1.id,
+                work_date=today - timedelta(days=days_ago),
+                hours=Decimal(hours), description=desc, billable=billable,
+            ))
+        db.commit()
+
+        # --- Quotes ---
+        q1 = Quote(number="QUO-DEMO-0001", title="Website Redesign", client_id=c1.id,
+                   status="sent", currency="USD", valid_until=today + timedelta(days=14),
+                   terms="50% upfront, 50% on delivery.", created_by=sales_user.id)
+        q2 = Quote(number="QUO-DEMO-0002", title="Mobile App MVP", client_id=c2.id,
+                   status="accepted", currency="USD", accepted_at=datetime.now(timezone.utc),
+                   created_by=sales_user.id)
+        db.add_all([q1, q2])
+        db.flush()
+        for q, items in ((q1, [("Design", 1, 1500), ("Development", 40, 60)]),
+                         (q2, [("Discovery", 1, 800), ("MVP build", 60, 55)])):
+            total = Decimal("0")
+            for pos, (desc, qty, price) in enumerate(items):
+                db.add(QuoteItem(quote_id=q.id, description=desc, quantity=Decimal(qty),
+                                 unit_price=Decimal(price), position=pos))
+                total += Decimal(qty) * Decimal(price)
+            q.total = total
+        db.commit()
+
         print(
             "Demo data seeded.\n"
             "  Users (password: admin123 for admin, demo123 for others):\n"
@@ -520,7 +582,8 @@ def seed_demo():
             "      manager_<team>@example.com (manager), employee_<team>@example.com (employee), member_<team>@example.com (member)\n"
             "      e.g. manager_frontend@example.com, employee_frontend@example.com, member_frontend@example.com\n"
             "  Teams: 12 (management, product_pm, frontend, backend, fullstack, mobile, design, qa, devops, data_ai, sales_marketing, support)\n"
-            "  Data: 4 leads (1 converted), 6 clients, 6 projects, 12 tasks, 5 meetings, 5 invoices, 2 payments, 4 expenses"
+            "  Data: 4 leads (1 converted), 6 clients, 6 projects, 12+ tasks, 5 meetings, 5 invoices, 2 payments, 4 expenses,\n"
+            "        1 board (Sprint 1, QA pipeline incl. bugs), 4 time entries, 2 quotes (1 sent, 1 accepted)"
         )
     finally:
         db.close()

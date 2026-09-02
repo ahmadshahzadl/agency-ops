@@ -326,6 +326,14 @@ def update_task(
     if "board_id" in updates and updates["board_id"] is not None and "admin:all" not in permissions:
         target_project = updates.get("project_id", task.project_id)
         _validate_board_placement(db, updates["board_id"], target_project, user.id, False, manager_scope)
+    # Moving a task to another project detaches it from the old project's board
+    if (
+        "project_id" in updates
+        and updates["project_id"] != task.project_id
+        and "board_id" not in updates
+        and task.board_id is not None
+    ):
+        updates["board_id"] = None
     status_change = updates.get("status")
     action = _apply_status_transition(task, updates, user, permissions) or "task_updated"
     for k, v in updates.items():

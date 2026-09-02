@@ -11,6 +11,7 @@ export interface Project {
   start_date: string | null;
   end_date: string | null;
   hourly_rate: number | string | null;
+  budget: number | string | null;
   owner_id: string | null;
   created_at: string;
   updated_at: string;

@@ -32,6 +32,7 @@ export default function Projects() {
     start_date: "",
     end_date: "",
     hourly_rate: "",
+    budget: "",
   });
   const { hasPermission } = useAuth();
   const isAdmin = hasPermission("admin:all");
@@ -75,6 +76,7 @@ export default function Projects() {
       start_date: "",
       end_date: "",
       hourly_rate: "",
+      budget: "",
     });
     setModal("new");
   };
@@ -89,6 +91,7 @@ export default function Projects() {
       start_date: p.start_date || "",
       end_date: p.end_date || "",
       hourly_rate: p.hourly_rate != null ? String(p.hourly_rate) : "",
+      budget: p.budget != null ? String(p.budget) : "",
     });
     setModal(p);
   };
@@ -105,6 +108,7 @@ export default function Projects() {
       start_date: form.start_date || null,
       end_date: form.end_date || null,
       hourly_rate: form.hourly_rate ? Number(form.hourly_rate) : null,
+      budget: form.budget ? Number(form.budget) : null,
     };
     try {
       if (modal === "new") {
@@ -389,15 +393,26 @@ export default function Projects() {
                 <input type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} className={inputClass} />
                 <input type="date" value={form.end_date} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))} className={inputClass} />
               </div>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Hourly rate (for time billing, optional)"
-                value={form.hourly_rate}
-                onChange={(e) => setForm((f) => ({ ...f, hourly_rate: e.target.value }))}
-                className={inputClass}
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Hourly rate (optional)"
+                  value={form.hourly_rate}
+                  onChange={(e) => setForm((f) => ({ ...f, hourly_rate: e.target.value }))}
+                  className={inputClass}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Budget (optional)"
+                  value={form.budget}
+                  onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
             </div>
             <NotesSection entityType="project" entityId={modal !== "new" ? (modal as Project).id : undefined} />
             <AttachmentsSection entityType="project" entityId={modal !== "new" ? (modal as Project).id : undefined} />

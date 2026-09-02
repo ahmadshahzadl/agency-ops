@@ -8,18 +8,30 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.models import Quote as QuoteModel, QuoteItem as QuoteItemModel, Client as ClientModel, Lead as LeadModel, Project as ProjectModel, Invoice as InvoiceModel
+from app.models import Quote as QuoteModel, QuoteItem as QuoteItemModel, Client as ClientModel, Lead as LeadModel, Project as ProjectModel, Invoice as InvoiceModel, Notification as NotificationModel, User as UserModel
 from app.schemas.quote import QuoteCreate, QuoteUpdate, QuoteResponse, QuoteItemResponse
 from app.schemas.finance import InvoiceResponse
 from app.schemas.project import ProjectResponse
 from app.api.deps import require_permission, get_user_permissions, get_manager_scope_user_ids
-from app.services.activity_service import log_activity
+from app.services.activity_service import log_activity, notifications_updated_this_request
 from app.services import email_service
 from app.core.money import validate_currency as _validate_currency
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 
-EDITABLE_STATUSES = ("draft", "sent")
+EDITABLE_STATUSES = ("draft", "sent", "expired")  # expired can be edited to extend validity
+
+
+def _apply_expiry(db: Session, quotes: list[QuoteModel]) -> None:
+    """Lazily persist 'expired' on draft/sent quotes past their valid_until."""
+    today = date.today()
+    changed = False
+    for q in quotes:
+        if q.status in ("draft", "sent") and q.valid_until and q.valid_until < today:
+            q.status = "expired"
+            changed = True
+    if changed:
+        db.commit()
 
 
 def _quote_response(q: QuoteModel) -> QuoteResponse:
@@ -66,6 +78,13 @@ def _get_scoped_quote(db, quote_id, user, permissions, manager_scope) -> QuoteMo
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
 
 
+def _get_scoped_quote_current(db, quote_id, user, permissions, manager_scope) -> QuoteModel:
+    """Scoped fetch with expiry applied — use before any status-gated action."""
+    q = _get_scoped_quote(db, quote_id, user, permissions, manager_scope)
+    _apply_expiry(db, [q])
+    return q
+
+
 def _apply_items(db, quote: QuoteModel, items) -> None:
     for old in list(quote.items):
         db.delete(old)
@@ -83,6 +102,18 @@ def _apply_items(db, quote: QuoteModel, items) -> None:
         ))
         total += item.quantity * item.unit_price
     quote.total = total.quantize(Decimal("0.01"))
+
+
+def _notify_quote_creator(db, quote: QuoteModel, actor, outcome: str) -> None:
+    """Tell the quote's author when someone else moves it to a terminal state."""
+    if not quote.created_by or quote.created_by == actor.id:
+        return
+    msg = f'Quote {quote.number} "{quote.title}" was {outcome} ({quote.total} {quote.currency})'
+    db.add(NotificationModel(user_id=quote.created_by, title=f"Quote {outcome}", message=msg, link="/quotes", type="quote", reference_id=None))
+    notifications_updated_this_request.set(True)
+    creator = db.query(UserModel).filter(UserModel.id == quote.created_by).first()
+    if creator:
+        email_service.send_notification(creator.email, f"Quote {outcome}", msg, "/quotes")
 
 
 def _validate_target(db, client_id, lead_id) -> None:
@@ -118,7 +149,9 @@ def list_quotes(
         qry = qry.filter(QuoteModel.client_id == client_id)
     if lead_id:
         qry = qry.filter(QuoteModel.lead_id == lead_id)
-    return [_quote_response(q) for q in qry.order_by(QuoteModel.created_at.desc()).all()]
+    quotes = qry.order_by(QuoteModel.created_at.desc()).all()
+    _apply_expiry(db, quotes)
+    return [_quote_response(q) for q in quotes]
 
 
 @router.post("", response_model=QuoteResponse, status_code=status.HTTP_201_CREATED)
@@ -156,7 +189,7 @@ def get_quote(
     permissions=Depends(get_user_permissions),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
-    return _quote_response(_get_scoped_quote(db, quote_id, user, permissions, manager_scope))
+    return _quote_response(_get_scoped_quote_current(db, quote_id, user, permissions, manager_scope))
 
 
 @router.patch("/{quote_id}", response_model=QuoteResponse)
@@ -168,7 +201,7 @@ def update_quote(
     permissions=Depends(get_user_permissions),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
-    quote = _get_scoped_quote(db, quote_id, user, permissions, manager_scope)
+    quote = _get_scoped_quote_current(db, quote_id, user, permissions, manager_scope)
     if quote.status not in EDITABLE_STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A {quote.status} quote cannot be edited")
     updates = data.model_dump(exclude_unset=True)
@@ -180,6 +213,10 @@ def update_quote(
         setattr(quote, k, v)
     if items is not None:
         _apply_items(db, quote, data.items)
+    # Editing an expired quote with a new future validity revives it as a draft
+    from datetime import date as _date
+    if quote.status == "expired" and quote.valid_until and quote.valid_until >= _date.today():
+        quote.status = "draft"
     db.commit()
     db.refresh(quote)
     return _quote_response(quote)
@@ -193,7 +230,7 @@ def delete_quote(
     permissions=Depends(get_user_permissions),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
-    quote = _get_scoped_quote(db, quote_id, user, permissions, manager_scope)
+    quote = _get_scoped_quote_current(db, quote_id, user, permissions, manager_scope)
     if quote.status == "accepted":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Accepted quotes cannot be deleted")
     log_activity(db, user.id, "quote_deleted", "quote", None, details=f"Quote deleted: {quote.number}")
@@ -209,7 +246,7 @@ def send_quote(
     permissions=Depends(get_user_permissions),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
-    quote = _get_scoped_quote(db, quote_id, user, permissions, manager_scope)
+    quote = _get_scoped_quote_current(db, quote_id, user, permissions, manager_scope)
     if quote.status not in ("draft", "sent"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A {quote.status} quote cannot be sent")
     quote.status = "sent"
@@ -248,11 +285,12 @@ def accept_quote(
     permissions=Depends(get_user_permissions),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
-    quote = _get_scoped_quote(db, quote_id, user, permissions, manager_scope)
+    quote = _get_scoped_quote_current(db, quote_id, user, permissions, manager_scope)
     if quote.status not in ("draft", "sent"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A {quote.status} quote cannot be accepted")
     quote.status = "accepted"
     quote.accepted_at = datetime.utcnow()
+    _notify_quote_creator(db, quote, user, "accepted")
     log_activity(db, user.id, "quote_accepted", "quote", quote.id, details=f"Quote accepted: {quote.number} ({quote.total} {quote.currency})")
     db.commit()
     db.refresh(quote)
@@ -267,10 +305,11 @@ def reject_quote(
     permissions=Depends(get_user_permissions),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
-    quote = _get_scoped_quote(db, quote_id, user, permissions, manager_scope)
+    quote = _get_scoped_quote_current(db, quote_id, user, permissions, manager_scope)
     if quote.status not in ("draft", "sent"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A {quote.status} quote cannot be rejected")
     quote.status = "rejected"
+    _notify_quote_creator(db, quote, user, "rejected")
     log_activity(db, user.id, "quote_rejected", "quote", quote.id, details=f"Quote rejected: {quote.number}")
     db.commit()
     db.refresh(quote)
@@ -286,7 +325,7 @@ def convert_quote_to_project(
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
     """Create a project from an accepted quote. Requires a client (convert the lead first if needed)."""
-    quote = _get_scoped_quote(db, quote_id, user, permissions, manager_scope)
+    quote = _get_scoped_quote_current(db, quote_id, user, permissions, manager_scope)
     if quote.status != "accepted":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only accepted quotes can be converted")
     if quote.project_id:
@@ -304,6 +343,7 @@ def convert_quote_to_project(
         description=f"Created from quote {quote.number}",
         status="active",
         pipeline_stage="development",
+        budget=quote.total,  # carry the agreed price onto the project
         owner_id=user.id,
     )
     db.add(project)
@@ -327,7 +367,7 @@ def invoice_from_quote(
 ):
     """Fixed-price billing: draft invoice for the full total of an accepted quote (once)."""
     from app.api.v1.finance import generate_invoice_number
-    quote = _get_scoped_quote(db, quote_id, user, permissions, manager_scope)
+    quote = _get_scoped_quote_current(db, quote_id, user, permissions, manager_scope)
     if quote.status != "accepted":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only accepted quotes can be invoiced")
     existing = db.query(InvoiceModel).filter(InvoiceModel.quote_id == quote.id).first()

@@ -182,6 +182,7 @@ def create_project(
         start_date=data.start_date,
         end_date=data.end_date,
         hourly_rate=data.hourly_rate,
+        budget=data.budget,
         owner_id=data.owner_id or user.id,
     )
     db.add(project)
@@ -208,7 +209,7 @@ def get_project(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     task_total = db.query(func.count(TaskModel.id)).filter(TaskModel.project_id == project_id).scalar() or 0
     task_done = db.query(func.count(TaskModel.id)).filter(TaskModel.project_id == project_id, TaskModel.status == "done").scalar() or 0
-    data = {k: getattr(project, k) for k in ("id", "client_id", "name", "description", "status", "pipeline_stage", "assigned_team_id", "start_date", "end_date", "hourly_rate", "owner_id", "created_at", "updated_at")}
+    data = {k: getattr(project, k) for k in ("id", "client_id", "name", "description", "status", "pipeline_stage", "assigned_team_id", "start_date", "end_date", "hourly_rate", "budget", "owner_id", "created_at", "updated_at")}
     data["client_name"] = project.client.name if project.client else None
     data["task_count"] = task_total
     data["task_done_count"] = task_done

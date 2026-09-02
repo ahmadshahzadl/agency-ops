@@ -19,6 +19,7 @@ class Project(Base):
     start_date = Column(Date)
     end_date = Column(Date)
     hourly_rate = Column(Numeric(10, 2))  # default billing rate for time entries
+    budget = Column(Numeric(14, 2))  # agreed value; set from the quote on conversion
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

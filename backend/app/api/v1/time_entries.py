@@ -7,14 +7,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.models import TimeEntry as TimeEntryModel, Project as ProjectModel, Task as TaskModel, User as UserModel, Invoice as InvoiceModel
+from app.models import TimeEntry as TimeEntryModel, Project as ProjectModel, Task as TaskModel, User as UserModel, Invoice as InvoiceModel, Notification as NotificationModel
 from app.schemas.time_entry import (
     TimeEntryCreate, TimeEntryUpdate, TimeEntryResponse,
     TimeSummaryResponse, TimeSummaryUser, InvoiceFromTimeRequest,
 )
 from app.schemas.finance import InvoiceResponse
 from app.api.deps import require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
-from app.services.activity_service import log_activity
+from app.services.activity_service import log_activity, notifications_updated_this_request
+from app.services import email_service
 
 router = APIRouter(tags=["time"])
 
@@ -135,6 +136,13 @@ def create_time_entry(
     )
     db.add(entry)
     db.flush()
+    if target_user_id != user.id:
+        msg = f"{user.full_name or user.email} logged {data.hours}h for you on {proj.name}"
+        db.add(NotificationModel(user_id=target_user_id, title="Time logged for you", message=msg, link="/timesheet", type="time", reference_id=None))
+        notifications_updated_this_request.set(True)
+        target = db.query(UserModel).filter(UserModel.id == target_user_id).first()
+        if target:
+            email_service.send_notification(target.email, "Time logged for you", msg, "/timesheet")
     log_activity(db, user.id, "time_logged", "project", project_id, details=f"{data.hours}h on {proj.name}")
     db.commit()
     db.refresh(entry)

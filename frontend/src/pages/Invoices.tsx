@@ -16,6 +16,8 @@ import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
 import { AttachmentsSection } from "@/components/AttachmentsSection";
 import { useModal } from "@/contexts/ModalContext";
+import { listInvoiceTimeEntries } from "@/api/time";
+import type { TimeEntry } from "@/api/time";
 import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 const INVOICE_STATUS_OPTIONS = ["draft", "sent", "paid", "overdue"];
@@ -46,6 +48,7 @@ export default function InvoicesPage() {
   });
   const [paymentForm, setPaymentForm] = useState({ amount: "", paid_at: "", reference: "" });
   const [invoicePayments, setInvoicePayments] = useState<Payment[]>([]);
+  const [invoiceHours, setInvoiceHours] = useState<TimeEntry[]>([]);
   const [fromTimeModal, setFromTimeModal] = useState(false);
   const [projectNames, setProjectNames] = useState<{ id: string; name: string }[]>([]);
   const [fromTimeForm, setFromTimeForm] = useState({ project_id: "", date_from: "", date_to: "", hourly_rate: "", number: "" });
@@ -80,7 +83,9 @@ export default function InvoicesPage() {
   };
   const openEdit = (inv: Invoice) => {
     setInvoicePayments([]);
+    setInvoiceHours([]);
     listInvoicePayments(inv.id).then(setInvoicePayments).catch(() => {});
+    listInvoiceTimeEntries(inv.id).then(setInvoiceHours).catch(() => {});
     setForm({
       client_id: inv.client_id,
       project_id: inv.project_id || "",
@@ -478,6 +483,19 @@ export default function InvoicesPage() {
                 </div>
               </div>
             </div>
+            {modal !== "new" && invoiceHours.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Billed time ({invoiceHours.reduce((s, e) => s + Number(e.hours), 0)}h)</h4>
+                <ul className="mt-1.5 divide-y divide-gray-50 rounded-lg border border-gray-200 max-h-40 overflow-y-auto">
+                  {invoiceHours.map((e) => (
+                    <li key={e.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
+                      <span className="text-gray-500 truncate">{e.work_date} · {e.user_name}{e.description ? ` — ${e.description}` : ""}</span>
+                      <span className="font-medium text-gray-800 shrink-0 ml-2">{Number(e.hours)}h</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {modal !== "new" && (
               <div className="mt-4">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Payments</h4>

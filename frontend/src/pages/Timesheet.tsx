@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/store/auth";
 import { listProjectNames } from "@/api/projects";
 import { listTasks, type Task } from "@/api/tasks";
+import { listAssignableUsers, type UserList } from "@/api/users";
 import { listTimeEntries, createTimeEntry, deleteTimeEntry, getTimeSummary, type TimeEntry, type TimeSummary } from "@/api/time";
 
 function today(): string {
@@ -20,6 +21,7 @@ export default function Timesheet() {
   const canSeeOthers = isAdmin || !!user?.can_manage_tasks;
 
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [users, setUsers] = useState<UserList[]>([]);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [summary, setSummary] = useState<TimeSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,8 @@ export default function Timesheet() {
   const [dateTo, setDateTo] = useState(today());
 
   // Log form
-  const [form, setForm] = useState({ project_id: "", task_id: "", work_date: today(), hours: "", description: "", billable: true });
+  const [form, setForm] = useState({ project_id: "", task_id: "", work_date: today(), hours: "", description: "", billable: true, user_id: "" });
+  const [filterUser, setFilterUser] = useState("");
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -40,6 +43,7 @@ export default function Timesheet() {
   };
 
   useEffect(() => {
+    listAssignableUsers().then(setUsers).catch(() => {});
     listProjectNames({ limit: 500 }).then((p) => {
       setProjects(p);
       setForm((f) => (f.project_id ? f : { ...f, project_id: p[0]?.id ?? "" }));
@@ -54,13 +58,14 @@ export default function Timesheet() {
   const refresh = useCallback(() => {
     const params = {
       project_id: filterProject || undefined,
+      user_id: filterUser || undefined,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
       limit: 500,
     };
     listTimeEntries(params).then(setEntries).catch(() => setEntries([]));
     getTimeSummary(params).then(setSummary).catch(() => setSummary(null));
-  }, [filterProject, dateFrom, dateTo]);
+  }, [filterProject, filterUser, dateFrom, dateTo]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -75,6 +80,7 @@ export default function Timesheet() {
         hours: Number(form.hours),
         description: form.description || undefined,
         billable: form.billable,
+        user_id: form.user_id || undefined,
       });
       setForm((f) => ({ ...f, hours: "", description: "" }));
       refresh();
@@ -110,6 +116,12 @@ export default function Timesheet() {
             <input type="checkbox" checked={form.billable} onChange={(e) => setForm((f) => ({ ...f, billable: e.target.checked }))} className="rounded border-gray-300 text-primary focus:ring-primary/20" />
             Billable
           </label>
+          {canSeeOthers && (
+            <select className={`${inputClass} min-w-[130px]`} value={form.user_id} onChange={(e) => setForm((f) => ({ ...f, user_id: e.target.value }))} title="Log time as">
+              <option value="">For: myself</option>
+              {users.filter((u) => u.id !== user?.id).map((u) => <option key={u.id} value={u.id}>For: {u.full_name || u.email}</option>)}
+            </select>
+          )}
           <button onClick={logTime} disabled={busy || !form.project_id || !form.hours} className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover disabled:opacity-50">
             {busy ? "Saving…" : "Log"}
           </button>
@@ -122,6 +134,12 @@ export default function Timesheet() {
           <option value="">All projects</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        {canSeeOthers && (
+          <select className={inputClass} value={filterUser} onChange={(e) => setFilterUser(e.target.value)}>
+            <option value="">Everyone</option>
+            {users.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
+          </select>
+        )}
         <input type="date" className={inputClass} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
         <span className="text-gray-400 text-sm">→</span>
         <input type="date" className={inputClass} value={dateTo} onChange={(e) => setDateTo(e.target.value)} />

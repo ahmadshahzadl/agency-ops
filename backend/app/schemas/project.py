@@ -15,6 +15,7 @@ class ProjectBase(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     hourly_rate: Optional[Decimal] = None
+    budget: Optional[Decimal] = None
     owner_id: Optional[UUID] = None
 
 
@@ -31,6 +32,7 @@ class ProjectUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     hourly_rate: Optional[Decimal] = None
+    budget: Optional[Decimal] = None
     owner_id: Optional[UUID] = None
 
 

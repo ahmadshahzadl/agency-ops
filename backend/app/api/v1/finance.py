@@ -15,7 +15,7 @@ from app.schemas.finance import (
     ExpenseCreate, ExpenseUpdate, ExpenseResponse,
 )
 import uuid as uuid_mod
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from sqlalchemy import func
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
@@ -30,6 +30,18 @@ def paid_total_for(db: Session, invoice_id: UUID) -> Decimal:
     return db.query(func.coalesce(func.sum(PaymentModel.amount), 0)).filter(
         PaymentModel.invoice_id == invoice_id
     ).scalar() or Decimal("0")
+
+
+def _apply_overdue(db: Session, invoices: list) -> None:
+    """Lazily persist 'overdue' on sent invoices past their due date."""
+    today = date.today()
+    changed = False
+    for inv in invoices:
+        if inv.status == "sent" and inv.due_date and inv.due_date < today:
+            inv.status = "overdue"
+            changed = True
+    if changed:
+        db.commit()
 
 
 def generate_invoice_number(db: Session) -> str:
@@ -98,7 +110,9 @@ def list_invoices(
         qry = qry.filter(InvoiceModel.client_id == client_id)
     if status_filter:
         qry = qry.filter(InvoiceModel.status == status_filter)
-    return qry.offset(skip).limit(limit).all()
+    rows = qry.offset(skip).limit(limit).all()
+    _apply_overdue(db, rows)
+    return rows
 
 
 @router.post("/invoices", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
@@ -150,6 +164,7 @@ def get_invoice(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     if not _can_access_invoice_client(inv.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    _apply_overdue(db, [inv])
     inv.paid_total = paid_total_for(db, inv.id)
     return inv
 
