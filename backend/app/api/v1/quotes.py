@@ -15,6 +15,7 @@ from app.schemas.project import ProjectResponse
 from app.api.deps import require_permission, get_user_permissions, get_manager_scope_user_ids
 from app.services.activity_service import log_activity
 from app.services import email_service
+from app.core.money import validate_currency as _validate_currency
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 
@@ -82,11 +83,6 @@ def _apply_items(db, quote: QuoteModel, items) -> None:
         ))
         total += item.quantity * item.unit_price
     quote.total = total.quantize(Decimal("0.01"))
-
-
-def _validate_currency(currency: str | None) -> None:
-    if currency is not None and (len(currency) != 3 or not currency.isalpha()):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="currency must be a 3-letter code, e.g. USD")
 
 
 def _validate_target(db, client_id, lead_id) -> None:
@@ -327,17 +323,24 @@ def invoice_from_quote(
     permissions=Depends(get_user_permissions),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
-    """Fixed-price billing: draft invoice for the full total of an accepted quote."""
+    """Fixed-price billing: draft invoice for the full total of an accepted quote (once)."""
+    from app.api.v1.finance import generate_invoice_number
     quote = _get_scoped_quote(db, quote_id, user, permissions, manager_scope)
     if quote.status != "accepted":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only accepted quotes can be invoiced")
+    existing = db.query(InvoiceModel).filter(InvoiceModel.quote_id == quote.id).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Quote is already invoiced ({existing.number})")
     client_id = quote.client_id or (quote.lead.converted_to_client_id if quote.lead else None)
     if not client_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quote has no client; convert the lead to a client first")
-    number = f"INV-{datetime.utcnow():%Y%m}-{uuid_mod.uuid4().hex[:6].upper()}"
+    if quote.total <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quote total must be greater than 0")
+    number = generate_invoice_number(db)
     invoice = InvoiceModel(
         client_id=client_id,
         project_id=quote.project_id,
+        quote_id=quote.id,
         number=number,
         amount=quote.total,
         currency=quote.currency,

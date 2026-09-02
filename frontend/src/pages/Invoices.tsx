@@ -5,7 +5,9 @@ import {
   updateInvoice,
   deleteInvoice,
   createPayment,
+  listInvoicePayments,
   type Invoice,
+  type Payment,
 } from "@/api/finance";
 import { listClients, type Client } from "@/api/clients";
 import { listProjectNames } from "@/api/projects";
@@ -43,6 +45,7 @@ export default function InvoicesPage() {
     issued_at: "",
   });
   const [paymentForm, setPaymentForm] = useState({ amount: "", paid_at: "", reference: "" });
+  const [invoicePayments, setInvoicePayments] = useState<Payment[]>([]);
   const [fromTimeModal, setFromTimeModal] = useState(false);
   const [projectNames, setProjectNames] = useState<{ id: string; name: string }[]>([]);
   const [fromTimeForm, setFromTimeForm] = useState({ project_id: "", date_from: "", date_to: "", hourly_rate: "", number: "" });
@@ -76,6 +79,8 @@ export default function InvoicesPage() {
     setModal("new");
   };
   const openEdit = (inv: Invoice) => {
+    setInvoicePayments([]);
+    listInvoicePayments(inv.id).then(setInvoicePayments).catch(() => {});
     setForm({
       client_id: inv.client_id,
       project_id: inv.project_id || "",
@@ -473,6 +478,30 @@ export default function InvoicesPage() {
                 </div>
               </div>
             </div>
+            {modal !== "new" && (
+              <div className="mt-4">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Payments</h4>
+                {invoicePayments.length === 0 ? (
+                  <p className="text-xs text-gray-400 mt-1">No payments recorded.</p>
+                ) : (
+                  <ul className="mt-1.5 divide-y divide-gray-50 rounded-lg border border-gray-200">
+                    {invoicePayments.map((p) => (
+                      <li key={p.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
+                        <span className="text-gray-500">{p.paid_at}{p.reference ? ` · ${p.reference}` : ""}</span>
+                        <span className="font-medium text-gray-800">{Number(p.amount).toFixed(2)} {(modal as Invoice).currency}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {invoicePayments.length > 0 && (
+                  <p className="mt-1.5 text-xs text-gray-500 text-right">
+                    Paid {invoicePayments.reduce((s, p) => s + Number(p.amount), 0).toFixed(2)} of {Number((modal as Invoice).amount).toFixed(2)} {(modal as Invoice).currency}
+                    {" · balance "}
+                    {(Number((modal as Invoice).amount) - invoicePayments.reduce((s, p) => s + Number(p.amount), 0)).toFixed(2)}
+                  </p>
+                )}
+              </div>
+            )}
             <NotesSection entityType="invoice" entityId={modal !== "new" ? (modal as Invoice).id : undefined} />
             <AttachmentsSection entityType="invoice" entityId={modal !== "new" ? (modal as Invoice).id : undefined} />
             <div className="flex justify-end gap-2 mt-4">

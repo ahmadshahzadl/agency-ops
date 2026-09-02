@@ -67,6 +67,10 @@ export async function deleteInvoice(id: string): Promise<void> {
   return apiFetch(`/api/v1/invoices/${id}`, { method: "DELETE" });
 }
 
+export async function listInvoicePayments(invoiceId: string): Promise<Payment[]> {
+  return apiFetch<Payment[]>(`/api/v1/invoices/${invoiceId}/payments`);
+}
+
 export async function createPayment(data: Omit<Payment, "id" | "created_at">): Promise<Payment> {
   return apiFetch<Payment>("/api/v1/payments", {
     method: "POST",

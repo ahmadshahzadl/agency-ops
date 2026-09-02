@@ -253,7 +253,9 @@ def invoice_from_time(
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
-    from app.api.v1.finance import _can_access_invoice_client
+    from app.api.v1.finance import _can_access_invoice_client, generate_invoice_number
+    from app.core.money import validate_currency
+    validate_currency(data.currency)
     proj = db.query(ProjectModel).filter(ProjectModel.id == data.project_id, ProjectModel.deleted_at.is_(None)).first()
     if not proj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -284,9 +286,12 @@ def invoice_from_time(
         amount += e.hours * rate
     amount = amount.quantize(Decimal("0.01"))
 
-    number = data.number or f"INV-{datetime.utcnow():%Y%m}-{uuid_mod.uuid4().hex[:6].upper()}"
-    if db.query(InvoiceModel).filter(InvoiceModel.number == number).first():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invoice number already exists")
+    if data.number:
+        number = data.number
+        if db.query(InvoiceModel).filter(InvoiceModel.number == number).first():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invoice number already exists")
+    else:
+        number = generate_invoice_number(db)
     invoice = InvoiceModel(
         client_id=proj.client_id,
         project_id=proj.id,

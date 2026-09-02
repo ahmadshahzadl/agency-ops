@@ -14,10 +14,30 @@ from app.schemas.finance import (
     PaymentCreate, PaymentResponse,
     ExpenseCreate, ExpenseUpdate, ExpenseResponse,
 )
+import uuid as uuid_mod
+from datetime import datetime
+from decimal import Decimal
+from sqlalchemy import func
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
 from app.services.activity_service import log_activity
+from app.core.money import validate_currency, validate_positive_amount
 
 router = APIRouter(tags=["finance"])
+
+
+def paid_total_for(db: Session, invoice_id: UUID) -> Decimal:
+    return db.query(func.coalesce(func.sum(PaymentModel.amount), 0)).filter(
+        PaymentModel.invoice_id == invoice_id
+    ).scalar() or Decimal("0")
+
+
+def generate_invoice_number(db: Session) -> str:
+    """Unique INV-YYYYMM-XXXXXX; retries on the unlikely collision."""
+    for _ in range(5):
+        number = f"INV-{datetime.utcnow():%Y%m}-{uuid_mod.uuid4().hex[:6].upper()}"
+        if not db.query(InvoiceModel.id).filter(InvoiceModel.number == number).first():
+            return number
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not generate a unique invoice number")
 
 
 def _can_access_invoice_client(
@@ -91,6 +111,10 @@ def create_invoice(
 ):
     if not _can_access_invoice_client(data.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot create invoice for this client")
+    validate_currency(data.currency)
+    validate_positive_amount(data.amount)
+    if db.query(InvoiceModel.id).filter(InvoiceModel.number == data.number).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invoice number {data.number} already exists")
     inv = InvoiceModel(
         client_id=data.client_id,
         project_id=data.project_id,
@@ -123,6 +147,7 @@ def get_invoice(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     if not _can_access_invoice_client(inv.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    inv.paid_total = paid_total_for(db, inv.id)
     return inv
 
 
@@ -141,7 +166,16 @@ def update_invoice(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     if not _can_access_invoice_client(inv.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
-    for k, v in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+    if "amount" in updates:
+        validate_positive_amount(updates["amount"])
+        paid = paid_total_for(db, inv.id)
+        if updates["amount"] < paid:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Amount cannot be below the {paid} already paid")
+    if "number" in updates and updates["number"] != inv.number:
+        if db.query(InvoiceModel.id).filter(InvoiceModel.number == updates["number"]).first():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invoice number {updates['number']} already exists")
+    for k, v in updates.items():
         setattr(inv, k, v)
     db.flush()
     log_activity(db, user.id, "invoice_updated", "invoice", invoice_id, details=f"Invoice #{inv.number}: {inv.currency} {inv.amount}")
@@ -183,6 +217,14 @@ def create_payment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     if not _can_access_invoice_client(invoice.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    validate_positive_amount(data.amount)
+    already_paid = paid_total_for(db, invoice.id)
+    remaining = invoice.amount - already_paid
+    if data.amount > remaining:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Payment exceeds the remaining balance ({remaining} {invoice.currency})",
+        )
     pay = PaymentModel(
         invoice_id=data.invoice_id,
         amount=data.amount,
@@ -191,10 +233,30 @@ def create_payment(
     )
     db.add(pay)
     db.flush()
-    log_activity(db, user.id, "payment_created", "payment", pay.id, details=f"Payment: {pay.amount} (invoice {pay.invoice_id})")
+    # Reconcile invoice status with its payments
+    if already_paid + data.amount >= invoice.amount:
+        invoice.status = "paid"
+    elif invoice.status == "draft":
+        invoice.status = "sent"
+    log_activity(db, user.id, "payment_created", "payment", pay.id, details=f"Payment: {pay.amount} {invoice.currency} on invoice #{invoice.number}")
     db.commit()
     db.refresh(pay)
     return pay
+
+
+@router.get("/invoices/{invoice_id}/payments", response_model=list[PaymentResponse])
+def list_invoice_payments(
+    invoice_id: UUID,
+    db: Session = Depends(get_db),
+    user=Depends(require_permission("finance:read")),
+    permissions=Depends(get_user_permissions),
+    team_ids=Depends(get_user_team_ids),
+    manager_scope=Depends(get_manager_scope_user_ids),
+):
+    invoice = db.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
+    if not invoice or not _can_access_invoice_client(invoice.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    return db.query(PaymentModel).filter(PaymentModel.invoice_id == invoice_id).order_by(PaymentModel.paid_at).all()
 
 
 # --- Expenses (Admin only per roles-permissions-flow: Manager and Employee have no access) ---
@@ -239,6 +301,8 @@ def create_expense(
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot create expense for this project")
             elif not proj.client or proj.client.team_id not in team_ids:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot create expense for this project")
+    validate_currency(data.currency)
+    validate_positive_amount(data.amount)
     exp = ExpenseModel(
         project_id=data.project_id,
         description=data.description,
@@ -270,6 +334,7 @@ def update_expense(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
     if not _can_access_expense_project(exp, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
+    validate_positive_amount(data.amount)
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(exp, k, v)
     db.flush()

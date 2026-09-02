@@ -30,6 +30,8 @@ class InvoiceUpdate(BaseModel):
 
 class InvoiceResponse(InvoiceBase):
     id: UUID
+    quote_id: Optional[UUID] = None
+    paid_total: Optional[Decimal] = None  # populated on single-invoice fetch
     created_at: datetime
     updated_at: datetime
 

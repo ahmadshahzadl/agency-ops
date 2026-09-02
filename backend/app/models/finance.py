@@ -18,6 +18,7 @@ class Invoice(Base):
     status = Column(String(32), default="draft")  # draft, sent, paid, overdue
     due_date = Column(Date)
     issued_at = Column(Date)
+    quote_id = Column(UUID(as_uuid=True), ForeignKey("quotes.id", ondelete="SET NULL"))  # set when generated from a quote
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
