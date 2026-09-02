@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "@/store/auth";
-import { APP_NAME, getLogoUrl } from "@/config";
+import { APP_NAME, getBrandMarkUrl } from "@/config";
 import { BrandLogo } from "@/components/BrandLogo";
 
 export default function Login() {
@@ -46,9 +46,9 @@ export default function Login() {
           <div className="text-white/40 text-6xl font-bold tracking-tight select-none">{APP_NAME}</div>
         ) : (
           <img
-            src={getLogoUrl()}
+            src={getBrandMarkUrl()}
             alt=""
-            className="h-full max-h-full w-auto max-w-full object-contain object-center opacity-50"
+            className="h-full max-h-full w-auto max-w-full object-contain object-center opacity-60"
             onError={() => setLogoFailed(true)}
           />
         )}

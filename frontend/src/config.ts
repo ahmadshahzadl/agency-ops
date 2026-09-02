@@ -22,6 +22,13 @@ export function getLogoUrl(): string {
   return APP_LOGO;
 }
 
+/** White transparent mark used on dark surfaces (sidebar, login panel). */
+export function getBrandMarkUrl(): string {
+  if (typeof window !== "undefined" && window.location?.protocol === "file:")
+    return "./brand-mark.png";
+  return "/brand-mark.png";
+}
+
 /** Frontend app version; used when checking for updates (compare with server). */
 export const APP_VERSION =
   typeof env.VITE_APP_VERSION === "string" && env.VITE_APP_VERSION.trim()

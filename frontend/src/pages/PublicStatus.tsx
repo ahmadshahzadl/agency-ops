@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getPublicStatus, type PublicStatus as Status } from "@/api/share";
-import { APP_NAME, getLogoUrl } from "@/config";
+import { APP_NAME, getBrandMarkUrl } from "@/config";
 
 const STAGE_LABELS: Record<string, string> = {
   todo: "Planned",
@@ -24,7 +24,7 @@ export default function PublicStatus() {
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#01184e] text-white p-6">
-        <img src={getLogoUrl()} alt="" className="w-16 h-16 mb-4 opacity-90" />
+        <img src={getBrandMarkUrl()} alt="" className="w-16 h-16 mb-4 opacity-90" />
         <h1 className="text-xl font-semibold">This link is no longer active</h1>
         <p className="text-white/60 mt-2 text-sm">Ask your project contact for a new progress link.</p>
       </div>
@@ -47,7 +47,7 @@ export default function PublicStatus() {
       <div className="bg-[#01184e] text-white">
         <div className="max-w-3xl mx-auto px-6 py-8">
           <div className="flex items-center gap-3">
-            <img src={getLogoUrl()} alt="" className="w-10 h-10" />
+            <img src={getBrandMarkUrl()} alt="" className="w-10 h-10" />
             <span className="font-semibold tracking-wide">{APP_NAME}</span>
           </div>
           <h1 className="mt-6 text-2xl sm:text-3xl font-bold">{data.project_name}</h1>
