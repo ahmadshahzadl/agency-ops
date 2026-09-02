@@ -84,6 +84,11 @@ def _apply_items(db, quote: QuoteModel, items) -> None:
     quote.total = total.quantize(Decimal("0.01"))
 
 
+def _validate_currency(currency: str | None) -> None:
+    if currency is not None and (len(currency) != 3 or not currency.isalpha()):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="currency must be a 3-letter code, e.g. USD")
+
+
 def _validate_target(db, client_id, lead_id) -> None:
     if not client_id and not lead_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A quote needs a client_id or a lead_id")
@@ -127,6 +132,7 @@ def create_quote(
     user=Depends(require_permission("quotes:write")),
 ):
     _validate_target(db, data.client_id, data.lead_id)
+    _validate_currency(data.currency)
     quote = QuoteModel(
         number=f"QUO-{datetime.utcnow():%Y%m}-{uuid_mod.uuid4().hex[:6].upper()}",
         title=data.title.strip(),
@@ -171,6 +177,7 @@ def update_quote(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A {quote.status} quote cannot be edited")
     updates = data.model_dump(exclude_unset=True)
     items = updates.pop("items", None)
+    _validate_currency(updates.get("currency"))
     if "client_id" in updates or "lead_id" in updates:
         _validate_target(db, updates.get("client_id", quote.client_id), updates.get("lead_id", quote.lead_id))
     for k, v in updates.items():

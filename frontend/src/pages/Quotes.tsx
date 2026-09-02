@@ -201,8 +201,16 @@ export default function Quotes() {
                   </optgroup>
                 </select>
                 <div className="grid grid-cols-2 gap-2">
-                  <input type="date" title="Valid until" className={inputClass} value={form.valid_until} onChange={(e) => setForm((f) => ({ ...f, valid_until: e.target.value }))} />
-                  <input className={inputClass} placeholder="USD" maxLength={3} value={form.currency} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value.toUpperCase() }))} />
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Valid until</label>
+                    <input type="date" className={inputClass} value={form.valid_until} onChange={(e) => setForm((f) => ({ ...f, valid_until: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Currency</label>
+                    <select className={inputClass} value={form.currency} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}>
+                      {["USD", "EUR", "GBP", "PKR", "AED", "SAR", "CAD", "AUD"].map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
                 </div>
               </div>
 
