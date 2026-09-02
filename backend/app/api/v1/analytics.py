@@ -12,7 +12,7 @@ from app.schemas.analytics import (
     StatusCount,
 )
 from sqlalchemy import or_
-from app.api.deps import get_current_user, require_any_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
+from app.api.deps import get_current_user, require_staff, require_any_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -256,7 +256,7 @@ def _member_dashboard_charts(db: Session, user_id):
 @router.get("/dashboard", response_model=DashboardResponse)
 def dashboard(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(require_staff),
     permissions=Depends(get_user_permissions),
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),

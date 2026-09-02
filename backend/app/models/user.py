@@ -18,6 +18,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     # Embedded in every JWT as "tv"; bump to invalidate all of a user's tokens
     token_version = Column(Integer, nullable=False, default=0, server_default="0")
+    # Set for client-portal users: scopes them to this client and locks out the internal app
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"))
     manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

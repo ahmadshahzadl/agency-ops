@@ -41,6 +41,20 @@ def get_current_user(
     return user
 
 
+def require_staff(user: Annotated[User, Depends(get_current_user)]) -> User:
+    """Internal-only endpoints that are login-gated (no permission code): reject portal users."""
+    if user.client_id is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not available for client accounts")
+    return user
+
+
+def get_portal_user(user: Annotated[User, Depends(get_current_user)]) -> User:
+    """Portal endpoints: the user must be linked to a client record."""
+    if user.client_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a client portal account")
+    return user
+
+
 def get_user_permissions(user: Annotated[User, Depends(get_current_user)]) -> set[str]:
     if is_super_admin(user):
         return {"admin:all"}  # Full access; no need to enumerate every permission

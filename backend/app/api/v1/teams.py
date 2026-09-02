@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Team as TeamModel, TeamMember
 from app.schemas.team import TeamCreate, TeamUpdate, TeamResponse, TeamWithMembersResponse
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import require_staff, get_current_user, require_admin
 
 router = APIRouter(prefix="/teams", tags=["teams"])
 
@@ -23,7 +23,7 @@ def _team_to_response(t: TeamModel) -> TeamWithMembersResponse:
 @router.get("/my", response_model=list[TeamWithMembersResponse])
 def list_my_teams(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(require_staff),
 ):
     """Teams the current user is a member of (for dropdowns when not admin)."""
     return [_team_to_response(t) for t in user.teams]

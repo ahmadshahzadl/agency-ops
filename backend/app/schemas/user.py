@@ -11,6 +11,7 @@ class UserCreateAdmin(BaseModel):
     job_title: Optional[str] = None
     is_active: bool = True
     manager_id: Optional[UUID] = None
+    client_id: Optional[UUID] = None  # set to create a client-portal user
     role_ids: list[UUID] = []
     team_ids: list[UUID] = []
 
@@ -21,6 +22,7 @@ class UserUpdateAdmin(BaseModel):
     job_title: Optional[str] = None
     is_active: Optional[bool] = None
     manager_id: Optional[UUID] = None
+    client_id: Optional[UUID] = None
     role_ids: Optional[list[UUID]] = None
     team_ids: Optional[list[UUID]] = None
 
@@ -33,6 +35,7 @@ class UserListResponse(BaseModel):
     job_title: Optional[str] = None
     is_active: bool
     manager_id: Optional[UUID] = None
+    client_id: Optional[UUID] = None  # set to create a client-portal user
     role_ids: list[UUID] = []
     team_ids: list[UUID] = []
 

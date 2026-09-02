@@ -11,6 +11,8 @@ export interface User {
   roles?: string[];
   can_manage_tasks?: boolean;
   can_manage_leads?: boolean;
+  is_client?: boolean;
+  client_name?: string | null;
 }
 
 export interface LoginResponse {

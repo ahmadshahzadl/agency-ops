@@ -8,6 +8,7 @@ export interface UserList {
   job_title?: string | null;
   is_active: boolean;
   manager_id: string | null;
+  client_id?: string | null;
   role_ids: string[];
   team_ids: string[];
 }
@@ -34,6 +35,7 @@ export async function createUser(data: {
   job_title?: string | null;
   is_active?: boolean;
   manager_id?: string | null;
+  client_id?: string | null;
   role_ids?: string[];
   team_ids?: string[];
 }): Promise<UserList> {
@@ -51,6 +53,7 @@ export async function updateUser(
     job_title?: string | null;
     is_active?: boolean;
     manager_id?: string | null;
+  client_id?: string | null;
     role_ids?: string[];
     team_ids?: string[];
   }

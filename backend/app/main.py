@@ -3,7 +3,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications, notes, messages, boards, share, attachments, time_entries, quotes, milestones
+from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications, notes, messages, boards, share, attachments, time_entries, quotes, milestones, portal
 from app.websocket import activity_manager
 from app.websocket_messages import message_ws_manager
 from app.services.activity_service import (
@@ -45,6 +45,8 @@ def _ws_user_id(websocket: WebSocket) -> UUID | None:
         user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
         if not user or not token_version_matches(payload, user):
             return None
+        if user.client_id is not None:
+            return None  # portal users get no internal realtime feeds
         return user_id
     finally:
         db.close()
@@ -132,6 +134,7 @@ app.include_router(attachments.router, prefix="/api/v1")
 app.include_router(time_entries.router, prefix="/api/v1")
 app.include_router(quotes.router, prefix="/api/v1")
 app.include_router(milestones.router, prefix="/api/v1")
+app.include_router(portal.router, prefix="/api/v1")
 
 
 @app.get("/health")

@@ -23,6 +23,7 @@ import Profile from "@/pages/Profile";
 import Announcements from "@/pages/Announcements";
 import Messages from "@/pages/Messages";
 import PublicStatus from "@/pages/PublicStatus";
+import Portal from "@/pages/Portal";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 
@@ -38,6 +39,27 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+  if (user.is_client) {
+    return <Navigate to="/portal" replace />;
+  }
+  return <>{children}</>;
+}
+
+function PortalRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#01184e] text-white">
+        Loading...
+      </div>
+    );
+  }
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  if (!user.is_client) {
+    return <Navigate to="/dashboard" replace />;
+  }
   return <>{children}</>;
 }
 
@@ -48,6 +70,14 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/status/:token" element={<PublicStatus />} />
+      <Route
+        path="/portal"
+        element={
+          <PortalRoute>
+            <Portal />
+          </PortalRoute>
+        }
+      />
       <Route
         path="/"
         element={

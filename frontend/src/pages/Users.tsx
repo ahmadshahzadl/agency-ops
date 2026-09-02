@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listUsers, createUser, updateUser, deleteUser, type UserList } from "@/api/users";
 import { listRoles } from "@/api/roles";
 import { listTeams } from "@/api/teams";
+import { listClients, type Client } from "@/api/clients";
 import { useModal } from "@/contexts/ModalContext";
 import { useAuth } from "@/store/auth";
 import { BulkActionsBar } from "@/components/BulkActionsBar";
@@ -15,6 +16,7 @@ export default function Users() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<"new" | UserList | null>(null);
   const [form, setForm] = useState({
@@ -25,6 +27,7 @@ export default function Users() {
     job_title: "",
     is_active: true,
     manager_id: null as string | null,
+    client_id: null as string | null,
     role_ids: [] as string[],
     team_ids: [] as string[],
   });
@@ -44,6 +47,7 @@ export default function Users() {
       setItems(userList);
       setRoles(roleList);
       setTeams(teamList);
+      listClients().then(setClients).catch(() => setClients([]));
     } finally {
       setLoading(false);
     }
@@ -79,6 +83,7 @@ export default function Users() {
       job_title: "",
       is_active: true,
       manager_id: null,
+      client_id: null,
       role_ids: [],
       team_ids: [],
     });
@@ -94,6 +99,7 @@ export default function Users() {
       job_title: u.job_title || "",
       is_active: u.is_active,
       manager_id: u.manager_id || null,
+      client_id: u.client_id || null,
       role_ids: u.role_ids || [],
       team_ids: u.team_ids || [],
     });
@@ -126,6 +132,7 @@ export default function Users() {
           job_title: form.job_title || undefined,
           is_active: form.is_active,
           manager_id: form.manager_id,
+          client_id: form.client_id,
           role_ids: form.role_ids.length ? form.role_ids : undefined,
           team_ids: form.team_ids.length ? form.team_ids : undefined,
         });
@@ -136,6 +143,7 @@ export default function Users() {
           job_title: form.job_title || undefined,
           is_active: form.is_active,
           manager_id: form.manager_id,
+          client_id: form.client_id,
           role_ids: form.role_ids,
           team_ids: form.team_ids,
         });
@@ -464,6 +472,22 @@ export default function Users() {
                       </option>
                     ))}
                 </select>
+              <div className="mt-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Portal client (makes this a client-portal account)</label>
+                <select
+                  value={form.client_id ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value || null }))}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  <option value="">— Not a portal user —</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                {form.client_id && (
+                  <p className="mt-1 text-xs text-amber-600">Portal accounts are locked out of the internal app - give them only the "client" role.</p>
+                )}
+              </div>
                 <p className="text-xs text-gray-500 mt-1">
                   Team members under this manager will show up in their Team activity.
                 </p>

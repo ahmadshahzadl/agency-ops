@@ -75,6 +75,7 @@ ROLE_PERMISSIONS = {
         "time:read", "time:write",
         "announcements:read",
     ],
+    "client": [],  # portal users: no internal permissions at all
     "qa": [
         "dashboard:read",
         "projects:read",
@@ -113,12 +114,14 @@ def seed():
                         "employee": "Employee: assigned tasks/projects/meetings only; no clients, finance, reports, or team activity",
                     "member": "Member: same as Employee (backward compatibility)",
                         "qa": "QA: employee access plus approving/failing tasks in review",
+                        "client": "Client portal: external client user, portal access only",
                     }.get(role_name, role_name),
                 )
                 db.add(role)
                 db.commit()
                 db.refresh(role)
-            codes = perm_codes if perm_codes else list(all_permissions.keys())
+            # None = all permissions (admin). An empty list means exactly that: none.
+            codes = perm_codes if perm_codes is not None else list(all_permissions.keys())
             existing = {rp.permission_id for rp in db.query(RolePermission).filter(RolePermission.role_id == role.id).all()}
             for code in codes:
                 perm = all_permissions.get(code)

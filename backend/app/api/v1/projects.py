@@ -5,7 +5,7 @@ from sqlalchemy import func, or_, exists, case
 from app.database import get_db
 from app.models import Project as ProjectModel, Client as ClientModel, ProjectMember as ProjectMemberModel, Task as TaskModel
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectNameResponse
-from app.api.deps import get_current_user, require_permission, require_any_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
+from app.api.deps import get_current_user, require_staff, require_permission, require_any_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
 from app.services.activity_service import log_activity
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 @router.get("/names", response_model=list[ProjectNameResponse])
 def list_project_names(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(require_staff),
     permissions=Depends(get_user_permissions),
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),

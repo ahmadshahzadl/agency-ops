@@ -120,6 +120,16 @@ def _user_response(user: User):
         report_ids = [r.id for r in user.reports] if getattr(user, "reports", None) else []
         can_manage_tasks = "admin:all" in permissions or len(report_ids) > 0
         can_manage_leads = "admin:all" in permissions or len(report_ids) > 0
+    client_name = None
+    if user.client_id is not None:
+        from app.models import Client
+        from app.database import SessionLocal
+        _db = SessionLocal()
+        try:
+            c = _db.query(Client).filter(Client.id == user.client_id).first()
+            client_name = c.name if c else None
+        finally:
+            _db.close()
     return UserResponse(
         id=user.id,
         email=user.email,
@@ -131,6 +141,8 @@ def _user_response(user: User):
         roles=role_names,
         can_manage_tasks=can_manage_tasks,
         can_manage_leads=can_manage_leads,
+        is_client=user.client_id is not None,
+        client_name=client_name,
     )
 
 

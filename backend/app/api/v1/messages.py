@@ -7,7 +7,7 @@ from sqlalchemy import or_, func, and_
 from app.database import get_db
 from app.models import Message as MessageModel, User, Notification as NotificationModel
 from app.schemas.message import MessageCreate, MessageResponse, ConversationSummary
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_staff
 from app.websocket_messages import message_ws_manager
 from app.services.activity_service import notifications_updated_this_request
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/messages", tags=["messages"])
 @router.get("/conversations", response_model=list[ConversationSummary])
 def list_conversations(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(require_staff),
 ):
     """List users the current user has chatted with, with last message and unread count."""
     sent = db.query(MessageModel.recipient_id).filter(MessageModel.sender_id == user.id).distinct().all()
@@ -88,7 +88,7 @@ def list_messages(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(require_staff),
 ):
     """Get messages between current user and with_user_id, ordered by created_at desc."""
     qry = (
@@ -121,7 +121,7 @@ def list_messages(
 async def send_message(
     data: MessageCreate,
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(require_staff),
 ):
     if data.recipient_id == user.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot message yourself")
@@ -186,7 +186,7 @@ async def send_message(
 def mark_message_read(
     message_id: UUID,
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(require_staff),
 ):
     msg = db.query(MessageModel).filter(MessageModel.id == message_id, MessageModel.recipient_id == user.id).first()
     if not msg:

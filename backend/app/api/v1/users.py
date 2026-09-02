@@ -47,6 +47,7 @@ def _user_to_response(user: UserModel) -> UserListResponse:
         job_title=getattr(user, "job_title", None),
         is_active=user.is_active,
         manager_id=getattr(user, "manager_id", None),
+        client_id=getattr(user, "client_id", None),
         role_ids=role_ids,
         team_ids=team_ids,
     )
@@ -85,6 +86,7 @@ def create_user(
         job_title=getattr(data, "job_title", None),
         is_active=data.is_active,
         manager_id=getattr(data, "manager_id", None),
+        client_id=getattr(data, "client_id", None),
     )
     db.add(user)
     db.flush()
@@ -130,6 +132,8 @@ def update_user(
         user.is_active = data.is_active
     if data.manager_id is not None:
         user.manager_id = data.manager_id
+    if data.client_id is not None:
+        user.client_id = data.client_id
     if data.role_ids is not None:
         db.query(UserRole).filter(UserRole.user_id == user_id).delete()
         for role_id in data.role_ids:
