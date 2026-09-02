@@ -238,6 +238,24 @@ def delete_quote(
     db.commit()
 
 
+@router.get("/{quote_id}/pdf")
+def quote_pdf(
+    quote_id: UUID,
+    db: Session = Depends(get_db),
+    user=Depends(require_permission("quotes:read")),
+    permissions=Depends(get_user_permissions),
+    manager_scope=Depends(get_manager_scope_user_ids),
+):
+    from fastapi.responses import Response
+    from app.services.pdf_service import build_quote_pdf
+    quote = _get_scoped_quote_current(db, quote_id, user, permissions, manager_scope)
+    return Response(
+        content=build_quote_pdf(quote),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{quote.number}.pdf"'},
+    )
+
+
 @router.post("/{quote_id}/send", response_model=QuoteResponse)
 def send_quote(
     quote_id: UUID,
@@ -268,11 +286,13 @@ def send_quote(
             + (f"<p>Valid until: {quote.valid_until}</p>" if quote.valid_until else "")
             + (f"<p style='color:#6b7280;font-size:13px;'>{quote.terms}</p>" if quote.terms else "")
         )
+        from app.services.pdf_service import build_quote_pdf
         email_service.send_email(
             recipient,
             f"Proposal {quote.number}: {quote.title}",
             email_service._build_html(f"Proposal: {quote.title}", body),
             f"Proposal {quote.number}: {quote.title}\nTotal: {quote.total} {quote.currency}",
+            attachments=[(f"{quote.number}.pdf", build_quote_pdf(quote))],
         )
     return _quote_response(quote)
 

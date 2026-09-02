@@ -6,6 +6,8 @@ import {
   deleteInvoice,
   createPayment,
   listInvoicePayments,
+  openInvoicePdf,
+  sendInvoice,
   type Invoice,
   type Payment,
 } from "@/api/finance";
@@ -381,7 +383,37 @@ export default function InvoicesPage() {
                   {canWrite && (
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button type="button" onClick={() => openEdit(inv)} title="Edit" className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors">
+                        <button
+                          type="button"
+                          onClick={() => openInvoicePdf(inv.id).catch(() => showAlert({ title: "Error", message: "Could not load PDF" }))}
+                          title="View PDF"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors text-xs font-semibold"
+                        >
+                          PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => showConfirm({
+                            title: "Send invoice",
+                            message: `Email invoice ${inv.number} (with PDF) to the client contact?`,
+                            onConfirm: async () => {
+                              try {
+                                await sendInvoice(inv.id);
+                                load();
+                                showAlert({ title: "Sent", message: `Invoice ${inv.number} emailed.` });
+                              } catch (e) {
+                                showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+                              }
+                            },
+                          })}
+                          title="Email to client"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                                                <button type="button" onClick={() => openEdit(inv)} title="Edit" className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                           </svg>

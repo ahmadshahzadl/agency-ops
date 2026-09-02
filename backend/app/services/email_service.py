@@ -42,13 +42,15 @@ def _build_html(title: str, body_html: str, cta_label: str | None = None, cta_ur
 </div>"""
 
 
-def _send(to: str, subject: str, html: str, text: str) -> None:
+def _send(to: str, subject: str, html: str, text: str, attachments: list[tuple[str, bytes]] | None = None) -> None:
     msg = EmailMessage()
     msg["From"] = settings.smtp_from or settings.smtp_user
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(text)
     msg.add_alternative(html, subtype="html")
+    for filename, content in attachments or []:
+        msg.add_attachment(content, maintype="application", subtype="pdf", filename=filename)
     try:
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
             if settings.smtp_tls:
@@ -61,11 +63,11 @@ def _send(to: str, subject: str, html: str, text: str) -> None:
         logger.exception("email send failed to=%s subject=%s", to, subject)
 
 
-def send_email(to: str, subject: str, html: str, text: str) -> None:
+def send_email(to: str, subject: str, html: str, text: str, attachments: list[tuple[str, bytes]] | None = None) -> None:
     """Queue an email on a background thread. No-op when email is disabled."""
     if not email_enabled() or not to:
         return
-    threading.Thread(target=_send, args=(to, subject, html, text), daemon=True).start()
+    threading.Thread(target=_send, args=(to, subject, html, text, attachments), daemon=True).start()
 
 
 def send_password_reset(to: str, user_name: str, token: str) -> None:

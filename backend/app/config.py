@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Base URL of the web frontend, used for links in emails (reset password, notifications)
     frontend_url: str = "http://localhost:5173"
 
+    # Shown in the footer of generated invoice/quote PDFs (address, tax id, ...)
+    company_details: str = ""
+
     # Super admin (god mode): one email with full access and no activity/audit logs. Empty = disabled.
     super_admin_email: str = ""
 

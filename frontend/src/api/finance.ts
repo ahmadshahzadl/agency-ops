@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, API_BASE, getToken } from "./client";
 
 export interface Invoice {
   id: string;
@@ -103,4 +103,23 @@ export async function updateExpense(id: string, data: Partial<Expense>): Promise
 
 export async function deleteExpense(id: string): Promise<void> {
   return apiFetch(`/api/v1/expenses/${id}`, { method: "DELETE" });
+}
+
+async function openPdf(path: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) throw new Error("Could not load PDF");
+  const url = URL.createObjectURL(await res.blob());
+  window.open(url, "_blank");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function openInvoicePdf(id: string): Promise<void> {
+  return openPdf(`/api/v1/invoices/${id}/pdf`);
+}
+
+export async function sendInvoice(id: string): Promise<Invoice> {
+  return apiFetch<Invoice>(`/api/v1/invoices/${id}/send`, { method: "POST" });
 }

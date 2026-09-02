@@ -263,6 +263,81 @@ def create_payment(
     return pay
 
 
+def _invoice_pdf_bytes(db: Session, inv: InvoiceModel) -> bytes:
+    from app.services.pdf_service import build_invoice_pdf
+    from app.models import TimeEntry, Quote
+    client = db.query(ClientModel).filter(ClientModel.id == inv.client_id).first()
+    project = db.query(ProjectModel).filter(ProjectModel.id == inv.project_id).first() if inv.project_id else None
+    entries = db.query(TimeEntry).filter(TimeEntry.invoice_id == inv.id).order_by(TimeEntry.work_date).all()
+    quote = db.query(Quote).filter(Quote.id == inv.quote_id).first() if inv.quote_id else None
+    return build_invoice_pdf(inv, client, project, entries, quote, paid_total_for(db, inv.id))
+
+
+@router.get("/invoices/{invoice_id}/pdf")
+def invoice_pdf(
+    invoice_id: UUID,
+    db: Session = Depends(get_db),
+    user=Depends(require_permission("finance:read")),
+    permissions=Depends(get_user_permissions),
+    team_ids=Depends(get_user_team_ids),
+    manager_scope=Depends(get_manager_scope_user_ids),
+):
+    from fastapi.responses import Response
+    inv = db.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
+    if not inv or not _can_access_invoice_client(inv.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    _apply_overdue(db, [inv])
+    return Response(
+        content=_invoice_pdf_bytes(db, inv),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{inv.number}.pdf"'},
+    )
+
+
+@router.post("/invoices/{invoice_id}/send", response_model=InvoiceResponse)
+def send_invoice(
+    invoice_id: UUID,
+    db: Session = Depends(get_db),
+    user=Depends(require_permission("finance:write")),
+    permissions=Depends(get_user_permissions),
+    team_ids=Depends(get_user_team_ids),
+    manager_scope=Depends(get_manager_scope_user_ids),
+):
+    """Email the invoice PDF to the client contact and mark the invoice sent."""
+    from app.services import email_service
+    inv = db.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
+    if not inv or not _can_access_invoice_client(inv.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    client = db.query(ClientModel).filter(ClientModel.id == inv.client_id).first()
+    recipient = client.contact_email if client else None
+    if not recipient:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Client has no contact email")
+    if not email_service.email_enabled():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is not configured (set SMTP_HOST)")
+    pdf = _invoice_pdf_bytes(db, inv)
+    body = (
+        f"<p>Please find invoice <b>{inv.number}</b> attached.</p>"
+        f"<p>Amount due: <b>{inv.amount} {inv.currency}</b>"
+        + (f" · due {inv.due_date}" if inv.due_date else "") + "</p>"
+    )
+    email_service.send_email(
+        recipient,
+        f"Invoice {inv.number}",
+        email_service._build_html(f"Invoice {inv.number}", body),
+        f"Invoice {inv.number}: {inv.amount} {inv.currency}",
+        attachments=[(f"{inv.number}.pdf", pdf)],
+    )
+    if inv.status == "draft":
+        inv.status = "sent"
+        if not inv.issued_at:
+            inv.issued_at = date.today()
+    log_activity(db, user.id, "invoice_sent", "invoice", inv.id, details=f"Invoice {inv.number} emailed to {recipient}")
+    db.commit()
+    db.refresh(inv)
+    inv.paid_total = paid_total_for(db, inv.id)
+    return inv
+
+
 @router.get("/invoices/{invoice_id}/payments", response_model=list[PaymentResponse])
 def list_invoice_payments(
     invoice_id: UUID,

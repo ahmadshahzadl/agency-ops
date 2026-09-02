@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, API_BASE, getToken } from "./client";
 import type { Invoice } from "./finance";
 import type { Project } from "./projects";
 
@@ -79,4 +79,15 @@ export async function convertQuote(id: string): Promise<Project> {
 
 export async function invoiceQuote(id: string): Promise<Invoice> {
   return apiFetch<Invoice>(`/api/v1/quotes/${id}/invoice`, { method: "POST" });
+}
+
+export async function openQuotePdf(id: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/api/v1/quotes/${id}/pdf`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) throw new Error("Could not load PDF");
+  const url = URL.createObjectURL(await res.blob());
+  window.open(url, "_blank");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
