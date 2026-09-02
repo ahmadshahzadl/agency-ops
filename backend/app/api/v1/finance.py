@@ -19,6 +19,7 @@ from datetime import datetime
 from decimal import Decimal
 from sqlalchemy import func
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
+from app.services.cleanup_service import purge_entity_artifacts
 from app.services.activity_service import log_activity
 from app.core.money import validate_currency, validate_positive_amount
 
@@ -111,6 +112,8 @@ def create_invoice(
 ):
     if not _can_access_invoice_client(data.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot create invoice for this client")
+    if not db.query(ClientModel.id).filter(ClientModel.id == data.client_id, ClientModel.deleted_at.is_(None)).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Client is deleted; cannot create new invoices for it")
     validate_currency(data.currency)
     validate_positive_amount(data.amount)
     if db.query(InvoiceModel.id).filter(InvoiceModel.number == data.number).first():
@@ -198,6 +201,7 @@ def delete_invoice(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     if not _can_access_invoice_client(inv.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    purge_entity_artifacts(db, "invoice", inv.id)
     db.delete(inv)
     db.commit()
 
@@ -359,5 +363,6 @@ def delete_expense(
     if not _can_access_expense_project(exp, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
     log_activity(db, user.id, "expense_deleted", "expense", expense_id, details=f"Expense deleted: {exp.description or '—'} {exp.currency} {exp.amount}")
+    purge_entity_artifacts(db, "expense", exp.id)
     db.delete(exp)
     db.commit()

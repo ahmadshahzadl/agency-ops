@@ -157,7 +157,7 @@ def create_project(
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
-    client = db.query(ClientModel).filter(ClientModel.id == data.client_id).first()
+    client = db.query(ClientModel).filter(ClientModel.id == data.client_id, ClientModel.deleted_at.is_(None)).first()
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
     if "admin:all" not in permissions:

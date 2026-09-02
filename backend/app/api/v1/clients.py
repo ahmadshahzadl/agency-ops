@@ -134,6 +134,15 @@ def delete_client(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
     if not _can_access_client(client, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
+    from app.models import Project as ProjectModel
+    active_projects = db.query(ProjectModel.id).filter(
+        ProjectModel.client_id == client_id, ProjectModel.deleted_at.is_(None)
+    ).count()
+    if active_projects:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Client has {active_projects} active project(s); delete or finish them first",
+        )
     client_name = client.name
     log_activity(db, user.id, "client_deleted", "client", client_id, details=f"Client deleted: {client_name}")
     client.deleted_at = datetime.now(timezone.utc)

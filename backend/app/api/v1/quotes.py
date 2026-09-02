@@ -296,6 +296,8 @@ def convert_quote_to_project(
         client_id = quote.lead.converted_to_client_id
     if not client_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quote has no client; convert the lead to a client first")
+    if not db.query(ClientModel.id).filter(ClientModel.id == client_id, ClientModel.deleted_at.is_(None)).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The quote's client is deleted")
     project = ProjectModel(
         client_id=client_id,
         name=quote.title,
@@ -334,6 +336,8 @@ def invoice_from_quote(
     client_id = quote.client_id or (quote.lead.converted_to_client_id if quote.lead else None)
     if not client_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quote has no client; convert the lead to a client first")
+    if not db.query(ClientModel.id).filter(ClientModel.id == client_id, ClientModel.deleted_at.is_(None)).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The quote's client is deleted")
     if quote.total <= 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quote total must be greater than 0")
     number = generate_invoice_number(db)

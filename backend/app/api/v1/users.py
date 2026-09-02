@@ -156,6 +156,14 @@ def delete_user(
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    # Hard delete cascades their time entries (incl. billed hours) and activity
+    # history — refuse when logged time exists; deactivation preserves the records.
+    from app.models import TimeEntry
+    if db.query(TimeEntry.id).filter(TimeEntry.user_id == user_id).first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has logged time entries; deactivate the user instead of deleting to preserve billing history",
+        )
     log_activity(db, current_user.id, "user_deleted", "user", user_id, details=f"User deleted: {user.email}")
     db.delete(user)
     db.commit()

@@ -26,6 +26,12 @@ def _is_project_manager(db: Session, project_id: UUID, user, permissions: set, m
 
 
 def _can_view_board(db: Session, board: BoardModel, user, permissions: set, manager_scope: set[UUID] | None) -> bool:
+    # Boards of soft-deleted projects are hidden for everyone
+    proj_alive = db.query(ProjectModel.id).filter(
+        ProjectModel.id == board.project_id, ProjectModel.deleted_at.is_(None)
+    ).first()
+    if not proj_alive:
+        return False
     if "admin:all" in permissions or board.created_by == user.id:
         return True
     is_member = db.query(BoardMemberModel).filter(
@@ -65,7 +71,9 @@ def list_boards(
     manager_scope=Depends(get_manager_scope_user_ids),
     project_id: UUID | None = Query(None),
 ):
-    qry = db.query(BoardModel)
+    qry = db.query(BoardModel).join(ProjectModel, BoardModel.project_id == ProjectModel.id).filter(
+        ProjectModel.deleted_at.is_(None)
+    )
     if project_id:
         qry = qry.filter(BoardModel.project_id == project_id)
     boards = qry.order_by(BoardModel.position, BoardModel.created_at).all()

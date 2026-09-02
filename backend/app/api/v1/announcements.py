@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models import Announcement as AnnouncementModel, Notification as NotificationModel, User
 from app.schemas.announcement import AnnouncementCreate, AnnouncementUpdate, AnnouncementResponse
 from app.api.deps import get_current_user, require_admin, require_any_permission, get_user_permissions
+from app.services.cleanup_service import purge_entity_artifacts
 from app.services.activity_service import log_activity, notifications_updated_this_request
 from app.services import email_service
 
@@ -119,5 +120,6 @@ def delete_announcement(
     if not ann:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Announcement not found")
     log_activity(db, user.id, "announcement_deleted", "announcement", announcement_id, details=f"Announcement deleted: {ann.title}")
+    purge_entity_artifacts(db, "announcement", ann.id)
     db.delete(ann)
     db.commit()

@@ -10,6 +10,7 @@ from app.schemas.lead import LeadCreate, LeadUpdate, LeadResponse, LeadConvertRe
 from app.schemas.client import ClientCreate, ClientResponse
 from app.schemas.project import ProjectCreate, ProjectResponse
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids, get_is_sales_member, get_sales_team_user_ids
+from app.services.cleanup_service import purge_entity_artifacts
 from app.services.activity_service import log_activity
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -288,5 +289,6 @@ def delete_lead(
             )
     company_name = lead.company_name
     log_activity(db, user.id, "lead_deleted", "lead", None, details=f"Lead deleted: {company_name}")
+    purge_entity_artifacts(db, "lead", lead.id)
     db.delete(lead)
     db.commit()

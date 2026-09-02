@@ -69,7 +69,7 @@ def list_time_entries(
 ):
     qry = db.query(TimeEntryModel).options(
         joinedload(TimeEntryModel.user), joinedload(TimeEntryModel.project), joinedload(TimeEntryModel.task)
-    )
+    ).join(ProjectModel, TimeEntryModel.project_id == ProjectModel.id).filter(ProjectModel.deleted_at.is_(None))
     visible = _visible_user_ids(user, permissions, manager_scope)
     if visible is not None:
         qry = qry.filter(TimeEntryModel.user_id.in_(visible))
@@ -202,7 +202,9 @@ def time_summary(
     date_from: date | None = None,
     date_to: date | None = None,
 ):
-    qry = db.query(TimeEntryModel).options(joinedload(TimeEntryModel.user), joinedload(TimeEntryModel.project))
+    qry = db.query(TimeEntryModel).options(
+        joinedload(TimeEntryModel.user), joinedload(TimeEntryModel.project)
+    ).join(ProjectModel, TimeEntryModel.project_id == ProjectModel.id).filter(ProjectModel.deleted_at.is_(None))
     visible = _visible_user_ids(user, permissions, manager_scope)
     if visible is not None:
         qry = qry.filter(TimeEntryModel.user_id.in_(visible))

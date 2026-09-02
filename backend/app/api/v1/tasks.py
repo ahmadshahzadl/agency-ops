@@ -8,6 +8,7 @@ from app.services import email_service
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, VALID_STATUSES, VALID_ITEM_TYPES, VALID_SEVERITIES
 from sqlalchemy import or_
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
+from app.services.cleanup_service import purge_entity_artifacts
 from app.services.activity_service import log_activity, tasks_updated_this_request, notifications_updated_this_request
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -374,6 +375,7 @@ def delete_task(
     if not _can_access_task(task, user.id, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     title = task.title
+    purge_entity_artifacts(db, "task", task.id)
     db.delete(task)
     db.flush()
     log_activity(db, user.id, "task_deleted", "task", None, details=f"Task deleted: {title}")
