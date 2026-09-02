@@ -16,10 +16,13 @@ from app.models.share_link import ProjectShareLink
 from app.models.attachment import Attachment
 from app.models.password_reset import PasswordResetToken
 from app.models.time_entry import TimeEntry
+from app.models.quote import Quote, QuoteItem
 
 __all__ = [
     "PasswordResetToken",
     "TimeEntry",
+    "Quote",
+    "QuoteItem",
     "Board",
     "BoardMember",
     "ProjectShareLink",

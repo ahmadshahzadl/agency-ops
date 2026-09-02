@@ -16,6 +16,7 @@ import { getWsUrl, getToken } from "@/api/client";
 const navItems: { to: string; label: string; permission?: string }[] = [
   { to: "/dashboard", label: "Overview" },
   { to: "/leads", label: "Leads", permission: "leads:read" },
+  { to: "/quotes", label: "Quotes", permission: "quotes:read" },
   { to: "/clients", label: "Clients", permission: "clients:read" },
   { to: "/projects", label: "Projects", permission: "projects:read" },
   { to: "/tasks", label: "Tasks", permission: "tasks:read" },
@@ -43,6 +44,11 @@ const NavIcon = ({ path, className = "w-5 h-5 shrink-0" }: { path: string; class
     "/leads": (
       <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ),
+    "/quotes": (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
     "/clients": (
@@ -134,6 +140,7 @@ const SALES_ONLY_HIDDEN_NAV = ["/clients", "/team-activity"];
 const PATH_TO_HEADER_TITLE: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/leads": "Leads",
+  "/quotes": "Quotes",
   "/clients": "Customers",
   "/projects": "Projects",
   "/tasks": "Tasks",
