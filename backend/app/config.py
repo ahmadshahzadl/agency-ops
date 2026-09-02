@@ -23,6 +23,10 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:3000,http://localhost:5173,app://."
 
+    # File attachments: stored on local disk (override for a mounted volume in production)
+    upload_dir: str = str(_BACKEND_DIR / "uploads")
+    max_upload_mb: int = 15
+
     # Super admin (god mode): one email with full access and no activity/audit logs. Empty = disabled.
     super_admin_email: str = ""
 

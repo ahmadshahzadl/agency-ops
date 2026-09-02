@@ -6,6 +6,7 @@ import { listBoards, createBoard, deleteBoard, listBoardTasks, addBoardMember, r
 import { createTask, updateTask, type Task } from "@/api/tasks";
 import { listAssignableUsers, type UserList } from "@/api/users";
 import { createShareLink, listShareLinks, revokeShareLink, shareUrlFor, type ShareLink } from "@/api/share";
+import { AttachmentsSection } from "@/components/AttachmentsSection";
 
 const COLUMNS = [
   { key: "todo", label: "To do", accent: "border-gray-300" },
@@ -350,6 +351,7 @@ export default function Boards() {
               Assignee: {users.find((u) => u.id === detailTask.assignee_id)?.full_name ?? "—"}
               {detailTask.due_date && <> · Due {detailTask.due_date}</>}
             </div>
+            <AttachmentsSection entityType="task" entityId={detailTask.id} />
             {/* Action buttons for the allowed transitions */}
             <div className="mt-5 flex flex-wrap gap-2">
               {allowedTargets(detailTask.status, isAdmin, !!isQA).map((target) => {

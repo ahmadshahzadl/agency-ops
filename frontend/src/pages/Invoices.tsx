@@ -10,6 +10,7 @@ import {
 import { listClients, type Client } from "@/api/clients";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
+import { AttachmentsSection } from "@/components/AttachmentsSection";
 import { useModal } from "@/contexts/ModalContext";
 import { BulkActionsBar } from "@/components/BulkActionsBar";
 
@@ -406,6 +407,7 @@ export default function InvoicesPage() {
               </div>
             </div>
             <NotesSection entityType="invoice" entityId={modal !== "new" ? (modal as Invoice).id : undefined} />
+            <AttachmentsSection entityType="invoice" entityId={modal !== "new" ? (modal as Invoice).id : undefined} />
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">Cancel</button>
               <button onClick={save} className="px-4 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover">Save</button>

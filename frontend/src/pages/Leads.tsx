@@ -10,6 +10,7 @@ import {
 import { listTeams, listMyTeams } from "@/api/teams";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
+import { AttachmentsSection } from "@/components/AttachmentsSection";
 import { useModal } from "@/contexts/ModalContext";
 import { BulkActionsBar } from "@/components/BulkActionsBar";
 
@@ -553,6 +554,10 @@ export default function Leads() {
               />
             </div>
             <NotesSection
+              entityType="lead"
+              entityId={modal !== "new" ? (modal as Lead).id : undefined}
+            />
+            <AttachmentsSection
               entityType="lead"
               entityId={modal !== "new" ? (modal as Lead).id : undefined}
             />

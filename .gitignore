@@ -53,3 +53,6 @@ htmlcov/
 # Secrets (keep .env.example if present)
 .env
 !.env.example
+
+# Uploaded attachments (user data, not source)
+backend/uploads/

@@ -28,6 +28,7 @@ PERMISSIONS = [
     "team_activity:read",
     "notes:read", "notes:write",
     "announcements:read", "announcements:write",
+    "attachments:read", "attachments:write",
 ]
 
 # Three primary roles per docs/roles-permissions-flow.md: Admin, Manager, Employee
@@ -45,6 +46,7 @@ ROLE_PERMISSIONS = {
         "analytics:read",
         "team_activity:read",
         "notes:read", "notes:write",
+        "attachments:read", "attachments:write",
         "announcements:read",
     ],
     "employee": [
@@ -54,6 +56,7 @@ ROLE_PERMISSIONS = {
         "tasks:read", "tasks:write",
         "meetings:read",
         "notes:read", "notes:write",
+        "attachments:read", "attachments:write",
         "announcements:read",
     ],
     "member": [
@@ -63,6 +66,7 @@ ROLE_PERMISSIONS = {
         "tasks:read", "tasks:write",
         "meetings:read",
         "notes:read", "notes:write",
+        "attachments:read", "attachments:write",
         "announcements:read",
     ],
     "qa": [
@@ -71,6 +75,7 @@ ROLE_PERMISSIONS = {
         "tasks:read", "tasks:write", "tasks:qa_approve",
         "meetings:read",
         "notes:read", "notes:write",
+        "attachments:read", "attachments:write",
         "announcements:read",
     ],
 }

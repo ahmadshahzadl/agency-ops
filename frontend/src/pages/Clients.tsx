@@ -3,6 +3,7 @@ import { listClients, createClient, updateClient, deleteClient, type Client } fr
 import { listTeams } from "@/api/teams";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
+import { AttachmentsSection } from "@/components/AttachmentsSection";
 import { useModal } from "@/contexts/ModalContext";
 import { BulkActionsBar } from "@/components/BulkActionsBar";
 
@@ -358,6 +359,7 @@ export default function Clients() {
               )}
             </div>
             <NotesSection entityType="client" entityId={modal !== "new" ? (modal as Client).id : undefined} />
+            <AttachmentsSection entityType="client" entityId={modal !== "new" ? (modal as Client).id : undefined} />
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setModal(null)} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">
                 Cancel

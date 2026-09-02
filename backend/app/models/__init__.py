@@ -13,11 +13,13 @@ from app.models.note import Note
 from app.models.message import Message
 from app.models.board import Board, BoardMember
 from app.models.share_link import ProjectShareLink
+from app.models.attachment import Attachment
 
 __all__ = [
     "Board",
     "BoardMember",
     "ProjectShareLink",
+    "Attachment",
     "User",
     "UserRole",
     "Role",
