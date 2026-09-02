@@ -4,6 +4,7 @@ import { listProjectNames } from "@/api/projects";
 import { listAssignableUsers, type UserList } from "@/api/users";
 import { SearchableUserSelect } from "@/components/SearchableUserSelect";
 import { useAuth } from "@/store/auth";
+import { TASK_STATUSES, TASK_STATUS_LABELS, statusOptionsFor, newTaskStatusOptions } from "@/lib/taskFlow";
 import { NotesSection } from "@/components/NotesSection";
 import { AttachmentsSection } from "@/components/AttachmentsSection";
 import { useModal } from "@/contexts/ModalContext";
@@ -34,6 +35,8 @@ export default function TasksPage() {
   const canWrite = hasPermission("tasks:write");
   const canBulk = hasPermission("admin:all");
   const canManageTasks = user?.can_manage_tasks ?? false;
+  const isAdmin = hasPermission("admin:all");
+  const isQA = isAdmin || (user?.permissions.includes("tasks:qa_approve") ?? false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -200,7 +203,7 @@ export default function TasksPage() {
   const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
-  const taskStatusOptions = ["todo", "in_progress", "review", "done"];
+  const taskStatusOptions = [...TASK_STATUSES];
   const taskPriorityOptions = ["low", "medium", "high"];
 
   return (
@@ -226,7 +229,7 @@ export default function TasksPage() {
           >
             <option value="">All statuses</option>
             {taskStatusOptions.map((s) => (
-              <option key={s} value={s}>{s.replace("_", " ")}</option>
+              <option key={s} value={s}>{TASK_STATUS_LABELS[s] ?? s}</option>
             ))}
           </select>
           <label className="text-sm font-medium text-gray-700">Priority</label>
@@ -321,7 +324,7 @@ export default function TasksPage() {
                   <td className="px-4 py-3 font-medium text-gray-900">{t.title}</td>
                   <td className="px-4 py-3 text-gray-600">{t.project_id ? (projectMap[t.project_id] ?? "—") : "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{t.assignee_id ? (assigneeMap[t.assignee_id] ?? "—") : "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{t.status}</td>
+                  <td className={`px-4 py-3 ${t.status === "qa_failed" ? "text-red-600 font-medium" : t.status === "done" ? "text-green-600" : "text-gray-600"}`}>{TASK_STATUS_LABELS[t.status] ?? t.status}</td>
                   <td className="px-4 py-3 text-gray-600">{t.priority}</td>
                   {canWrite && (
                     <td className="px-4 py-3 text-right">
@@ -383,10 +386,12 @@ export default function TasksPage() {
               />
               <div className="grid grid-cols-2 gap-2">
                 <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className={inputClass}>
-                  <option value="todo">Todo</option>
-                  <option value="in_progress">In progress</option>
-                  <option value="review">Review</option>
-                  <option value="done">Done</option>
+                  {(modal === "new"
+                    ? newTaskStatusOptions(isAdmin)
+                    : statusOptionsFor((modal as Task).status, isAdmin, isQA)
+                  ).map((s) => (
+                    <option key={s} value={s}>{TASK_STATUS_LABELS[s] ?? s}</option>
+                  ))}
                 </select>
                 <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} className={inputClass}>
                   <option value="low">Low</option>

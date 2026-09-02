@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { useAuth } from "@/store/auth";
+import { allowedTargets } from "@/lib/taskFlow";
 import { listProjectNames } from "@/api/projects";
 import { listBoards, createBoard, deleteBoard, listBoardTasks, addBoardMember, removeBoardMember, type Board } from "@/api/boards";
 import { createTask, updateTask, type Task } from "@/api/tasks";
@@ -23,20 +24,7 @@ const SEVERITY_STYLES: Record<string, string> = {
   critical: "bg-red-100 text-red-700",
 };
 
-const DEV_TRANSITIONS: Record<string, string[]> = {
-  todo: ["in_progress"],
-  in_progress: ["todo", "review"],
-  review: ["in_progress"],
-  qa_failed: ["in_progress"],
-  done: [],
-};
-const QA_TRANSITIONS: Record<string, string[]> = { review: ["done", "qa_failed"] };
 
-function allowedTargets(status: string, isAdmin: boolean, isQA: boolean): string[] {
-  if (isAdmin) return COLUMNS.map((c) => c.key).filter((k) => k !== status);
-  const dev = DEV_TRANSITIONS[status] ?? [];
-  return isQA ? [...dev, ...(QA_TRANSITIONS[status] ?? [])] : dev;
-}
 
 function TaskCard({ task, users, onClick, dragging }: { task: Task; users: UserList[]; onClick?: () => void; dragging?: boolean }) {
   const assignee = users.find((u) => u.id === task.assignee_id);
