@@ -1,9 +1,10 @@
 from datetime import datetime, timezone, timedelta, date
+from decimal import Decimal
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.database import get_db
-from app.models import Client, Project, Task, Invoice, Payment, Expense, Lead, User
+from app.models import Client, Project, Task, Invoice, Payment, Expense, Lead, User, Quote, TimeEntry
 from app.schemas.analytics import (
     AnalyticsOverview,
     DashboardResponse,
@@ -14,6 +15,68 @@ from sqlalchemy import or_
 from app.api.deps import get_current_user, require_any_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+TASK_STATUSES = ("todo", "in_progress", "review", "qa_failed", "done")
+
+
+def _task_status_counts(db: Session, filters: list, join_project: bool = False) -> dict[str, int]:
+    """Counts for every pipeline status (review/qa_failed included) under the given scope filters."""
+    q = db.query(Task.status, func.count(Task.id))
+    if join_project:
+        q = q.join(Project)
+    rows = q.filter(*filters).group_by(Task.status).all()
+    counts = {s: 0 for s in TASK_STATUSES}
+    for s, c in rows:
+        if s in counts:
+            counts[s] = c
+    return counts
+
+
+def _tasks_by_status_chart(counts: dict[str, int]) -> list[StatusCount]:
+    return [StatusCount(status=s, count=counts[s]) for s in TASK_STATUSES]
+
+
+def _quote_metrics(db: Session, permissions: set, manager_scope, user):
+    """(pipeline_value, win_rate, open_count) scoped like the quotes list. None-gated on quotes:read."""
+    if "admin:all" not in permissions and "quotes:read" not in permissions:
+        return None, None, 0
+    q = db.query(Quote.status, func.count(Quote.id), func.coalesce(func.sum(Quote.total), 0))
+    if "admin:all" not in permissions:
+        if manager_scope is not None:
+            q = q.filter(Quote.created_by.in_(manager_scope))
+        else:
+            q = q.filter(Quote.created_by == user.id)
+    by = {s: (c, Decimal(str(t or 0))) for s, c, t in q.group_by(Quote.status).all()}
+    open_count = by.get("draft", (0, None))[0] + by.get("sent", (0, None))[0]
+    pipeline = by.get("draft", (0, Decimal("0")))[1] + by.get("sent", (0, Decimal("0")))[1]
+    accepted = by.get("accepted", (0, None))[0]
+    rejected = by.get("rejected", (0, None))[0]
+    win_rate = (accepted / (accepted + rejected)) if (accepted + rejected) else None
+    return pipeline, win_rate, open_count
+
+
+def _hours_metrics(db: Session, permissions: set, manager_scope, user, month_start, month_end):
+    """(hours_this_month, billable_hours_this_month, unbilled_value) scoped like the timesheet.
+    unbilled_value is finance-gated (None without finance:read)."""
+    base = db.query(TimeEntry).options(joinedload(TimeEntry.project)).join(
+        Project, TimeEntry.project_id == Project.id
+    ).filter(Project.deleted_at.is_(None))
+    if "admin:all" not in permissions:
+        if manager_scope is not None:
+            base = base.filter(TimeEntry.user_id.in_(manager_scope))
+        else:
+            base = base.filter(TimeEntry.user_id == user.id)
+    month_entries = base.filter(TimeEntry.work_date >= month_start, TimeEntry.work_date <= month_end).all()
+    hours = sum((e.hours for e in month_entries), Decimal("0"))
+    billable = sum((e.hours for e in month_entries if e.billable), Decimal("0"))
+    if "admin:all" not in permissions and "finance:read" not in permissions:
+        return hours, billable, None
+    unbilled_value = Decimal("0")
+    for e in base.filter(TimeEntry.billable == True, TimeEntry.invoice_id.is_(None)).all():
+        rate = e.hourly_rate if e.hourly_rate is not None else (e.project.hourly_rate if e.project else None)
+        if rate is not None:
+            unbilled_value += e.hours * rate
+    return hours, billable, unbilled_value
 
 
 @router.get("/overview", response_model=AnalyticsOverview)
@@ -34,9 +97,7 @@ def overview(
             Project.deleted_at.is_(None), Project.status == "active",
         ).scalar() or 0
         total_users = db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
-        tasks_todo = db.query(func.count(Task.id)).filter(Task.status == "todo").scalar() or 0
-        tasks_in_progress = db.query(func.count(Task.id)).filter(Task.status == "in_progress").scalar() or 0
-        tasks_done = db.query(func.count(Task.id)).filter(Task.status == "done").scalar() or 0
+        task_counts = _task_status_counts(db, [])
         revenue_total = db.query(func.coalesce(func.sum(Invoice.amount), 0)).filter(Invoice.status == "paid").scalar()
         revenue_total = Decimal(str(revenue_total or 0))
         outstanding_total = db.query(func.coalesce(func.sum(Invoice.amount), 0)).filter(
@@ -59,21 +120,10 @@ def overview(
             Project.deleted_at.is_(None), Project.status == "active", Project.owner_id.in_(manager_scope),
         ).scalar() or 0
         total_users = db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
-        tasks_todo = db.query(func.count(Task.id)).join(Project).filter(
-            Task.status == "todo",
+        task_counts = _task_status_counts(db, [
             Project.owner_id.in_(manager_scope),
             or_(Task.created_by.in_(manager_scope), Task.assignee_id.in_(manager_scope)),
-        ).scalar() or 0
-        tasks_in_progress = db.query(func.count(Task.id)).join(Project).filter(
-            Task.status == "in_progress",
-            Project.owner_id.in_(manager_scope),
-            or_(Task.created_by.in_(manager_scope), Task.assignee_id.in_(manager_scope)),
-        ).scalar() or 0
-        tasks_done = db.query(func.count(Task.id)).join(Project).filter(
-            Task.status == "done",
-            Project.owner_id.in_(manager_scope),
-            or_(Task.created_by.in_(manager_scope), Task.assignee_id.in_(manager_scope)),
-        ).scalar() or 0
+        ], join_project=True)
         revenue_total = db.query(func.coalesce(func.sum(Invoice.amount), 0)).join(Client).filter(
             Invoice.status == "paid", Client.created_by.in_(manager_scope),
         ).scalar()
@@ -96,9 +146,7 @@ def overview(
         total_clients = 0
         active_projects = 0
         total_users = 0
-        tasks_todo = db.query(func.count(Task.id)).filter(Task.status == "todo", Task.assignee_id == user.id).scalar() or 0
-        tasks_in_progress = db.query(func.count(Task.id)).filter(Task.status == "in_progress", Task.assignee_id == user.id).scalar() or 0
-        tasks_done = db.query(func.count(Task.id)).filter(Task.status == "done", Task.assignee_id == user.id).scalar() or 0
+        task_counts = _task_status_counts(db, [Task.assignee_id == user.id])
         revenue_total = Decimal("0")
         outstanding_total = Decimal("0")
         revenue_this_month = Decimal("0")
@@ -109,17 +157,27 @@ def overview(
         outstanding_total = Decimal("0")
         revenue_this_month = Decimal("0")
         expenses_this_month = Decimal("0")
+    quote_pipeline, quote_win_rate, quotes_open = _quote_metrics(db, permissions, manager_scope, user)
+    hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
     return AnalyticsOverview(
         total_clients=total_clients,
         active_projects=active_projects,
         total_users=total_users,
-        tasks_todo=tasks_todo,
-        tasks_in_progress=tasks_in_progress,
-        tasks_done=tasks_done,
+        tasks_todo=task_counts["todo"],
+        tasks_in_progress=task_counts["in_progress"],
+        tasks_review=task_counts["review"],
+        tasks_qa_failed=task_counts["qa_failed"],
+        tasks_done=task_counts["done"],
         revenue_total=revenue_total,
         outstanding_total=outstanding_total,
         revenue_this_month=revenue_this_month,
         expenses_this_month=expenses_this_month,
+        hours_this_month=hours_month,
+        billable_hours_this_month=billable_month,
+        unbilled_value=unbilled_value,
+        quote_pipeline_value=quote_pipeline,
+        quote_win_rate=quote_win_rate,
+        quotes_open=quotes_open,
     )
 
 
@@ -184,15 +242,8 @@ def _member_dashboard_charts(db: Session, user_id):
         )
     conversion_over_time.reverse()  # oldest first
 
-    # Tasks by status (assigned to member)
-    tasks_todo = db.query(func.count(Task.id)).filter(Task.assignee_id == user_id, Task.status == "todo").scalar() or 0
-    tasks_ip = db.query(func.count(Task.id)).filter(Task.assignee_id == user_id, Task.status == "in_progress").scalar() or 0
-    tasks_done = db.query(func.count(Task.id)).filter(Task.assignee_id == user_id, Task.status == "done").scalar() or 0
-    tasks_by_status = [
-        StatusCount(status="todo", count=tasks_todo),
-        StatusCount(status="in_progress", count=tasks_ip),
-        StatusCount(status="done", count=tasks_done),
-    ]
+    # Tasks by status (assigned to member), all pipeline states included
+    tasks_by_status = _tasks_by_status_chart(_task_status_counts(db, [Task.assignee_id == user_id]))
 
     return {
         "conversion_rate": conversion_rate,
@@ -222,9 +273,7 @@ def dashboard(
             Project.deleted_at.is_(None), Project.status == "active",
         ).scalar() or 0
         total_users = db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
-        tasks_todo = db.query(func.count(Task.id)).filter(Task.status == "todo").scalar() or 0
-        tasks_in_progress = db.query(func.count(Task.id)).filter(Task.status == "in_progress").scalar() or 0
-        tasks_done = db.query(func.count(Task.id)).filter(Task.status == "done").scalar() or 0
+        task_counts = _task_status_counts(db, [])
         revenue_total = db.query(func.coalesce(func.sum(Invoice.amount), 0)).filter(Invoice.status == "paid").scalar()
         revenue_total = Decimal(str(revenue_total or 0))
         outstanding_total = db.query(func.coalesce(func.sum(Invoice.amount), 0)).filter(
@@ -258,11 +307,8 @@ def dashboard(
             .all()
         )
         projects_by_stage = [StatusCount(status=s or "unknown", count=c) for s, c in projects_by_stage_rows]
-        chart_data = {"conversion_rate": None, "conversion_over_time": [], "leads_by_status": [], "tasks_by_status": [
-            StatusCount(status="todo", count=tasks_todo),
-            StatusCount(status="in_progress", count=tasks_in_progress),
-            StatusCount(status="done", count=tasks_done),
-        ], "projects_by_stage": projects_by_stage}
+        chart_data = {"conversion_rate": None, "conversion_over_time": [], "leads_by_status": [],
+                      "tasks_by_status": _tasks_by_status_chart(task_counts), "projects_by_stage": projects_by_stage}
     elif manager_scope is not None:
         total_clients = db.query(func.count(Client.id)).filter(
             Client.deleted_at.is_(None), Client.created_by.in_(manager_scope),
@@ -271,18 +317,9 @@ def dashboard(
             Project.deleted_at.is_(None), Project.status == "active", Project.owner_id.in_(manager_scope),
         ).scalar() or 0
         total_users = db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
-        tasks_todo = db.query(func.count(Task.id)).filter(
-            Task.status == "todo",
+        task_counts = _task_status_counts(db, [
             or_(Task.created_by.in_(manager_scope), Task.assignee_id.in_(manager_scope)),
-        ).scalar() or 0
-        tasks_in_progress = db.query(func.count(Task.id)).filter(
-            Task.status == "in_progress",
-            or_(Task.created_by.in_(manager_scope), Task.assignee_id.in_(manager_scope)),
-        ).scalar() or 0
-        tasks_done = db.query(func.count(Task.id)).filter(
-            Task.status == "done",
-            or_(Task.created_by.in_(manager_scope), Task.assignee_id.in_(manager_scope)),
-        ).scalar() or 0
+        ])
         revenue_total = db.query(func.coalesce(func.sum(Invoice.amount), 0)).join(Client).filter(
             Invoice.status == "paid", Client.created_by.in_(manager_scope),
         ).scalar()
@@ -323,11 +360,8 @@ def dashboard(
             func.date(Lead.created_at) >= month_start,
             func.date(Lead.created_at) <= month_end,
         ).scalar() or 0
-        chart_data = {"conversion_rate": None, "conversion_over_time": [], "leads_by_status": [], "tasks_by_status": [
-            StatusCount(status="todo", count=tasks_todo),
-            StatusCount(status="in_progress", count=tasks_in_progress),
-            StatusCount(status="done", count=tasks_done),
-        ], "projects_by_stage": projects_by_stage}
+        chart_data = {"conversion_rate": None, "conversion_over_time": [], "leads_by_status": [],
+                      "tasks_by_status": _tasks_by_status_chart(task_counts), "projects_by_stage": projects_by_stage}
     else:
         total_clients = 0
         active_projects = 0
@@ -337,9 +371,7 @@ def dashboard(
         leads_today = 0
         leads_this_week = 0
         leads_this_month = 0
-        tasks_todo = db.query(func.count(Task.id)).filter(Task.status == "todo", Task.assignee_id == user.id).scalar() or 0
-        tasks_in_progress = db.query(func.count(Task.id)).filter(Task.status == "in_progress", Task.assignee_id == user.id).scalar() or 0
-        tasks_done = db.query(func.count(Task.id)).filter(Task.status == "done", Task.assignee_id == user.id).scalar() or 0
+        task_counts = _task_status_counts(db, [Task.assignee_id == user.id])
         revenue_total = Decimal("0")
         outstanding_total = Decimal("0")
         chart_data = _member_dashboard_charts(db, user.id)
@@ -350,17 +382,27 @@ def dashboard(
         outstanding_total = Decimal("0")
         revenue_this_month = Decimal("0")
         expenses_this_month = Decimal("0")
+    quote_pipeline, quote_win_rate, quotes_open = _quote_metrics(db, permissions, manager_scope, user)
+    hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
     return DashboardResponse(
         total_clients=total_clients,
         active_projects=active_projects,
         total_users=total_users,
-        tasks_todo=tasks_todo,
-        tasks_in_progress=tasks_in_progress,
-        tasks_done=tasks_done,
+        tasks_todo=task_counts["todo"],
+        tasks_in_progress=task_counts["in_progress"],
+        tasks_review=task_counts["review"],
+        tasks_qa_failed=task_counts["qa_failed"],
+        tasks_done=task_counts["done"],
         revenue_total=revenue_total,
         outstanding_total=outstanding_total,
         revenue_this_month=revenue_this_month,
         expenses_this_month=expenses_this_month,
+        hours_this_month=hours_month,
+        billable_hours_this_month=billable_month,
+        unbilled_value=unbilled_value,
+        quote_pipeline_value=quote_pipeline,
+        quote_win_rate=quote_win_rate,
+        quotes_open=quotes_open,
         leads_today=leads_today,
         leads_this_week=leads_this_week,
         leads_this_month=leads_this_month,

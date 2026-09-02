@@ -6,10 +6,18 @@ export interface AnalyticsOverview {
   total_users: number;
   tasks_todo: number;
   tasks_in_progress: number;
+  tasks_review: number;
+  tasks_qa_failed: number;
   tasks_done: number;
   revenue_total: number | null;
   outstanding_total: number | null;
   revenue_this_month: number | null;
+  hours_this_month: number | string;
+  billable_hours_this_month: number | string;
+  unbilled_value: number | string | null;
+  quote_pipeline_value: number | string | null;
+  quote_win_rate: number | null;
+  quotes_open: number;
   expenses_this_month: number | null;
 }
 

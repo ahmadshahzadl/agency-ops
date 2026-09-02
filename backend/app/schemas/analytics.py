@@ -9,11 +9,19 @@ class AnalyticsOverview(BaseModel):
     total_users: int
     tasks_todo: int
     tasks_in_progress: int
+    tasks_review: int = 0
+    tasks_qa_failed: int = 0
     tasks_done: int
     revenue_total: Optional[Decimal] = None
     outstanding_total: Optional[Decimal] = None
     revenue_this_month: Optional[Decimal] = None
     expenses_this_month: Optional[Decimal] = None
+    hours_this_month: Decimal = Decimal("0")
+    billable_hours_this_month: Decimal = Decimal("0")
+    unbilled_value: Optional[Decimal] = None  # finance-gated
+    quote_pipeline_value: Optional[Decimal] = None  # draft + sent quote totals (quotes-gated)
+    quote_win_rate: Optional[float] = None  # accepted / (accepted + rejected)
+    quotes_open: int = 0
 
 
 class ConversionOverTimePoint(BaseModel):
@@ -33,11 +41,19 @@ class DashboardResponse(BaseModel):
     total_users: int
     tasks_todo: int
     tasks_in_progress: int
+    tasks_review: int = 0
+    tasks_qa_failed: int = 0
     tasks_done: int
     revenue_total: Optional[Decimal] = None
     outstanding_total: Optional[Decimal] = None
     revenue_this_month: Optional[Decimal] = None
     expenses_this_month: Optional[Decimal] = None
+    hours_this_month: Decimal = Decimal("0")
+    billable_hours_this_month: Decimal = Decimal("0")
+    unbilled_value: Optional[Decimal] = None
+    quote_pipeline_value: Optional[Decimal] = None
+    quote_win_rate: Optional[float] = None
+    quotes_open: int = 0
     leads_today: int = 0
     leads_this_week: int = 0
     leads_this_month: int = 0

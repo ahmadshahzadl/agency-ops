@@ -42,6 +42,8 @@ const TASK_PIE_COLORS = [
 const TASK_STATUS_LABELS: Record<string, string> = {
   todo: "To do",
   in_progress: "In progress",
+  review: "In review",
+  qa_failed: "QA failed",
   done: "Done",
 };
 const LEAD_STATUS_LABELS: Record<string, string> = {
@@ -222,6 +224,39 @@ export default function Dashboard() {
         ]
       : []),
   ];
+
+  if (data.quote_pipeline_value != null && data.quotes_open > 0) {
+    metricCards.push({
+      label: `Quote pipeline (${data.quotes_open} open)`,
+      value: `$${Number(data.quote_pipeline_value).toLocaleString()}`,
+      to: "/quotes",
+      highlight: true,
+    });
+  }
+  if (data.quote_win_rate != null) {
+    metricCards.push({
+      label: "Quote win rate",
+      value: `${(data.quote_win_rate * 100).toFixed(0)}%`,
+      to: "/quotes",
+      highlight: false,
+    });
+  }
+  if (Number(data.hours_this_month) > 0) {
+    metricCards.push({
+      label: "Hours (this month)",
+      value: `${Number(data.hours_this_month)}h (${Number(data.billable_hours_this_month)}h billable)`,
+      to: "/timesheet",
+      highlight: false,
+    });
+  }
+  if (data.unbilled_value != null && Number(data.unbilled_value) > 0) {
+    metricCards.push({
+      label: "Unbilled time value",
+      value: `$${Number(data.unbilled_value).toLocaleString()}`,
+      to: "/timesheet",
+      highlight: true,
+    });
+  }
 
   if (data.conversion_rate != null && isMemberView) {
     metricCards.push({

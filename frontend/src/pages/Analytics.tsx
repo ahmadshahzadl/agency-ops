@@ -26,6 +26,8 @@ const LEADS_PIE_COLORS = ["#ea580c", "#16a34a", "#9333ea", "#0d9488", "#e11d48",
 const TASK_STATUS_LABELS: Record<string, string> = {
   todo: "To do",
   in_progress: "In progress",
+  review: "In review",
+  qa_failed: "QA failed",
   done: "Done",
 };
 const LEAD_STATUS_LABELS: Record<string, string> = {
