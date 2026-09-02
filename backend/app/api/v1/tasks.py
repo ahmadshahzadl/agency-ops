@@ -72,6 +72,15 @@ def _validate_bug_fields(item_type: str | None, severity: str | None) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"severity must be one of: {', '.join(VALID_SEVERITIES)}")
 
 
+def _validate_milestone(db: Session, milestone_id: UUID | None, project_id: UUID | None) -> None:
+    if milestone_id is None:
+        return
+    from app.models import Milestone
+    m = db.query(Milestone).filter(Milestone.id == milestone_id).first()
+    if not m or m.project_id != project_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Milestone does not belong to the task's project")
+
+
 def _notify_task_assignee(db: Session, assignee_id: UUID, task_title: str, task_id: UUID) -> None:
     """Create a notification (and email) for the assignee when a task is assigned to them."""
     n = NotificationModel(
@@ -182,6 +191,7 @@ def create_task(
     _validate_bug_fields(data.item_type, data.severity)
     if data.board_id is not None:
         _validate_board_placement(db, data.board_id, data.project_id, user.id, "admin:all" in permissions, manager_scope)
+    _validate_milestone(db, data.milestone_id, data.project_id)
     task = TaskModel(
         project_id=data.project_id,
         title=data.title,
@@ -197,6 +207,7 @@ def create_task(
         environment=data.environment,
         board_id=data.board_id,
         column_order=data.column_order,
+        milestone_id=data.milestone_id,
         created_by=user.id,
     )
     db.add(task)
@@ -326,14 +337,14 @@ def update_task(
     if "board_id" in updates and updates["board_id"] is not None and "admin:all" not in permissions:
         target_project = updates.get("project_id", task.project_id)
         _validate_board_placement(db, updates["board_id"], target_project, user.id, False, manager_scope)
-    # Moving a task to another project detaches it from the old project's board
-    if (
-        "project_id" in updates
-        and updates["project_id"] != task.project_id
-        and "board_id" not in updates
-        and task.board_id is not None
-    ):
-        updates["board_id"] = None
+    if "milestone_id" in updates and updates["milestone_id"] is not None:
+        _validate_milestone(db, updates["milestone_id"], updates.get("project_id", task.project_id))
+    # Moving a task to another project detaches it from the old project's board and milestone
+    if "project_id" in updates and updates["project_id"] != task.project_id:
+        if "board_id" not in updates and task.board_id is not None:
+            updates["board_id"] = None
+        if "milestone_id" not in updates and task.milestone_id is not None:
+            updates["milestone_id"] = None
     status_change = updates.get("status")
     action = _apply_status_transition(task, updates, user, permissions) or "task_updated"
     for k, v in updates.items():

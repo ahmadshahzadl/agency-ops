@@ -83,6 +83,31 @@ export default function PublicStatus() {
         </div>
       </div>
 
+      {/* Milestones */}
+      {data.milestones.length > 0 && (
+        <div className="max-w-3xl mx-auto px-6 pt-8">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Milestones</h2>
+          <ul className="bg-white rounded-xl shadow-sm border border-gray-100 divide-y divide-gray-50">
+            {data.milestones.map((m, i) => (
+              <li key={i} className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] shrink-0 ${m.completed ? "bg-green-500 text-white" : "bg-gray-200 text-gray-500"}`}>
+                    {m.completed ? "✓" : i + 1}
+                  </span>
+                  <span className={`text-sm font-medium ${m.completed ? "text-gray-400 line-through" : "text-gray-700"}`}>{m.name}</span>
+                  {m.due_date && <span className="ml-auto text-xs text-gray-400">{m.due_date}</span>}
+                </div>
+                {m.task_total > 0 && !m.completed && (
+                  <div className="mt-2 ml-8 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                    <div className="h-full bg-[#01184e] rounded-full" style={{ width: `${Math.round((m.task_done / m.task_total) * 100)}%` }} />
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Task list */}
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
         {grouped.map((g) => (

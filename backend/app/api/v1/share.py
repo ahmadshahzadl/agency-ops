@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
-from app.models import ProjectShareLink, Project as ProjectModel, Task as TaskModel
+from app.models import ProjectShareLink, Project as ProjectModel, Task as TaskModel, Milestone as MilestoneModel
 from app.api.deps import require_permission, get_user_permissions, get_manager_scope_user_ids
 from app.services.activity_service import log_activity
 from pydantic import BaseModel
@@ -39,6 +39,14 @@ class PublicTask(BaseModel):
     due_date: Optional[str] = None
 
 
+class PublicMilestone(BaseModel):
+    name: str
+    due_date: Optional[str] = None
+    completed: bool
+    task_total: int = 0
+    task_done: int = 0
+
+
 class PublicStatusResponse(BaseModel):
     project_name: str
     project_status: str
@@ -48,6 +56,7 @@ class PublicStatusResponse(BaseModel):
     counts: dict[str, int]
     percent_done: int
     tasks: list[PublicTask]
+    milestones: list[PublicMilestone] = []
     generated_at: datetime
 
 
@@ -136,6 +145,17 @@ def public_status(token: str, db: Session = Depends(get_db)):
         .limit(200)
         .all()
     )
+    milestones = db.query(MilestoneModel).filter(MilestoneModel.project_id == proj.id).order_by(
+        MilestoneModel.position, MilestoneModel.due_date.nulls_last()
+    ).all()
+    public_milestones = []
+    for m in milestones:
+        mt = db.query(func.count(TaskModel.id)).filter(TaskModel.milestone_id == m.id).scalar() or 0
+        md = db.query(func.count(TaskModel.id)).filter(TaskModel.milestone_id == m.id, TaskModel.status == "done").scalar() or 0
+        public_milestones.append(PublicMilestone(
+            name=m.name, due_date=str(m.due_date) if m.due_date else None,
+            completed=m.completed_at is not None, task_total=mt, task_done=md,
+        ))
     return PublicStatusResponse(
         project_name=proj.name,
         project_status=proj.status or "active",
@@ -144,6 +164,7 @@ def public_status(token: str, db: Session = Depends(get_db)):
         total_tasks=total,
         counts=counts,
         percent_done=round(done * 100 / total) if total else 0,
+        milestones=public_milestones,
         tasks=[
             PublicTask(
                 title=t.title,

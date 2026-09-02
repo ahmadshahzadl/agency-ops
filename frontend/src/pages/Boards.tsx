@@ -6,6 +6,7 @@ import { listProjectNames } from "@/api/projects";
 import { listBoards, createBoard, deleteBoard, listBoardTasks, addBoardMember, removeBoardMember, type Board } from "@/api/boards";
 import { createTask, updateTask, type Task } from "@/api/tasks";
 import { listAssignableUsers, type UserList } from "@/api/users";
+import { listMilestones, type Milestone } from "@/api/milestones";
 import { createShareLink, listShareLinks, revokeShareLink, shareUrlFor, type ShareLink } from "@/api/share";
 import { AttachmentsSection } from "@/components/AttachmentsSection";
 
@@ -109,6 +110,7 @@ export default function Boards() {
   const [boardId, setBoardId] = useState<string>("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<UserList[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
@@ -118,7 +120,7 @@ export default function Boards() {
   const [showMembers, setShowMembers] = useState(false);
   const [showNewTask, setShowNewTask] = useState(false);
   const [newBoardName, setNewBoardName] = useState("");
-  const [newTask, setNewTask] = useState({ title: "", description: "", item_type: "task", severity: "", steps_to_reproduce: "", environment: "", priority: "medium", assignee_id: "", due_date: "" });
+  const [newTask, setNewTask] = useState({ title: "", description: "", item_type: "task", severity: "", steps_to_reproduce: "", environment: "", priority: "medium", assignee_id: "", due_date: "", milestone_id: "" });
   const [addMemberId, setAddMemberId] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
@@ -150,6 +152,8 @@ export default function Boards() {
   useEffect(() => {
     if (projectId) refreshBoards(projectId);
     else { setBoards([]); setBoardId(""); }
+    if (projectId) listMilestones(projectId).then(setMilestones).catch(() => setMilestones([]));
+    else setMilestones([]);
   }, [projectId, refreshBoards]);
 
   const refreshTasks = useCallback(async () => {
@@ -338,6 +342,7 @@ export default function Boards() {
             <div className="mt-3 text-xs text-gray-400">
               Assignee: {users.find((u) => u.id === detailTask.assignee_id)?.full_name ?? "—"}
               {detailTask.due_date && <> · Due {detailTask.due_date}</>}
+              {detailTask.milestone_id && <> · ⚑ {milestones.find((m) => m.id === detailTask.milestone_id)?.name ?? "milestone"}</>}
             </div>
             <AttachmentsSection entityType="task" entityId={detailTask.id} />
             {/* Action buttons for the allowed transitions */}
@@ -566,6 +571,14 @@ export default function Boards() {
                 </select>
                 <input type="date" className={inputClass} value={newTask.due_date} onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })} />
               </div>
+              {milestones.length > 0 && (
+                <select className={inputClass} value={newTask.milestone_id} onChange={(e) => setNewTask({ ...newTask, milestone_id: e.target.value })}>
+                  <option value="">No milestone</option>
+                  {milestones.filter((m) => m.state !== "completed").map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}{m.due_date ? ` (due ${m.due_date})` : ""}</option>
+                  ))}
+                </select>
+              )}
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setShowNewTask(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">Cancel</button>
@@ -586,9 +599,10 @@ export default function Boards() {
                       environment: newTask.environment || null,
                       assignee_id: newTask.assignee_id || null,
                       due_date: newTask.due_date || null,
+                      milestone_id: newTask.milestone_id || null,
                     });
                     setShowNewTask(false);
-                    setNewTask({ title: "", description: "", item_type: "task", severity: "", steps_to_reproduce: "", environment: "", priority: "medium", assignee_id: "", due_date: "" });
+                    setNewTask({ title: "", description: "", item_type: "task", severity: "", steps_to_reproduce: "", environment: "", priority: "medium", assignee_id: "", due_date: "", milestone_id: "" });
                     refreshTasks();
                   } catch (e) { showError(e instanceof Error ? e.message : "Could not create task"); }
                 }}

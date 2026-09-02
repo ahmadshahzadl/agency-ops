@@ -5,6 +5,7 @@ import { listTeams, listMyTeams } from "@/api/teams";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
 import { AttachmentsSection } from "@/components/AttachmentsSection";
+import { MilestonesSection } from "@/components/MilestonesSection";
 import { useModal } from "@/contexts/ModalContext";
 import { BulkActionsBar } from "@/components/BulkActionsBar";
 
@@ -414,6 +415,7 @@ export default function Projects() {
                 />
               </div>
             </div>
+            <MilestonesSection projectId={modal !== "new" ? (modal as Project).id : undefined} />
             <NotesSection entityType="project" entityId={modal !== "new" ? (modal as Project).id : undefined} />
             <AttachmentsSection entityType="project" entityId={modal !== "new" ? (modal as Project).id : undefined} />
             <div className="flex justify-end gap-2 mt-4">

@@ -17,8 +17,10 @@ from app.models.attachment import Attachment
 from app.models.password_reset import PasswordResetToken
 from app.models.time_entry import TimeEntry
 from app.models.quote import Quote, QuoteItem
+from app.models.milestone import Milestone
 
 __all__ = [
+    "Milestone",
     "PasswordResetToken",
     "TimeEntry",
     "Quote",

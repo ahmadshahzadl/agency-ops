@@ -19,6 +19,7 @@ export interface Task {
   qa_at: string | null;
   board_id: string | null;
   column_order: number;
+  milestone_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

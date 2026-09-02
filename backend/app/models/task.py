@@ -29,6 +29,7 @@ class Task(Base):
     # Kanban board placement
     board_id = Column(UUID(as_uuid=True), ForeignKey("boards.id", ondelete="SET NULL"))
     column_order = Column(Integer, nullable=False, default=0, server_default="0")
+    milestone_id = Column(UUID(as_uuid=True), ForeignKey("milestones.id", ondelete="SET NULL"))
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -36,3 +37,4 @@ class Task(Base):
     project = relationship("Project", back_populates="tasks")
     assignee = relationship("User", back_populates="tasks_assigned", foreign_keys=[assignee_id])
     board = relationship("Board", back_populates="tasks")
+    milestone = relationship("Milestone", back_populates="tasks")

@@ -23,6 +23,7 @@ class TaskBase(BaseModel):
     environment: Optional[str] = None
     board_id: Optional[UUID] = None
     column_order: int = 0
+    milestone_id: Optional[UUID] = None
 
 
 class TaskCreate(TaskBase):
@@ -45,6 +46,7 @@ class TaskUpdate(BaseModel):
     qa_notes: Optional[str] = None
     board_id: Optional[UUID] = None
     column_order: Optional[int] = None
+    milestone_id: Optional[UUID] = None
 
 
 class TaskResponse(TaskBase):

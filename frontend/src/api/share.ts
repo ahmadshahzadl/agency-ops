@@ -17,6 +17,7 @@ export interface PublicStatus {
   counts: Record<string, number>;
   percent_done: number;
   tasks: { title: string; status: string; item_type: string; due_date: string | null }[];
+  milestones: { name: string; due_date: string | null; completed: boolean; task_total: number; task_done: number }[];
   generated_at: string;
 }
 
