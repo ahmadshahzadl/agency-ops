@@ -1,15 +1,22 @@
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.schemas.auth import LoginRequest, RefreshRequest, Token, UserResponse, ProfileUpdate
+from app.schemas.auth import LoginRequest, RefreshRequest, Token, UserResponse, ProfileUpdate, ForgotPasswordRequest, ResetPasswordRequest
 from app.api.deps import get_current_user, is_super_admin
-from app.models import User
+from app.models import User, PasswordResetToken
 from app.core.security import verify_password, get_password_hash
 from app.services.auth_service import authenticate_user, create_tokens_for_user, refresh_access_token
 from app.services.activity_service import log_activity
-from app.core.rate_limit import login_limiter
+from app.services import email_service
+from app.core.rate_limit import login_limiter, FailureRateLimiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Every forgot-password request counts (not just failures): 3 per email per 15 min.
+forgot_limiter = FailureRateLimiter(max_failures=3, window_seconds=900)
 
 
 @router.post("/login", response_model=Token)
@@ -35,6 +42,49 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     db.commit()
     tokens = create_tokens_for_user(user)
     return Token(**tokens)
+
+
+@router.post("/forgot-password")
+def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Always returns 200 to prevent user enumeration; emails a reset link when the account exists."""
+    email = data.email.strip().lower()
+    response = {"message": "If that email is registered, a reset link has been sent."}
+    if forgot_limiter.retry_after(f"forgot:{email}"):
+        return response  # silently drop when rate-limited
+    forgot_limiter.record_failure(f"forgot:{email}")
+    user = db.query(User).filter(User.email == email, User.is_active == True).first()
+    if user:
+        token = secrets.token_urlsafe(32)
+        db.add(PasswordResetToken(
+            user_id=user.id,
+            token_hash=hashlib.sha256(token.encode()).hexdigest(),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ))
+        log_activity(db, user.id, "password_reset_requested", "user", user.id, details="Password reset requested")
+        db.commit()
+        email_service.send_password_reset(user.email, user.full_name or "", token)
+    return response
+
+
+@router.post("/reset-password")
+def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 8 characters")
+    token_hash = hashlib.sha256(data.token.encode()).hexdigest()
+    prt = db.query(PasswordResetToken).filter(PasswordResetToken.token_hash == token_hash).first()
+    now = datetime.now(timezone.utc)
+    if not prt or prt.used_at is not None or prt.expires_at < now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset link")
+    user = db.query(User).filter(User.id == prt.user_id, User.is_active == True).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset link")
+    user.password_hash = get_password_hash(data.new_password)
+    # Revoke every existing session/token, including whoever prompted the reset
+    user.token_version = (user.token_version or 0) + 1
+    prt.used_at = now
+    log_activity(db, user.id, "password_reset_completed", "user", user.id, details="Password reset via email link")
+    db.commit()
+    return {"message": "Password updated. You can sign in with your new password."}
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

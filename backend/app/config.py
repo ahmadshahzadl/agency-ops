@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     upload_dir: str = str(_BACKEND_DIR / "uploads")
     max_upload_mb: int = 15
 
+    # Email (SMTP). Leave smtp_host empty to disable all outgoing email.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""  # defaults to smtp_user when empty
+    smtp_tls: bool = True
+    # Base URL of the web frontend, used for links in emails (reset password, notifications)
+    frontend_url: str = "http://localhost:5173"
+
     # Super admin (god mode): one email with full access and no activity/audit logs. Empty = disabled.
     super_admin_email: str = ""
 

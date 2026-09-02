@@ -21,6 +21,8 @@ import Profile from "@/pages/Profile";
 import Announcements from "@/pages/Announcements";
 import Messages from "@/pages/Messages";
 import PublicStatus from "@/pages/PublicStatus";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -41,6 +43,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/status/:token" element={<PublicStatus />} />
       <Route
         path="/"

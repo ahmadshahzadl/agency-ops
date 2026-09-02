@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, Link } from "react-router-dom";
 import { useAuth } from "@/store/auth";
 import { APP_NAME, getBrandMarkUrl } from "@/config";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -94,12 +94,17 @@ export default function Login() {
               />
             </div>
             <div>
-              <label
-                htmlFor="login-password"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-              >
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label
+                  htmlFor="login-password"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  Password
+                </label>
+                <Link to="/forgot-password" className="text-xs font-medium text-primary hover:underline" tabIndex={-1}>
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <input
                   id="login-password"

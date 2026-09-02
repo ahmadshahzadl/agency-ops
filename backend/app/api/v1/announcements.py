@@ -8,25 +8,28 @@ from app.models import Announcement as AnnouncementModel, Notification as Notifi
 from app.schemas.announcement import AnnouncementCreate, AnnouncementUpdate, AnnouncementResponse
 from app.api.deps import get_current_user, require_admin, require_any_permission, get_user_permissions
 from app.services.activity_service import log_activity, notifications_updated_this_request
+from app.services import email_service
 
 router = APIRouter(prefix="/announcements", tags=["announcements"])
 
 
 def _deliver_announcement(db: Session, announcement: AnnouncementModel) -> None:
-    """Create a Notification for each target user."""
+    """Create a Notification (and send an email) for each target user."""
     if announcement.target_type == "all":
-        user_ids = [u.id for u in db.query(User).filter(User.is_active == True).all()]
+        users = db.query(User).filter(User.is_active == True).all()
     else:
-        user_ids = list(announcement.target_user_ids or [])
-    for uid in user_ids:
+        ids = list(announcement.target_user_ids or [])
+        users = db.query(User).filter(User.id.in_(ids), User.is_active == True).all() if ids else []
+    for u in users:
         n = NotificationModel(
-            user_id=uid,
+            user_id=u.id,
             title=announcement.title,
             message=announcement.body,
             type="announcement",
             reference_id=announcement.id,
         )
         db.add(n)
+        email_service.send_notification(u.email, f"Announcement: {announcement.title}", announcement.body, "/announcements")
     db.flush()
 
 

@@ -42,6 +42,20 @@ export async function getMe(): Promise<User> {
   return apiFetch<User>("/api/v1/auth/me");
 }
 
+export async function forgotPassword(email: string): Promise<void> {
+  await apiFetch("/api/v1/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await apiFetch("/api/v1/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+}
+
 export interface ProfileUpdate {
   full_name?: string | null;
   phone?: string | null;

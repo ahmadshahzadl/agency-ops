@@ -3,7 +3,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Task as TaskModel, Project as ProjectModel, Client as ClientModel, Notification as NotificationModel, Board as BoardModel, BoardMember as BoardMemberModel
+from app.models import Task as TaskModel, Project as ProjectModel, Client as ClientModel, Notification as NotificationModel, Board as BoardModel, BoardMember as BoardMemberModel, User as UserModel
+from app.services import email_service
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, VALID_STATUSES, VALID_ITEM_TYPES, VALID_SEVERITIES
 from sqlalchemy import or_
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
@@ -71,7 +72,7 @@ def _validate_bug_fields(item_type: str | None, severity: str | None) -> None:
 
 
 def _notify_task_assignee(db: Session, assignee_id: UUID, task_title: str, task_id: UUID) -> None:
-    """Create a notification for the assignee when a task is assigned to them."""
+    """Create a notification (and email) for the assignee when a task is assigned to them."""
     n = NotificationModel(
         user_id=assignee_id,
         title="Task assigned",
@@ -82,6 +83,11 @@ def _notify_task_assignee(db: Session, assignee_id: UUID, task_title: str, task_
     )
     db.add(n)
     db.flush()
+    assignee = db.query(UserModel).filter(UserModel.id == assignee_id).first()
+    if assignee:
+        email_service.send_notification(
+            assignee.email, "Task assigned", f'You were assigned a task: "{task_title}"', f"/tasks?highlight={task_id}"
+        )
 
 
 def _can_access_task_project(
@@ -329,10 +335,11 @@ def update_task(
         notifications_updated_this_request.set(True)
     if action in ("task_qa_approved", "task_qa_failed") and task.assignee_id is not None and task.assignee_id != user.id:
         outcome = "approved" if action == "task_qa_approved" else "failed QA"
+        qa_message = f'"{task.title}" was {outcome}' + (f": {task.qa_notes}" if action == "task_qa_failed" and task.qa_notes else "")
         n = NotificationModel(
             user_id=task.assignee_id,
             title=f"Task {outcome}",
-            message=f'"{task.title}" was {outcome}' + (f": {task.qa_notes}" if action == "task_qa_failed" and task.qa_notes else ""),
+            message=qa_message,
             link=f"/tasks?highlight={task.id}",
             type="task",
             reference_id=None,
@@ -340,6 +347,9 @@ def update_task(
         db.add(n)
         db.flush()
         notifications_updated_this_request.set(True)
+        qa_assignee = db.query(UserModel).filter(UserModel.id == task.assignee_id).first()
+        if qa_assignee:
+            email_service.send_notification(qa_assignee.email, f"Task {outcome}", qa_message, f"/tasks?highlight={task.id}")
     log_activity(db, user.id, action, "task", task.id, details=f"Task: {task.title}" + (f" → {status_change}" if status_change else ""))
     tasks_updated_this_request.set(True)
     db.commit()
