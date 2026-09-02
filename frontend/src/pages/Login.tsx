@@ -48,7 +48,7 @@ export default function Login() {
           <img
             src={getBrandMarkUrl()}
             alt=""
-            className="h-full max-h-full w-auto max-w-full object-contain object-center opacity-60"
+            className="h-3/4 max-h-[70vh] w-auto max-w-full object-contain object-center opacity-60"
             onError={() => setLogoFailed(true)}
           />
         )}
