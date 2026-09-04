@@ -14,6 +14,37 @@ from app.services.activity_service import notifications_updated_this_request
 router = APIRouter(prefix="/messages", tags=["messages"])
 
 
+from pydantic import BaseModel as _BaseModel
+from typing import Optional as _Optional
+
+
+class DirectoryUser(_BaseModel):
+    id: UUID
+    full_name: _Optional[str] = None
+    email: str
+    job_title: _Optional[str] = None
+    team_names: list[str] = []
+
+
+@router.get("/directory", response_model=list[DirectoryUser])
+def directory(
+    db: Session = Depends(get_db),
+    user=Depends(require_staff),
+):
+    """All active staff for the new-message picker (portal users excluded both ways)."""
+    from app.models import User as UserModel
+    rows = db.query(UserModel).filter(
+        UserModel.is_active == True, UserModel.client_id.is_(None)
+    ).order_by(UserModel.full_name).all()
+    return [
+        DirectoryUser(
+            id=u.id, full_name=u.full_name, email=u.email, job_title=u.job_title,
+            team_names=[t.name for t in u.teams],
+        )
+        for u in rows
+    ]
+
+
 @router.get("/conversations", response_model=list[ConversationSummary])
 def list_conversations(
     db: Session = Depends(get_db),

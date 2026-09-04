@@ -9,9 +9,10 @@ import {
   markMessageRead,
   type Message,
   type ConversationSummary,
+  listDirectory,
+  type DirectoryUser,
 } from "@/api/messages";
-import { listUsers, type UserList } from "@/api/users";
-import { listTeams, type TeamWithMembers } from "@/api/teams";
+
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -79,8 +80,7 @@ export default function Messages() {
   const [sending, setSending] = useState(false);
   const [input, setInput] = useState("");
   const [showNewMessage, setShowNewMessage] = useState(false);
-  const [userList, setUserList] = useState<UserList[]>([]);
-  const [teams, setTeams] = useState<TeamWithMembers[]>([]);
+  const [userList, setUserList] = useState<DirectoryUser[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [loadingNewMessage, setLoadingNewMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -176,16 +176,13 @@ export default function Messages() {
     setShowNewMessage(true);
     setUserSearch("");
     setLoadingNewMessage(true);
-    Promise.all([listUsers({ limit: 500 }), listTeams()])
-      .then(([users, teamList]) => {
-        setUserList(users);
-        setTeams(teamList);
-      })
+    listDirectory()
+      .then(setUserList)
       .catch(() => {})
       .finally(() => setLoadingNewMessage(false));
   };
 
-  const selectUserForChat = (u: UserList) => {
+  const selectUserForChat = (u: DirectoryUser) => {
     if (u.id === currentUserId) return;
     setSelectedUserId(u.id);
     setSelectedUserName(u.full_name || u.email || "User");
@@ -195,12 +192,7 @@ export default function Messages() {
   const selectedConversation = conversations.find((c) => c.other_user_id === selectedUserId);
   const threadTitle = selectedConversation?.other_user_name ?? selectedUserName ?? "Chat";
 
-  const teamIdToName: Record<string, string> = {};
-  teams.forEach((t) => {
-    teamIdToName[t.id] = t.name;
-  });
-  const getUserTeamNames = (u: UserList): string[] =>
-    (u.team_ids || []).map((id) => teamIdToName[id]).filter(Boolean);
+  const getUserTeamNames = (u: DirectoryUser): string[] => u.team_names || [];
 
   const filteredUserList = userList.filter((u) => {
     if (u.id === currentUserId) return false;

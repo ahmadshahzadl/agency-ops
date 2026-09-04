@@ -42,3 +42,15 @@ export async function sendMessage(recipientId: string, content: string): Promise
 export async function markMessageRead(messageId: string): Promise<void> {
   return apiFetch(`/api/v1/messages/${messageId}/read`, { method: "POST" });
 }
+
+export interface DirectoryUser {
+  id: string;
+  full_name: string | null;
+  email: string;
+  job_title: string | null;
+  team_names: string[];
+}
+
+export async function listDirectory(): Promise<DirectoryUser[]> {
+  return apiFetch<DirectoryUser[]>("/api/v1/messages/directory");
+}
