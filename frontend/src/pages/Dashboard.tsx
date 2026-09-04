@@ -229,6 +229,30 @@ export default function Dashboard() {
       : []),
   ];
 
+  if (data.qa_review_queue != null) {
+    metricCards.push({
+      label: "Awaiting QA review",
+      value: data.qa_review_queue,
+      to: "/boards",
+      highlight: data.qa_review_queue > 0,
+    });
+  }
+  if (data.qa_failed_awaiting != null && data.qa_failed_awaiting > 0) {
+    metricCards.push({
+      label: "QA failed (in rework)",
+      value: data.qa_failed_awaiting,
+      to: "/boards",
+      highlight: false,
+    });
+  }
+  if (data.client_reported_open != null && data.client_reported_open > 0) {
+    metricCards.push({
+      label: "Client-reported issues",
+      value: data.client_reported_open,
+      to: "/tasks",
+      highlight: true,
+    });
+  }
   if (data.quote_pipeline_value != null && data.quotes_open > 0) {
     metricCards.push({
       label: `Quote pipeline (${data.quotes_open} open)`,

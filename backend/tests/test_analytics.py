@@ -94,3 +94,47 @@ def test_manager_cannot_see_expenses_figure(client, manager_headers, auth_header
     assert data["revenue_this_month"] is not None
     # Admin still sees expenses
     assert client.get("/api/v1/analytics/dashboard", headers=auth_headers).json()["expenses_this_month"] is not None
+
+
+def test_qa_dashboard_shows_review_queue(client, auth_headers, qa_headers, employee_headers):
+    import uuid as _uuid
+    # Project + board with QA as member; one task in review, one qa_failed
+    c = client.post("/api/v1/clients", headers=auth_headers, json={"name": f"QAOv {_uuid.uuid4().hex[:6]}"})
+    p = client.post("/api/v1/projects", headers=auth_headers,
+                    json={"client_id": c.json()["id"], "name": f"QAOv P {_uuid.uuid4().hex[:6]}", "status": "active"}).json()
+    users = client.get("/api/v1/users", headers=auth_headers).json()
+    qa_id = next(u["id"] for u in users if u["email"] == "qa@test.com")
+    b = client.post("/api/v1/boards", headers=auth_headers,
+                    json={"project_id": p["id"], "name": "QAOv Board", "member_ids": [qa_id]}).json()
+    t = client.post("/api/v1/tasks", headers=auth_headers,
+                    json={"title": "review me", "project_id": p["id"], "board_id": b["id"]}).json()
+    client.patch(f"/api/v1/tasks/{t['id']}", headers=auth_headers, json={"status": "in_progress"})
+    client.patch(f"/api/v1/tasks/{t['id']}", headers=auth_headers, json={"status": "review"})
+
+    qa_dash = client.get("/api/v1/analytics/dashboard", headers=qa_headers).json()
+    assert qa_dash["qa_review_queue"] is not None and qa_dash["qa_review_queue"] >= 1
+    assert qa_dash["qa_failed_awaiting"] is not None
+
+    # Employees (no qa_approve) get no QA tiles
+    emp_dash = client.get("/api/v1/analytics/dashboard", headers=employee_headers).json()
+    assert emp_dash["qa_review_queue"] is None
+    assert emp_dash["qa_failed_awaiting"] is None
+
+
+def test_client_reported_issue_counted(client, auth_headers):
+    import uuid as _uuid
+    from tests.conftest import _get_role_id
+    # Client + portal user reports an issue
+    c = client.post("/api/v1/clients", headers=auth_headers, json={"name": f"CROv {_uuid.uuid4().hex[:6]}"})
+    p = client.post("/api/v1/projects", headers=auth_headers,
+                    json={"client_id": c.json()["id"], "name": f"CROv P {_uuid.uuid4().hex[:6]}", "status": "active"}).json()
+    role_id = _get_role_id(client, auth_headers, "client")
+    email = f"crov-{_uuid.uuid4().hex[:8]}@clientmail.com"
+    client.post("/api/v1/users", headers=auth_headers,
+                json={"email": email, "password": "crovpass1", "role_ids": [role_id], "client_id": c.json()["id"]})
+    login = client.post("/api/v1/auth/login", json={"email": email, "password": "crovpass1"})
+    ph = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    client.post(f"/api/v1/portal/projects/{p['id']}/issues", headers=ph, json={"title": "broken", "severity": "high"})
+
+    before = client.get("/api/v1/analytics/dashboard", headers=auth_headers).json()
+    assert before["client_reported_open"] >= 1

@@ -19,6 +19,10 @@ class AnalyticsOverview(BaseModel):
     hours_this_month: Decimal = Decimal("0")
     billable_hours_this_month: Decimal = Decimal("0")
     unbilled_value: Optional[Decimal] = None  # finance-gated
+    # Role-focused: populated for QA-capable users / when relevant
+    qa_review_queue: Optional[int] = None
+    qa_failed_awaiting: Optional[int] = None
+    client_reported_open: Optional[int] = None
     quote_pipeline_value: Optional[Decimal] = None  # draft + sent quote totals (quotes-gated)
     quote_win_rate: Optional[float] = None  # accepted / (accepted + rejected)
     quotes_open: int = 0
@@ -51,6 +55,10 @@ class DashboardResponse(BaseModel):
     hours_this_month: Decimal = Decimal("0")
     billable_hours_this_month: Decimal = Decimal("0")
     unbilled_value: Optional[Decimal] = None
+    # Role-focused: populated for QA-capable users / when relevant
+    qa_review_queue: Optional[int] = None
+    qa_failed_awaiting: Optional[int] = None
+    client_reported_open: Optional[int] = None
     quote_pipeline_value: Optional[Decimal] = None
     quote_win_rate: Optional[float] = None
     quotes_open: int = 0

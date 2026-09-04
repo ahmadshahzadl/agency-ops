@@ -79,6 +79,37 @@ def _hours_metrics(db: Session, permissions: set, manager_scope, user, month_sta
     return hours, billable, unbilled_value
 
 
+def _role_focus_metrics(db: Session, user, permissions: set, manager_scope):
+    """QA queue + client-reported issue counts, scoped to what the user can see.
+
+    qa_* are None for users without tasks:qa_approve (tiles hidden);
+    client_reported_open counts open portal-reported bugs in the user's scope."""
+    from app.api.v1.tasks import get_user_board_ids
+    is_admin = "admin:all" in permissions
+    is_qa = is_admin or "tasks:qa_approve" in permissions
+    board_ids = get_user_board_ids(db, user.id)
+
+    def _visible(filters):
+        q = db.query(func.count(Task.id)).filter(*filters)
+        if is_admin:
+            return q.scalar() or 0
+        if manager_scope is not None:
+            return q.join(Project).filter(Project.owner_id.in_(manager_scope)).scalar() or 0
+        clauses = [Task.assignee_id == user.id]
+        if board_ids:
+            clauses.append(Task.board_id.in_(board_ids))
+        return q.filter(or_(*clauses)).scalar() or 0
+
+    qa_review = _visible([Task.status == "review"]) if is_qa else None
+    qa_failed = _visible([Task.status == "qa_failed"]) if is_qa else None
+    client_reported = _visible([
+        Task.item_type == "bug",
+        Task.environment == "reported via client portal",
+        Task.status != "done",
+    ])
+    return qa_review, qa_failed, client_reported
+
+
 @router.get("/overview", response_model=AnalyticsOverview)
 def overview(
     db: Session = Depends(get_db),
@@ -162,6 +193,7 @@ def overview(
         expenses_this_month = None
     quote_pipeline, quote_win_rate, quotes_open = _quote_metrics(db, permissions, manager_scope, user)
     hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
+    qa_review_queue, qa_failed_awaiting, client_reported_open = _role_focus_metrics(db, user, permissions, manager_scope)
     return AnalyticsOverview(
         total_clients=total_clients,
         active_projects=active_projects,
@@ -178,6 +210,9 @@ def overview(
         hours_this_month=hours_month,
         billable_hours_this_month=billable_month,
         unbilled_value=unbilled_value,
+        qa_review_queue=qa_review_queue,
+        qa_failed_awaiting=qa_failed_awaiting,
+        client_reported_open=client_reported_open,
         quote_pipeline_value=quote_pipeline,
         quote_win_rate=quote_win_rate,
         quotes_open=quotes_open,
@@ -390,6 +425,7 @@ def dashboard(
         expenses_this_month = None
     quote_pipeline, quote_win_rate, quotes_open = _quote_metrics(db, permissions, manager_scope, user)
     hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
+    qa_review_queue, qa_failed_awaiting, client_reported_open = _role_focus_metrics(db, user, permissions, manager_scope)
     return DashboardResponse(
         total_clients=total_clients,
         active_projects=active_projects,
@@ -406,6 +442,9 @@ def dashboard(
         hours_this_month=hours_month,
         billable_hours_this_month=billable_month,
         unbilled_value=unbilled_value,
+        qa_review_queue=qa_review_queue,
+        qa_failed_awaiting=qa_failed_awaiting,
+        client_reported_open=client_reported_open,
         quote_pipeline_value=quote_pipeline,
         quote_win_rate=quote_win_rate,
         quotes_open=quotes_open,

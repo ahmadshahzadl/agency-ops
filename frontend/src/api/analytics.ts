@@ -15,6 +15,9 @@ export interface AnalyticsOverview {
   hours_this_month: number | string;
   billable_hours_this_month: number | string;
   unbilled_value: number | string | null;
+  qa_review_queue: number | null;
+  qa_failed_awaiting: number | null;
+  client_reported_open: number | null;
   quote_pipeline_value: number | string | null;
   quote_win_rate: number | null;
   quotes_open: number;
