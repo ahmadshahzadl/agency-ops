@@ -1,4 +1,4 @@
-import { apiFetch, API_BASE, getToken } from "./client";
+import { apiFetch } from "./client";
 import type { Invoice } from "./finance";
 import type { Project } from "./projects";
 
