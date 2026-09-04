@@ -191,12 +191,16 @@ export default function Dashboard() {
       to: "/users" as const,
       highlight: false,
     },
-    {
-      label: "Expenses (this month)",
-      value: data.expenses_this_month != null ? `$${Number(data.expenses_this_month).toLocaleString()}` : "—",
-      to: "/expenses" as const,
-      highlight: false,
-    },
+    ...(data.expenses_this_month != null
+      ? [
+          {
+            label: "Expenses (this month)",
+            value: `$${Number(data.expenses_this_month).toLocaleString()}`,
+            to: "/expenses" as const,
+            highlight: false,
+          },
+        ]
+      : []),
     {
       label: "Revenue (this month)",
       value: data.revenue_this_month != null ? `$${Number(data.revenue_this_month).toLocaleString()}` : "—",

@@ -29,7 +29,7 @@ def test_analytics_overview_employee_finance_zeroed(client, employee_headers):
     assert float(data["revenue_total"]) == 0
     assert float(data["outstanding_total"]) == 0
     assert float(data["revenue_this_month"]) == 0
-    assert float(data["expenses_this_month"]) == 0
+    assert data["expenses_this_month"] is None  # expenses:read required, stricter than finance
 
 
 def test_overview_includes_qa_and_business_metrics(client, auth_headers):
@@ -84,3 +84,13 @@ def test_dashboard_employee(client, employee_headers):
     # Employee has no clients/expenses/revenue scope
     assert data.get("total_clients") == 0
     assert data.get("active_projects") == 0
+
+
+def test_manager_cannot_see_expenses_figure(client, manager_headers, auth_headers):
+    """Managers have finance:read (invoices) but not expenses:read - expenses stay hidden."""
+    data = client.get("/api/v1/analytics/dashboard", headers=manager_headers).json()
+    assert data["expenses_this_month"] is None
+    # Revenue figures still visible to managers
+    assert data["revenue_this_month"] is not None
+    # Admin still sees expenses
+    assert client.get("/api/v1/analytics/dashboard", headers=auth_headers).json()["expenses_this_month"] is not None

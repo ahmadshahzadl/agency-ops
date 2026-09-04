@@ -157,6 +157,9 @@ def overview(
         outstanding_total = Decimal("0")
         revenue_this_month = Decimal("0")
         expenses_this_month = Decimal("0")
+    # Expenses are stricter: expenses:read only (managers have finance:read but not expenses)
+    if "admin:all" not in permissions and "expenses:read" not in permissions:
+        expenses_this_month = None
     quote_pipeline, quote_win_rate, quotes_open = _quote_metrics(db, permissions, manager_scope, user)
     hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
     return AnalyticsOverview(
@@ -382,6 +385,9 @@ def dashboard(
         outstanding_total = Decimal("0")
         revenue_this_month = Decimal("0")
         expenses_this_month = Decimal("0")
+    # Expenses are stricter: expenses:read only (managers have finance:read but not expenses)
+    if "admin:all" not in permissions and "expenses:read" not in permissions:
+        expenses_this_month = None
     quote_pipeline, quote_win_rate, quotes_open = _quote_metrics(db, permissions, manager_scope, user)
     hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
     return DashboardResponse(
