@@ -22,6 +22,10 @@ class Invoice(Base):
     # Optional display conversion (e.g. USD invoice shown with PKR equivalent at a manual rate)
     fx_currency = Column(String(3))
     fx_rate = Column(Numeric(14, 6))
+    # Where the client should pay (printed on the PDF)
+    bank_name = Column(String(128))
+    account_title = Column(String(128))
+    account_number = Column(String(64))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 

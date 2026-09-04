@@ -77,15 +77,54 @@ class _BrandedPDF(FPDF):
 def build_invoice_pdf(invoice, client, project, time_entries, quote, paid_total: Decimal) -> bytes:
     pdf = _BrandedPDF("INVOICE")
     pdf.add_page()
-    pdf.meta_row("Invoice", invoice.number)
-    pdf.meta_row("Billed to", client.name if client else "-")
+
+    # Two-column header: BILLED TO (left) | invoice meta (right)
+    top = pdf.get_y() + 2
+    pdf.set_xy(12, top)
+    pdf.set_font("helvetica", "B", 8)
+    pdf.set_text_color(*GRAY)
+    pdf.cell(90, 5, "BILLED TO")
+    pdf.set_xy(12, top + 6)
+    pdf.set_font("helvetica", "B", 12)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(90, 6, _txt(client.name if client else "-"))
+    y = top + 13
+    if client and getattr(client, "contact_email", None):
+        pdf.set_xy(12, y)
+        pdf.set_font("helvetica", "", 9)
+        pdf.set_text_color(*GRAY)
+        pdf.cell(90, 5, _txt(client.contact_email))
+        y += 6
     if project:
-        pdf.meta_row("Project", project.name)
+        pdf.set_xy(12, y)
+        pdf.set_font("helvetica", "", 9)
+        pdf.set_text_color(*GRAY)
+        pdf.cell(90, 5, _txt(f"Project: {project.name}"))
+        y += 6
+
+    right_rows = [("Invoice #", invoice.number)]
     if invoice.issued_at:
-        pdf.meta_row("Issued", str(invoice.issued_at))
+        right_rows.append(("Issued", str(invoice.issued_at)))
     if invoice.due_date:
-        pdf.meta_row("Due", str(invoice.due_date))
-    pdf.meta_row("Status", invoice.status)
+        right_rows.append(("Due", str(invoice.due_date)))
+    right_rows.append(("Status", invoice.status.upper()))
+    ry = top
+    for label, value in right_rows:
+        pdf.set_xy(120, ry)
+        pdf.set_font("helvetica", "", 9)
+        pdf.set_text_color(*GRAY)
+        pdf.cell(38, 5, _txt(label), align="R")
+        pdf.set_font("helvetica", "B", 9)
+        if label == "Status" and invoice.status == "paid":
+            pdf.set_text_color(22, 130, 60)
+        elif label == "Status" and invoice.status == "overdue":
+            pdf.set_text_color(200, 40, 40)
+        else:
+            pdf.set_text_color(0, 0, 0)
+        pdf.cell(40, 5, _txt(value), align="R")
+        ry += 6
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_y(max(y, ry) + 2)
 
     if getattr(invoice, "items", None):
         rows = [
@@ -115,10 +154,44 @@ def build_invoice_pdf(invoice, client, project, time_entries, quote, paid_total:
     pdf.total_line(f"Total ({invoice.currency})", f"{invoice.amount}")
     if invoice.fx_currency and invoice.fx_rate:
         converted = (invoice.amount * invoice.fx_rate).quantize(Decimal("0.01"))
-        pdf.total_line(f"Equivalent ({invoice.fx_currency} @ {invoice.fx_rate})", f"{converted:,}", bold=False)
+        rate_str = f"{Decimal(invoice.fx_rate).normalize():f}"
+        pdf.total_line(f"Equivalent ({invoice.fx_currency} @ {rate_str})", f"{converted:,}", bold=False)
     if paid_total and paid_total > 0:
         pdf.total_line("Paid", f"{paid_total}", bold=False)
-        pdf.total_line("Balance due", f"{(invoice.amount - paid_total).quantize(Decimal('0.01'))}")
+        balance = (invoice.amount - paid_total).quantize(Decimal("0.01"))
+        pdf.total_line("Balance due", f"{balance}")
+        if balance <= 0:
+            pdf.set_font("helvetica", "B", 12)
+            pdf.set_text_color(22, 130, 60)
+            pdf.cell(0, 10, "PAID - THANK YOU", align="R", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(0, 0, 0)
+
+    # Payment details box (how to pay)
+    if invoice.bank_name or invoice.account_number or invoice.account_title:
+        pdf.ln(6)
+        box_top = pdf.get_y()
+        pdf.set_fill_color(*LIGHT)
+        rows = [r for r in [
+            ("Bank", invoice.bank_name),
+            ("Account title", invoice.account_title),
+            ("Account number", invoice.account_number),
+        ] if r[1]]
+        pdf.rect(12, box_top, 110, 8 + 6 * len(rows), "F")
+        pdf.set_xy(16, box_top + 2)
+        pdf.set_font("helvetica", "B", 8)
+        pdf.set_text_color(*NAVY)
+        pdf.cell(100, 5, "PAYMENT DETAILS")
+        yy = box_top + 8
+        for label, value in rows:
+            pdf.set_xy(16, yy)
+            pdf.set_font("helvetica", "", 9)
+            pdf.set_text_color(*GRAY)
+            pdf.cell(32, 5, _txt(label))
+            pdf.set_font("helvetica", "B", 9)
+            pdf.set_text_color(0, 0, 0)
+            pdf.cell(70, 5, _txt(value))
+            yy += 6
+        pdf.set_y(yy + 2)
     return bytes(pdf.output())
 
 

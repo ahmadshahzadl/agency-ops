@@ -171,6 +171,9 @@ def create_invoice(
         issued_at=data.issued_at,
         fx_currency=(data.fx_currency or None),
         fx_rate=data.fx_rate,
+        bank_name=(data.bank_name or "").strip() or None,
+        account_title=(data.account_title or "").strip() or None,
+        account_number=(data.account_number or "").strip() or None,
     )
     db.add(inv)
     db.flush()
@@ -217,6 +220,8 @@ def update_invoice(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     if not _can_access_invoice_client(inv.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    if inv.status == "paid":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Paid invoices are locked and cannot be edited")
     updates = data.model_dump(exclude_unset=True)
     items = updates.pop("items", None)
     _validate_fx(updates.get("fx_currency"), updates.get("fx_rate"))
@@ -262,6 +267,8 @@ def delete_invoice(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     if not _can_access_invoice_client(inv.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    if inv.status == "paid":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Paid invoices are locked and cannot be deleted")
     purge_entity_artifacts(db, "invoice", inv.id)
     db.delete(inv)
     db.commit()

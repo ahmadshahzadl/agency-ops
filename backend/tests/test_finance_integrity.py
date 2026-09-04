@@ -167,3 +167,31 @@ def test_invoice_fx_display(client, auth_headers):
         "currency": "USD", "status": "draft", "fx_currency": "PKR", "fx_rate": -2,
     })
     assert bad2.status_code == 400
+
+
+def test_paid_invoice_is_locked(client, auth_headers):
+    inv = _make_invoice(client, auth_headers, amount=200)
+    _pay(client, auth_headers, inv["id"], 200)
+    assert client.get(f"/api/v1/invoices/{inv['id']}", headers=auth_headers).json()["status"] == "paid"
+    # No edits, no deletion
+    assert client.patch(f"/api/v1/invoices/{inv['id']}", headers=auth_headers, json={"due_date": "2027-01-01"}).status_code == 400
+    assert client.patch(f"/api/v1/invoices/{inv['id']}", headers=auth_headers,
+                        json={"items": [{"description": "x", "quantity": 1, "unit_price": 500}]}).status_code == 400
+    assert client.delete(f"/api/v1/invoices/{inv['id']}", headers=auth_headers).status_code == 400
+    # Unpaid invoices still deletable
+    inv2 = _make_invoice(client, auth_headers, amount=50)
+    assert client.delete(f"/api/v1/invoices/{inv2['id']}", headers=auth_headers).status_code == 204
+
+
+def test_bank_details_roundtrip(client, auth_headers):
+    c = client.post("/api/v1/clients", headers=auth_headers, json={"name": f"Bank Client {uuid.uuid4().hex[:6]}"})
+    r = client.post("/api/v1/invoices", headers=auth_headers, json={
+        "client_id": c.json()["id"], "amount": 100, "currency": "USD", "status": "draft",
+        "bank_name": "Meezan Bank", "account_title": "Fuorix Pvt Ltd", "account_number": "PK00MEZN0000001234567890",
+    })
+    assert r.status_code == 201, r.text
+    inv = r.json()
+    assert inv["bank_name"] == "Meezan Bank"
+    assert inv["account_number"].startswith("PK00")
+    pdf = client.get(f"/api/v1/invoices/{inv['id']}/pdf", headers=auth_headers)
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")

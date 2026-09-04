@@ -49,6 +49,9 @@ export default function InvoicesPage() {
     issued_at: "",
     fx_currency: "",
     fx_rate: "",
+    bank_name: "",
+    account_title: "",
+    account_number: "",
   });
   const [itemRows, setItemRows] = useState<{ description: string; quantity: string; unit_price: string }[]>([]);
   const [paymentForm, setPaymentForm] = useState({ amount: "", paid_at: "", reference: "" });
@@ -85,6 +88,9 @@ export default function InvoicesPage() {
       issued_at: "",
       fx_currency: "",
       fx_rate: "",
+      bank_name: localStorage.getItem("fuorix_bank_name") || "",
+      account_title: localStorage.getItem("fuorix_account_title") || "",
+      account_number: localStorage.getItem("fuorix_account_number") || "",
     });
     setItemRows([]);
     setModal("new");
@@ -105,6 +111,9 @@ export default function InvoicesPage() {
       issued_at: inv.issued_at || "",
       fx_currency: inv.fx_currency || "",
       fx_rate: inv.fx_rate != null ? String(inv.fx_rate) : "",
+      bank_name: inv.bank_name || "",
+      account_title: inv.account_title || "",
+      account_number: inv.account_number || "",
     });
     setItemRows((inv.items || []).map((i) => ({ description: i.description, quantity: String(i.quantity), unit_price: String(i.unit_price) })));
     setModal(inv);
@@ -126,8 +135,14 @@ export default function InvoicesPage() {
       issued_at: form.issued_at || undefined,
       fx_currency: form.fx_currency || null,
       fx_rate: form.fx_rate ? Number(form.fx_rate) : null,
+      bank_name: form.bank_name || null,
+      account_title: form.account_title || null,
+      account_number: form.account_number || null,
       items: cleanItems,
     };
+    localStorage.setItem("fuorix_bank_name", form.bank_name);
+    localStorage.setItem("fuorix_account_title", form.account_title);
+    localStorage.setItem("fuorix_account_number", form.account_number);
     try {
       if (modal === "new") {
         await createInvoice(payload as Invoice);
@@ -450,7 +465,7 @@ export default function InvoicesPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                           </svg>
                         </button>
-                        <button type="button" onClick={() => remove(inv.id)} title="Delete" className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition-colors">
+                        <button type="button" style={inv.status === "paid" ? { display: "none" } : undefined} onClick={() => remove(inv.id)} title="Delete" className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition-colors">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -469,6 +484,11 @@ export default function InvoicesPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-10" onClick={() => setModal(null)}>
           <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{modal === "new" ? "New invoice" : "Edit invoice"}</h2>
+            {modal !== "new" && (modal as Invoice).status === "paid" && (
+              <div className="mb-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm px-3 py-2">
+                This invoice is paid and locked — it can no longer be edited or deleted.
+              </div>
+            )}
             <div className="space-y-3">
               <div>
                 <label className={labelClass}>Client</label>
@@ -534,6 +554,14 @@ export default function InvoicesPage() {
                 <div>
                   <label className={labelClass}>Rate (1 {form.currency} =)</label>
                   <input type="number" min="0" step="0.000001" placeholder="e.g. 278.5" value={form.fx_rate} onChange={(e) => setForm((f) => ({ ...f, fx_rate: e.target.value }))} className={inputClass} disabled={!form.fx_currency} />
+                </div>
+              </div>
+              <div className="rounded-xl border border-gray-200 p-3 space-y-2">
+                <p className="text-[11px] uppercase tracking-wide text-gray-400">Payment details (printed on the PDF)</p>
+                <input placeholder="Bank name (e.g. Meezan Bank)" value={form.bank_name} onChange={(e) => setForm((f) => ({ ...f, bank_name: e.target.value }))} className={inputClass} />
+                <div className="grid grid-cols-2 gap-2">
+                  <input placeholder="Account title" value={form.account_title} onChange={(e) => setForm((f) => ({ ...f, account_title: e.target.value }))} className={inputClass} />
+                  <input placeholder="Account / IBAN number" value={form.account_number} onChange={(e) => setForm((f) => ({ ...f, account_number: e.target.value }))} className={inputClass} />
                 </div>
               </div>
               {form.fx_currency && form.fx_rate && (

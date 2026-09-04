@@ -30,6 +30,9 @@ class InvoiceBase(BaseModel):
     issued_at: Optional[date] = None
     fx_currency: Optional[str] = None
     fx_rate: Optional[Decimal] = None
+    bank_name: Optional[str] = None
+    account_title: Optional[str] = None
+    account_number: Optional[str] = None
 
 
 class InvoiceCreate(InvoiceBase):
@@ -46,6 +49,9 @@ class InvoiceUpdate(BaseModel):
     issued_at: Optional[date] = None
     fx_currency: Optional[str] = None
     fx_rate: Optional[Decimal] = None
+    bank_name: Optional[str] = None
+    account_title: Optional[str] = None
+    account_number: Optional[str] = None
     items: Optional[list[InvoiceItemIn]] = None  # full replacement when provided
 
 
