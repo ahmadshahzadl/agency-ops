@@ -1,9 +1,13 @@
 """Branded PDF documents for invoices and quotes (fpdf2, pure python)."""
 from decimal import Decimal
+from pathlib import Path
 from fpdf import FPDF
 from app.config import get_settings
 
 settings = get_settings()
+
+# White transparent brand mark, shipped with the frontend; optional at runtime
+_LOGO_PATH = Path(__file__).resolve().parents[3] / "frontend" / "public" / "brand-mark.png"
 
 NAVY = (1, 24, 78)
 GRAY = (110, 118, 130)
@@ -24,9 +28,16 @@ class _BrandedPDF(FPDF):
     def header(self):
         self.set_fill_color(*NAVY)
         self.rect(0, 0, 210, 26, "F")
+        text_x = 12
+        if _LOGO_PATH.is_file():
+            try:
+                self.image(str(_LOGO_PATH), x=10, y=3, h=20)
+                text_x = 30
+            except Exception:
+                pass
         self.set_font("helvetica", "B", 16)
         self.set_text_color(255, 255, 255)
-        self.set_xy(12, 8)
+        self.set_xy(text_x, 8)
         self.cell(100, 10, _txt(settings.app_name.replace(" API", "")))
         self.set_font("helvetica", "B", 13)
         self.set_xy(120, 8)
