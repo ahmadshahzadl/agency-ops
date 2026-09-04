@@ -45,7 +45,6 @@ ROLE_PERMISSIONS = {
         "projects:read", "projects:write",
         "tasks:read", "tasks:write",
         "meetings:read", "meetings:write",
-        "finance:read",
         "analytics:read",
         "team_activity:read",
         "notes:read", "notes:write",
@@ -110,7 +109,7 @@ def seed():
                     name=role_name,
                     description={
                         "admin": "Administrator: full system access",
-                        "manager": "Manager: team-scoped access; view team invoices; no expenses, no user/team/role management",
+                        "manager": "Manager: team-scoped access; no finance, no expenses, no user/team/role management",
                         "employee": "Employee: assigned tasks/projects/meetings only; no clients, finance, reports, or team activity",
                     "member": "Member: same as Employee (backward compatibility)",
                         "qa": "QA: employee access plus approving/failing tasks in review",

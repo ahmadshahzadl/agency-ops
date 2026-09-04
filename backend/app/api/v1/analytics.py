@@ -182,12 +182,12 @@ def overview(
         outstanding_total = Decimal("0")
         revenue_this_month = Decimal("0")
         expenses_this_month = Decimal("0")
-    # Finance figures require finance:read, not just having direct reports
+    # Finance figures require finance:read - hidden (None) otherwise, so tiles disappear
     if "admin:all" not in permissions and "finance:read" not in permissions:
-        revenue_total = Decimal("0")
-        outstanding_total = Decimal("0")
-        revenue_this_month = Decimal("0")
-        expenses_this_month = Decimal("0")
+        revenue_total = None
+        outstanding_total = None
+        revenue_this_month = None
+        expenses_this_month = None
     # Expenses are stricter: expenses:read only (managers have finance:read but not expenses)
     if "admin:all" not in permissions and "expenses:read" not in permissions:
         expenses_this_month = None
@@ -414,12 +414,12 @@ def dashboard(
         outstanding_total = Decimal("0")
         chart_data = _member_dashboard_charts(db, user.id)
 
-    # Finance figures require finance:read, not just having direct reports
+    # Finance figures require finance:read - hidden (None) otherwise, so tiles disappear
     if "admin:all" not in permissions and "finance:read" not in permissions:
-        revenue_total = Decimal("0")
-        outstanding_total = Decimal("0")
-        revenue_this_month = Decimal("0")
-        expenses_this_month = Decimal("0")
+        revenue_total = None
+        outstanding_total = None
+        revenue_this_month = None
+        expenses_this_month = None
     # Expenses are stricter: expenses:read only (managers have finance:read but not expenses)
     if "admin:all" not in permissions and "expenses:read" not in permissions:
         expenses_this_month = None

@@ -201,12 +201,16 @@ export default function Dashboard() {
           },
         ]
       : []),
-    {
-      label: "Revenue (this month)",
-      value: data.revenue_this_month != null ? `$${Number(data.revenue_this_month).toLocaleString()}` : "—",
-      to: "/invoices" as const,
-      highlight: false,
-    },
+    ...(data.revenue_this_month != null
+      ? [
+          {
+            label: "Revenue (this month)",
+            value: `$${Number(data.revenue_this_month).toLocaleString()}`,
+            to: "/invoices" as const,
+            highlight: false,
+          },
+        ]
+      : []),
     ...(data.revenue_total != null && Number(data.revenue_total) > 0
       ? [
           {

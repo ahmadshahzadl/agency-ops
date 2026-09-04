@@ -26,10 +26,10 @@ def test_analytics_overview_employee_finance_zeroed(client, employee_headers):
     resp = client.get("/api/v1/analytics/overview", headers=employee_headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert float(data["revenue_total"]) == 0
-    assert float(data["outstanding_total"]) == 0
-    assert float(data["revenue_this_month"]) == 0
-    assert data["expenses_this_month"] is None  # expenses:read required, stricter than finance
+    assert data["revenue_total"] is None
+    assert data["outstanding_total"] is None
+    assert data["revenue_this_month"] is None
+    assert data["expenses_this_month"] is None
 
 
 def test_overview_includes_qa_and_business_metrics(client, auth_headers):
@@ -86,14 +86,15 @@ def test_dashboard_employee(client, employee_headers):
     assert data.get("active_projects") == 0
 
 
-def test_manager_cannot_see_expenses_figure(client, manager_headers, auth_headers):
-    """Managers have finance:read (invoices) but not expenses:read - expenses stay hidden."""
+def test_manager_sees_no_finance_figures(client, manager_headers, auth_headers):
+    """Managers no longer hold finance:read - revenue and expenses hidden entirely."""
     data = client.get("/api/v1/analytics/dashboard", headers=manager_headers).json()
     assert data["expenses_this_month"] is None
-    # Revenue figures still visible to managers
-    assert data["revenue_this_month"] is not None
-    # Admin still sees expenses
-    assert client.get("/api/v1/analytics/dashboard", headers=auth_headers).json()["expenses_this_month"] is not None
+    assert data["revenue_this_month"] is None
+    assert data["revenue_total"] is None
+    # Admin still sees everything
+    admin = client.get("/api/v1/analytics/dashboard", headers=auth_headers).json()
+    assert admin["expenses_this_month"] is not None and admin["revenue_this_month"] is not None
 
 
 def test_qa_dashboard_shows_review_queue(client, auth_headers, qa_headers, employee_headers):

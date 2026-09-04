@@ -14,11 +14,10 @@ def test_list_invoices_admin(client, auth_headers):
     assert isinstance(resp.json(), list)
 
 
-def test_list_invoices_manager(client, manager_headers):
-    """Manager has finance:read -> can list (team-scoped) invoices."""
+def test_list_invoices_manager_forbidden(client, manager_headers):
+    """Managers no longer hold finance:read - invoices are admin-only."""
     resp = client.get("/api/v1/invoices", headers=manager_headers)
-    assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    assert resp.status_code == 403
 
 
 def test_list_invoices_employee_forbidden(client, employee_headers):
