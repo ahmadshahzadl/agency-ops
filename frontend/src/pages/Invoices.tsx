@@ -400,7 +400,7 @@ export default function InvoicesPage() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => openInvoicePdf(inv.id).catch(() => showAlert({ title: "Error", message: "Could not load PDF" }))}
+                          onClick={() => openInvoicePdf(inv.id, inv.number).catch(() => showAlert({ title: "Error", message: "Could not load PDF" }))}
                           title="View PDF"
                           className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 transition-colors text-xs font-semibold"
                         >

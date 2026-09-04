@@ -78,13 +78,18 @@ export async function reportPortalIssue(projectId: string, data: {
   await apiFetch(`/api/v1/portal/projects/${projectId}/issues`, { method: "POST", body: JSON.stringify(data) });
 }
 
-export async function openPortalPdf(path: "invoices" | "quotes", id: string): Promise<void> {
+export async function openPortalPdf(path: "invoices" | "quotes", id: string, number: string): Promise<void> {
   const token = getToken();
   const res = await fetch(`${API_BASE}/api/v1/portal/${path}/${id}/pdf`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (!res.ok) throw new Error("Could not load PDF");
   const url = URL.createObjectURL(await res.blob());
-  window.open(url, "_blank");
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${number}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

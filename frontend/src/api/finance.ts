@@ -115,19 +115,24 @@ export async function deleteExpense(id: string): Promise<void> {
   return apiFetch(`/api/v1/expenses/${id}`, { method: "DELETE" });
 }
 
-async function openPdf(path: string): Promise<void> {
+export async function downloadNamedPdf(path: string, filename: string): Promise<void> {
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (!res.ok) throw new Error("Could not load PDF");
   const url = URL.createObjectURL(await res.blob());
-  window.open(url, "_blank");
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-export async function openInvoicePdf(id: string): Promise<void> {
-  return openPdf(`/api/v1/invoices/${id}/pdf`);
+export async function openInvoicePdf(id: string, number: string): Promise<void> {
+  return downloadNamedPdf(`/api/v1/invoices/${id}/pdf`, `${number}.pdf`);
 }
 
 export async function sendInvoice(id: string): Promise<Invoice> {

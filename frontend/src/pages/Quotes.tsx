@@ -144,7 +144,7 @@ export default function Quotes() {
                 </td>
                 <td className="px-4 py-2.5 text-right font-medium whitespace-nowrap">{Number(q.total).toFixed(2)} {q.currency}</td>
                 <td className="px-4 py-2.5 text-right whitespace-nowrap space-x-2">
-                  <button onClick={() => openQuotePdf(q.id).catch(() => showAlert({ title: "Error", message: "Could not load PDF" }))} className="text-xs font-medium text-gray-500 hover:text-primary hover:underline">PDF</button>
+                  <button onClick={() => openQuotePdf(q.id, q.number).catch(() => showAlert({ title: "Error", message: "Could not load PDF" }))} className="text-xs font-medium text-gray-500 hover:text-primary hover:underline">PDF</button>
                   {canWrite && (q.status === "draft" || q.status === "sent") && (
                     <>
                       <button onClick={() => act(() => sendQuote(q.id), "Quote marked as sent (emailed if a contact email exists).")} className="text-xs font-medium text-primary hover:underline">Send</button>

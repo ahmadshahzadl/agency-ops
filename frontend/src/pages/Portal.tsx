@@ -109,7 +109,7 @@ export default function Portal() {
                   </div>
                   {q.valid_until && q.status === "sent" && <p className="text-xs text-gray-400 mt-0.5">Valid until {q.valid_until}</p>}
                   <div className="mt-2 flex gap-3">
-                    <button onClick={() => openPortalPdf("quotes", q.id).catch(() => flash("Could not load PDF"))} className="text-xs font-medium text-gray-500 hover:text-[#01184e] underline-offset-2 hover:underline">View PDF</button>
+                    <button onClick={() => openPortalPdf("quotes", q.id, q.number).catch(() => flash("Could not load PDF"))} className="text-xs font-medium text-gray-500 hover:text-[#01184e] underline-offset-2 hover:underline">View PDF</button>
                     {q.status === "sent" && (
                       <>
                         <button
@@ -154,7 +154,7 @@ export default function Portal() {
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <button onClick={() => openPortalPdf("invoices", i.id).catch(() => flash("Could not load PDF"))} className="text-xs font-medium text-gray-500 hover:text-[#01184e] hover:underline">PDF</button>
+                        <button onClick={() => openPortalPdf("invoices", i.id, i.number).catch(() => flash("Could not load PDF"))} className="text-xs font-medium text-gray-500 hover:text-[#01184e] hover:underline">PDF</button>
                       </td>
                     </tr>
                   ))}
