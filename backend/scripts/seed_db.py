@@ -130,12 +130,14 @@ def seed():
                     existing.add(perm.id)
             db.commit()
 
-        # Default admin user if not exists
-        admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com").strip().lower()
+        # Default admin user if not exists (env var wins, then backend/.env via Settings)
+        from app.config import get_settings
+        _settings = get_settings()
+        admin_email = (os.environ.get("ADMIN_EMAIL") or _settings.admin_email).strip().lower()
         if db.query(User).filter(User.email == admin_email).first():
             print(f"Admin user {admin_email} already exists. Permissions and roles are up to date.")
             return
-        admin_password = os.environ.get("ADMIN_PASSWORD")
+        admin_password = os.environ.get("ADMIN_PASSWORD") or _settings.admin_password or None
         generated = False
         if not admin_password:
             admin_password = secrets.token_urlsafe(12)

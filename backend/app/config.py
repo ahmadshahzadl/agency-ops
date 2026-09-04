@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     # Shown in the footer of generated invoice/quote PDFs (address, tax id, ...)
     company_details: str = ""
 
+    # Used only by scripts/seed_db.py for the initial admin user
+    admin_email: str = "admin@example.com"
+    admin_password: str = ""
+
     # Super admin (god mode): one email with full access and no activity/audit logs. Empty = disabled.
     super_admin_email: str = ""
 
@@ -66,6 +70,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = _ENV_FILE
         env_file_encoding = "utf-8"
+        extra = "ignore"  # unknown keys in .env must not crash startup
 
 
 @lru_cache
