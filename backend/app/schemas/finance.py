@@ -5,6 +5,20 @@ from datetime import datetime, date
 from decimal import Decimal
 
 
+class InvoiceItemIn(BaseModel):
+    description: str
+    quantity: Decimal = Decimal("1")
+    unit_price: Decimal = Decimal("0")
+
+
+class InvoiceItemResponse(InvoiceItemIn):
+    id: UUID
+    position: int
+
+    class Config:
+        from_attributes = True
+
+
 class InvoiceBase(BaseModel):
     client_id: UUID
     project_id: Optional[UUID] = None
@@ -14,10 +28,13 @@ class InvoiceBase(BaseModel):
     status: str = "draft"
     due_date: Optional[date] = None
     issued_at: Optional[date] = None
+    fx_currency: Optional[str] = None
+    fx_rate: Optional[Decimal] = None
 
 
 class InvoiceCreate(InvoiceBase):
-    pass
+    amount: Decimal = Decimal("0")  # optional when items are given (derived)
+    items: list[InvoiceItemIn] = []
 
 
 class InvoiceUpdate(BaseModel):
@@ -26,11 +43,15 @@ class InvoiceUpdate(BaseModel):
     status: Optional[str] = None
     due_date: Optional[date] = None
     issued_at: Optional[date] = None
+    fx_currency: Optional[str] = None
+    fx_rate: Optional[Decimal] = None
+    items: Optional[list[InvoiceItemIn]] = None  # full replacement when provided
 
 
 class InvoiceResponse(InvoiceBase):
     id: UUID
     quote_id: Optional[UUID] = None
+    items: list[InvoiceItemResponse] = []
     paid_total: Optional[Decimal] = None  # populated on single-invoice fetch
     created_at: datetime
     updated_at: datetime

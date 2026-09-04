@@ -47,7 +47,10 @@ export default function InvoicesPage() {
     status: "draft",
     due_date: "",
     issued_at: "",
+    fx_currency: "",
+    fx_rate: "",
   });
+  const [itemRows, setItemRows] = useState<{ description: string; quantity: string; unit_price: string }[]>([]);
   const [paymentForm, setPaymentForm] = useState({ amount: "", paid_at: "", reference: "" });
   const [invoicePayments, setInvoicePayments] = useState<Payment[]>([]);
   const [invoiceHours, setInvoiceHours] = useState<TimeEntry[]>([]);
@@ -80,7 +83,10 @@ export default function InvoicesPage() {
       status: "draft",
       due_date: "",
       issued_at: "",
+      fx_currency: "",
+      fx_rate: "",
     });
+    setItemRows([]);
     setModal("new");
   };
   const openEdit = (inv: Invoice) => {
@@ -97,21 +103,30 @@ export default function InvoicesPage() {
       status: inv.status,
       due_date: inv.due_date || "",
       issued_at: inv.issued_at || "",
+      fx_currency: inv.fx_currency || "",
+      fx_rate: inv.fx_rate != null ? String(inv.fx_rate) : "",
     });
+    setItemRows((inv.items || []).map((i) => ({ description: i.description, quantity: String(i.quantity), unit_price: String(i.unit_price) })));
     setModal(inv);
   };
 
   const save = async () => {
     if (modal === null) return;
+    const cleanItems = itemRows
+      .filter((r) => r.description.trim())
+      .map((r) => ({ description: r.description.trim(), quantity: Number(r.quantity) || 1, unit_price: Number(r.unit_price) || 0 }));
     const payload = {
       client_id: form.client_id,
       project_id: form.project_id || undefined,
       number: form.number,
-      amount: Number(form.amount),
+      amount: Number(form.amount) || 0,
       currency: form.currency,
       status: form.status,
       due_date: form.due_date || undefined,
       issued_at: form.issued_at || undefined,
+      fx_currency: form.fx_currency || null,
+      fx_rate: form.fx_rate ? Number(form.fx_rate) : null,
+      items: cleanItems,
     };
     try {
       if (modal === "new") {
@@ -473,14 +488,59 @@ export default function InvoicesPage() {
                 onChange={(e) => setForm((f) => ({ ...f, number: e.target.value }))}
                 className={inputClass}
               />
-              <input
-                placeholder="Amount"
-                type="number"
-                step="0.01"
-                value={form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                className={inputClass}
-              />
+              {/* Line items */}
+              <div className="rounded-xl border border-gray-200 p-3 space-y-2">
+                <div className="grid grid-cols-[1fr_64px_90px_28px] gap-2 text-[11px] uppercase tracking-wide text-gray-400 px-1">
+                  <span>Item</span><span>Qty</span><span>Price</span><span />
+                </div>
+                {itemRows.map((r, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_64px_90px_28px] gap-2 items-center">
+                    <input className={inputClass} placeholder="Description" value={r.description} onChange={(e) => setItemRows((rs) => rs.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
+                    <input type="number" min="0" step="0.5" className={inputClass} value={r.quantity} onChange={(e) => setItemRows((rs) => rs.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
+                    <input type="number" min="0" step="0.01" className={inputClass} value={r.unit_price} onChange={(e) => setItemRows((rs) => rs.map((x, j) => (j === i ? { ...x, unit_price: e.target.value } : x)))} />
+                    <button onClick={() => setItemRows((rs) => rs.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-sm" title="Remove">x</button>
+                  </div>
+                ))}
+                <button onClick={() => setItemRows((rs) => [...rs, { description: "", quantity: "1", unit_price: "" }])} className="text-xs font-medium text-primary hover:underline">+ Add line item</button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={labelClass}>Amount{itemRows.some((r) => r.description.trim()) ? " (from items)" : ""}</label>
+                  <input
+                    placeholder="Amount"
+                    type="number"
+                    step="0.01"
+                    value={itemRows.some((r) => r.description.trim()) ? String(itemRows.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.unit_price) || 0), 0)) : form.amount}
+                    disabled={itemRows.some((r) => r.description.trim())}
+                    onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                    className={`${inputClass} disabled:bg-gray-50 disabled:text-gray-500`}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Currency</label>
+                  <select value={form.currency} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))} className={inputClass}>
+                    {["USD", "EUR", "GBP", "PKR", "AED", "SAR", "CAD", "AUD"].map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={labelClass}>Show equivalent in (optional)</label>
+                  <select value={form.fx_currency} onChange={(e) => setForm((f) => ({ ...f, fx_currency: e.target.value }))} className={inputClass}>
+                    <option value="">- No conversion -</option>
+                    {["PKR", "USD", "EUR", "GBP", "AED", "SAR"].filter((c) => c !== form.currency).map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Rate (1 {form.currency} =)</label>
+                  <input type="number" min="0" step="0.000001" placeholder="e.g. 278.5" value={form.fx_rate} onChange={(e) => setForm((f) => ({ ...f, fx_rate: e.target.value }))} className={inputClass} disabled={!form.fx_currency} />
+                </div>
+              </div>
+              {form.fx_currency && form.fx_rate && (
+                <p className="text-xs text-gray-500 text-right">
+                  = {(((itemRows.some((r) => r.description.trim()) ? itemRows.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.unit_price) || 0), 0) : Number(form.amount)) || 0) * Number(form.fx_rate)).toLocaleString(undefined, { maximumFractionDigits: 2 })} {form.fx_currency}
+                </p>
+              )}
               <div>
                 <label className={labelClass}>Status</label>
                 <select

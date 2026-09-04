@@ -4,13 +4,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import (
     Invoice as InvoiceModel,
+    InvoiceItem as InvoiceItemModel,
     Payment as PaymentModel,
     Expense as ExpenseModel,
     Client as ClientModel,
     Project as ProjectModel,
 )
 from app.schemas.finance import (
-    InvoiceCreate, InvoiceUpdate, InvoiceResponse,
+    InvoiceCreate, InvoiceUpdate, InvoiceResponse, InvoiceItemIn,
     PaymentCreate, PaymentResponse,
     ExpenseCreate, ExpenseUpdate, ExpenseResponse,
 )
@@ -30,6 +31,30 @@ def paid_total_for(db: Session, invoice_id: UUID) -> Decimal:
     return db.query(func.coalesce(func.sum(PaymentModel.amount), 0)).filter(
         PaymentModel.invoice_id == invoice_id
     ).scalar() or Decimal("0")
+
+
+def _validate_fx(fx_currency, fx_rate) -> None:
+    if fx_currency is not None:
+        validate_currency(fx_currency)
+    if fx_rate is not None and fx_rate <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="fx_rate must be greater than 0")
+
+
+def _apply_invoice_items(db: Session, inv: InvoiceModel, items: list[InvoiceItemIn]) -> Decimal:
+    """Replace the invoice's items; returns the computed total."""
+    for old in list(inv.items):
+        db.delete(old)
+    db.flush()
+    total = Decimal("0")
+    for pos, item in enumerate(items):
+        if item.quantity <= 0 or item.unit_price < 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item quantity must be positive and price non-negative")
+        db.add(InvoiceItemModel(
+            invoice_id=inv.id, description=item.description.strip(),
+            quantity=item.quantity, unit_price=item.unit_price, position=pos,
+        ))
+        total += item.quantity * item.unit_price
+    return total.quantize(Decimal("0.01"))
 
 
 def _apply_overdue(db: Session, invoices: list) -> None:
@@ -129,7 +154,9 @@ def create_invoice(
     if not db.query(ClientModel.id).filter(ClientModel.id == data.client_id, ClientModel.deleted_at.is_(None)).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Client is deleted; cannot create new invoices for it")
     validate_currency(data.currency)
-    validate_positive_amount(data.amount)
+    _validate_fx(data.fx_currency, data.fx_rate)
+    if not data.items:
+        validate_positive_amount(data.amount)
     if db.query(InvoiceModel.id).filter(InvoiceModel.number == data.number).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invoice number {data.number} already exists")
     inv = InvoiceModel(
@@ -141,9 +168,14 @@ def create_invoice(
         status=data.status,
         due_date=data.due_date,
         issued_at=data.issued_at,
+        fx_currency=(data.fx_currency or None),
+        fx_rate=data.fx_rate,
     )
     db.add(inv)
     db.flush()
+    if data.items:
+        inv.amount = _apply_invoice_items(db, inv, data.items)
+        validate_positive_amount(inv.amount)
     log_activity(db, user.id, "invoice_created", "invoice", inv.id, details=f"Invoice #{inv.number}: {inv.currency} {inv.amount}")
     db.commit()
     db.refresh(inv)
@@ -185,7 +217,20 @@ def update_invoice(
     if not _can_access_invoice_client(inv.client_id, db, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     updates = data.model_dump(exclude_unset=True)
-    if "amount" in updates:
+    items = updates.pop("items", None)
+    _validate_fx(updates.get("fx_currency"), updates.get("fx_rate"))
+    if items is not None:
+        # Items drive the amount; a manual amount in the same request is ignored
+        updates.pop("amount", None)
+        new_total = _apply_invoice_items(db, inv, [InvoiceItemIn(**i) for i in items]) if items else inv.amount
+        if items:
+            paid = paid_total_for(db, inv.id)
+            if new_total < paid:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Items total cannot be below the {paid} already paid")
+            inv.amount = new_total
+    elif "amount" in updates:
+        if inv.items:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Amount is derived from the line items; edit the items instead")
         validate_positive_amount(updates["amount"])
         paid = paid_total_for(db, inv.id)
         if updates["amount"] < paid:

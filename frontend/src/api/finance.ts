@@ -1,6 +1,16 @@
 import { apiFetch, API_BASE, getToken } from "./client";
 
+export interface InvoiceItem {
+  id?: string;
+  description: string;
+  quantity: number | string;
+  unit_price: number | string;
+}
+
 export interface Invoice {
+  items?: InvoiceItem[];
+  fx_currency?: string | null;
+  fx_rate?: number | string | null;
   id: string;
   client_id: string;
   project_id: string | null;

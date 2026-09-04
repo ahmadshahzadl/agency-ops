@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Column, String, Numeric, Date, DateTime, ForeignKey
+from sqlalchemy import Column, String, Numeric, Integer, Date, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -19,12 +19,29 @@ class Invoice(Base):
     due_date = Column(Date)
     issued_at = Column(Date)
     quote_id = Column(UUID(as_uuid=True), ForeignKey("quotes.id", ondelete="SET NULL"))  # set when generated from a quote
+    # Optional display conversion (e.g. USD invoice shown with PKR equivalent at a manual rate)
+    fx_currency = Column(String(3))
+    fx_rate = Column(Numeric(14, 6))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     client = relationship("Client", backref="invoices")
     project = relationship("Project", backref="invoices")
     payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
+    items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceItem.position")
+
+
+class InvoiceItem(Base):
+    __tablename__ = "invoice_items"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False)
+    description = Column(String(500), nullable=False)
+    quantity = Column(Numeric(10, 2), nullable=False, default=1, server_default="1")
+    unit_price = Column(Numeric(14, 2), nullable=False, default=0, server_default="0")
+    position = Column(Integer, nullable=False, default=0, server_default="0")
+
+    invoice = relationship("Invoice", back_populates="items")
 
 
 class Payment(Base):

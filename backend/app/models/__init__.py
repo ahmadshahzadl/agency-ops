@@ -7,7 +7,7 @@ from app.models.activity_log import ActivityLog
 from app.models.project import Project, ProjectMember
 from app.models.task import Task
 from app.models.meeting import Meeting, MeetingAttendee
-from app.models.finance import Invoice, Payment, Expense
+from app.models.finance import Invoice, InvoiceItem, Payment, Expense
 from app.models.announcement import Announcement, Notification
 from app.models.note import Note
 from app.models.message import Message
@@ -45,6 +45,7 @@ __all__ = [
     "Meeting",
     "MeetingAttendee",
     "Invoice",
+    "InvoiceItem",
     "Payment",
     "Expense",
     "Announcement",

@@ -87,7 +87,14 @@ def build_invoice_pdf(invoice, client, project, time_entries, quote, paid_total:
         pdf.meta_row("Due", str(invoice.due_date))
     pdf.meta_row("Status", invoice.status)
 
-    if time_entries:
+    if getattr(invoice, "items", None):
+        rows = [
+            [i.description[:70], f"{i.quantity}", f"{i.unit_price}",
+             f"{(i.quantity * i.unit_price).quantize(Decimal('0.01'))}"]
+            for i in invoice.items
+        ]
+        pdf.items_table(["Item", "Qty", "Unit price", "Amount"], [96, 25, 32, 33], rows)
+    elif time_entries:
         rows = [
             [f"{e.work_date}  {(e.description or 'Work')[:60]}", f"{e.hours}",
              f"{e.hourly_rate if e.hourly_rate is not None else (project.hourly_rate if project else '')}"]
@@ -106,6 +113,9 @@ def build_invoice_pdf(invoice, client, project, time_entries, quote, paid_total:
 
     pdf.ln(2)
     pdf.total_line(f"Total ({invoice.currency})", f"{invoice.amount}")
+    if invoice.fx_currency and invoice.fx_rate:
+        converted = (invoice.amount * invoice.fx_rate).quantize(Decimal("0.01"))
+        pdf.total_line(f"Equivalent ({invoice.fx_currency} @ {invoice.fx_rate})", f"{converted:,}", bold=False)
     if paid_total and paid_total > 0:
         pdf.total_line("Paid", f"{paid_total}", bold=False)
         pdf.total_line("Balance due", f"{(invoice.amount - paid_total).quantize(Decimal('0.01'))}")

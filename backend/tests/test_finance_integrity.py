@@ -103,3 +103,67 @@ def test_quote_cannot_be_invoiced_twice(client, auth_headers):
     second = client.post(f"/api/v1/quotes/{q['id']}/invoice", headers=auth_headers)
     assert second.status_code == 400
     assert first.json()["number"] in second.json()["detail"]
+
+
+def test_invoice_items_drive_amount(client, auth_headers):
+    c = client.post("/api/v1/clients", headers=auth_headers, json={"name": f"Items Client {uuid.uuid4().hex[:6]}"})
+    r = client.post("/api/v1/invoices", headers=auth_headers, json={
+        "client_id": c.json()["id"], "number": f"INV-IT-{uuid.uuid4().hex[:8]}", "currency": "USD", "status": "draft",
+        "items": [
+            {"description": "Design", "quantity": 1, "unit_price": 500},
+            {"description": "Development", "quantity": 10, "unit_price": 60},
+        ],
+    })
+    assert r.status_code == 201, r.text
+    inv = r.json()
+    assert float(inv["amount"]) == 1100.0
+    assert len(inv["items"]) == 2
+
+    # Manual amount edit is blocked while items exist
+    r = client.patch(f"/api/v1/invoices/{inv['id']}", headers=auth_headers, json={"amount": 999})
+    assert r.status_code == 400
+    # Editing items recomputes
+    r = client.patch(f"/api/v1/invoices/{inv['id']}", headers=auth_headers,
+                     json={"items": [{"description": "Everything", "quantity": 1, "unit_price": 2000}]})
+    assert r.status_code == 200
+    assert float(r.json()["amount"]) == 2000.0
+
+    # PDF renders the items
+    pdf = client.get(f"/api/v1/invoices/{inv['id']}/pdf", headers=auth_headers)
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+
+
+def test_invoice_items_respect_paid_floor(client, auth_headers):
+    from datetime import date
+    c = client.post("/api/v1/clients", headers=auth_headers, json={"name": f"ItemsPaid {uuid.uuid4().hex[:6]}"})
+    inv = client.post("/api/v1/invoices", headers=auth_headers, json={
+        "client_id": c.json()["id"], "number": f"INV-IP-{uuid.uuid4().hex[:8]}", "currency": "USD", "status": "sent",
+        "items": [{"description": "Work", "quantity": 1, "unit_price": 1000}],
+    }).json()
+    client.post("/api/v1/payments", headers=auth_headers,
+                json={"invoice_id": inv["id"], "amount": 800, "paid_at": str(date.today())})
+    r = client.patch(f"/api/v1/invoices/{inv['id']}", headers=auth_headers,
+                     json={"items": [{"description": "Cheaper", "quantity": 1, "unit_price": 500}]})
+    assert r.status_code == 400
+
+
+def test_invoice_fx_display(client, auth_headers):
+    c = client.post("/api/v1/clients", headers=auth_headers, json={"name": f"FX Client {uuid.uuid4().hex[:6]}"})
+    r = client.post("/api/v1/invoices", headers=auth_headers, json={
+        "client_id": c.json()["id"], "number": f"INV-FX-{uuid.uuid4().hex[:8]}", "amount": 100,
+        "currency": "USD", "status": "draft", "fx_currency": "PKR", "fx_rate": 278.5,
+    })
+    assert r.status_code == 201, r.text
+    assert r.json()["fx_currency"] == "PKR"
+    assert float(r.json()["fx_rate"]) == 278.5
+    # Bad fx values rejected
+    bad = client.post("/api/v1/invoices", headers=auth_headers, json={
+        "client_id": c.json()["id"], "number": f"INV-FB-{uuid.uuid4().hex[:8]}", "amount": 100,
+        "currency": "USD", "status": "draft", "fx_currency": "123", "fx_rate": 1,
+    })
+    assert bad.status_code == 400
+    bad2 = client.post("/api/v1/invoices", headers=auth_headers, json={
+        "client_id": c.json()["id"], "number": f"INV-FB2-{uuid.uuid4().hex[:8]}", "amount": 100,
+        "currency": "USD", "status": "draft", "fx_currency": "PKR", "fx_rate": -2,
+    })
+    assert bad2.status_code == 400
