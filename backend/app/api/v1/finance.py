@@ -157,12 +157,13 @@ def create_invoice(
     _validate_fx(data.fx_currency, data.fx_rate)
     if not data.items:
         validate_positive_amount(data.amount)
-    if db.query(InvoiceModel.id).filter(InvoiceModel.number == data.number).first():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invoice number {data.number} already exists")
+    number = (data.number or "").strip() or generate_invoice_number(db)
+    if data.number and db.query(InvoiceModel.id).filter(InvoiceModel.number == number).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invoice number {number} already exists")
     inv = InvoiceModel(
         client_id=data.client_id,
         project_id=data.project_id,
-        number=data.number,
+        number=number,
         amount=data.amount,
         currency=data.currency,
         status=data.status,

@@ -33,6 +33,7 @@ class InvoiceBase(BaseModel):
 
 
 class InvoiceCreate(InvoiceBase):
+    number: Optional[str] = None  # auto-generated when empty
     amount: Decimal = Decimal("0")  # optional when items are given (derived)
     items: list[InvoiceItemIn] = []
 

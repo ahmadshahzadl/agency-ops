@@ -483,7 +483,7 @@ export default function InvoicesPage() {
                 </select>
               </div>
               <input
-                placeholder="Number"
+                placeholder="Invoice number (auto if empty)"
                 value={form.number}
                 onChange={(e) => setForm((f) => ({ ...f, number: e.target.value }))}
                 className={inputClass}
