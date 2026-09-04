@@ -144,6 +144,8 @@ Board access is per-board: managers/admins add members, and only members see the
 
 Security notes for internet-facing deployments: run a **single backend worker** (in-memory WebSocket state), terminate TLS at a reverse proxy or tunnel, and don't log query strings (WebSocket auth tokens travel there).
 
+**Email on a VPS:** most cloud providers block outbound SMTP ports (25/465/587) by default — request an unblock via support, or use a relay on an alternate port (Brevo `smtp-relay.brevo.com:2525`, Resend `smtp.resend.com:2587`). See the commented examples in `backend/.env.example`.
+
 ## Project structure
 
 - **backend/** — FastAPI app, SQLAlchemy models, 23 Alembic migrations, RBAC, JWT, PDF generation, email service
