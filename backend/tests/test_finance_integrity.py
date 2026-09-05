@@ -195,3 +195,39 @@ def test_bank_details_roundtrip(client, auth_headers):
     assert inv["account_number"].startswith("PK00")
     pdf = client.get(f"/api/v1/invoices/{inv['id']}/pdf", headers=auth_headers)
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+
+
+def test_expense_categories_and_commission(client, auth_headers):
+    c = client.post("/api/v1/clients", headers=auth_headers, json={"name": f"Comm Client {uuid.uuid4().hex[:6]}"})
+    inv = client.post("/api/v1/invoices", headers=auth_headers, json={
+        "client_id": c.json()["id"], "amount": 2000, "currency": "USD", "status": "sent"}).json()
+    users = client.get("/api/v1/users", headers=auth_headers).json()
+    payee = users[0]["id"]
+
+    # Commission: amount auto-computed from invoice x percent, in invoice currency
+    r = client.post("/api/v1/expenses", headers=auth_headers, json={
+        "description": "BD commission for Acme deal", "category": "commission",
+        "related_invoice_id": inv["id"], "payee_user_id": payee, "commission_percent": 10,
+    })
+    assert r.status_code == 201, r.text
+    exp = r.json()
+    assert float(exp["amount"]) == 200.0
+    assert exp["currency"] == "USD"
+    assert exp["invoice_number"] == inv["number"]
+    assert exp["payee_name"]
+
+    # Percent change recomputes
+    r = client.patch(f"/api/v1/expenses/{exp['id']}", headers=auth_headers, json={"commission_percent": 15})
+    assert float(r.json()["amount"]) == 300.0
+
+    # Plain office expense defaults to PKR
+    r = client.post("/api/v1/expenses", headers=auth_headers, json={
+        "description": "Office rent", "category": "office", "amount": 150000})
+    assert r.status_code == 201
+    assert r.json()["currency"] == "PKR"
+
+    # Bad category / percent rejected
+    assert client.post("/api/v1/expenses", headers=auth_headers, json={
+        "description": "x", "category": "banana", "amount": 10}).status_code == 400
+    assert client.post("/api/v1/expenses", headers=auth_headers, json={
+        "description": "x", "category": "commission", "related_invoice_id": inv["id"], "commission_percent": 150}).status_code == 400

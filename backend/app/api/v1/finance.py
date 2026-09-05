@@ -13,7 +13,7 @@ from app.models import (
 from app.schemas.finance import (
     InvoiceCreate, InvoiceUpdate, InvoiceResponse, InvoiceItemIn,
     PaymentCreate, PaymentResponse,
-    ExpenseCreate, ExpenseUpdate, ExpenseResponse,
+    ExpenseCreate, ExpenseUpdate, ExpenseResponse, EXPENSE_CATEGORIES,
 )
 import uuid as uuid_mod
 from datetime import datetime, date
@@ -406,6 +406,22 @@ def list_invoice_payments(
     return db.query(PaymentModel).filter(PaymentModel.invoice_id == invoice_id).order_by(PaymentModel.paid_at).all()
 
 
+def _decorate_expense(exp: ExpenseModel) -> ExpenseModel:
+    exp.payee_name = (exp.payee.full_name or exp.payee.email) if exp.payee else None
+    exp.invoice_number = exp.related_invoice.number if exp.related_invoice else None
+    return exp
+
+
+def _validate_expense_category(category: str | None) -> None:
+    if category is not None and category not in EXPENSE_CATEGORIES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"category must be one of: {', '.join(EXPENSE_CATEGORIES)}")
+
+
+def _validate_percent(p) -> None:
+    if p is not None and (p <= 0 or p > 100):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="commission_percent must be between 0 and 100")
+
+
 # --- Expenses (Admin only per roles-permissions-flow: Manager and Employee have no access) ---
 @router.get("/expenses", response_model=list[ExpenseResponse])
 def list_expenses(
@@ -428,7 +444,7 @@ def list_expenses(
             qry = qry.join(ProjectModel).join(ClientModel).filter(ClientModel.team_id.in_(team_ids))
     if project_id:
         qry = qry.filter(ExpenseModel.project_id == project_id)
-    return qry.offset(skip).limit(limit).all()
+    return [_decorate_expense(e) for e in qry.offset(skip).limit(limit).all()]
 
 
 @router.post("/expenses", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
@@ -449,13 +465,29 @@ def create_expense(
             elif not proj.client or proj.client.team_id not in team_ids:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot create expense for this project")
     validate_currency(data.currency)
-    validate_positive_amount(data.amount)
+    _validate_expense_category(data.category)
+    _validate_percent(data.commission_percent)
+    amount = data.amount
+    currency = data.currency
+    if data.related_invoice_id:
+        invoice = db.query(InvoiceModel).filter(InvoiceModel.id == data.related_invoice_id).first()
+        if not invoice:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Related invoice not found")
+        if data.commission_percent is not None and (not amount or amount <= 0):
+            # Commission computed from the invoice, in the invoice's currency
+            amount = (invoice.amount * data.commission_percent / Decimal("100")).quantize(Decimal("0.01"))
+            currency = invoice.currency
+    validate_positive_amount(amount)
     exp = ExpenseModel(
         project_id=data.project_id,
         description=data.description,
-        amount=data.amount,
-        currency=data.currency,
+        category=data.category,
+        amount=amount,
+        currency=currency,
         expense_date=data.expense_date,
+        related_invoice_id=data.related_invoice_id,
+        payee_user_id=data.payee_user_id,
+        commission_percent=data.commission_percent,
         created_by=user.id,
     )
     db.add(exp)
@@ -463,7 +495,7 @@ def create_expense(
     log_activity(db, user.id, "expense_created", "expense", exp.id, details=f"Expense: {exp.description or '—'} {exp.currency} {exp.amount}")
     db.commit()
     db.refresh(exp)
-    return exp
+    return _decorate_expense(exp)
 
 
 @router.patch("/expenses/{expense_id}", response_model=ExpenseResponse)
@@ -482,13 +514,21 @@ def update_expense(
     if not _can_access_expense_project(exp, team_ids, "admin:all" in permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
     validate_positive_amount(data.amount)
-    for k, v in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+    _validate_expense_category(updates.get("category"))
+    _validate_percent(updates.get("commission_percent"))
+    for k, v in updates.items():
         setattr(exp, k, v)
+    if "commission_percent" in updates and exp.related_invoice_id and exp.commission_percent is not None:
+        invoice = db.query(InvoiceModel).filter(InvoiceModel.id == exp.related_invoice_id).first()
+        if invoice:
+            exp.amount = (invoice.amount * exp.commission_percent / Decimal("100")).quantize(Decimal("0.01"))
+            exp.currency = invoice.currency
     db.flush()
     log_activity(db, user.id, "expense_updated", "expense", expense_id, details=f"Expense: {exp.description or '—'} {exp.currency} {exp.amount}")
     db.commit()
     db.refresh(exp)
-    return exp
+    return _decorate_expense(exp)
 
 
 @router.delete("/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)

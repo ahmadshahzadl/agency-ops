@@ -67,10 +67,17 @@ class Expense(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"))
     description = Column(String(255), nullable=False)
+    category = Column(String(32), nullable=False, default="other", server_default="other")  # office, commission, salary, software, travel, other
     amount = Column(Numeric(14, 2), nullable=False)
-    currency = Column(String(3), default="USD")
+    currency = Column(String(3), default="PKR")
     expense_date = Column(Date)
+    # Commission expenses: % of an invoice paid to whoever brought/did BD for the project
+    related_invoice_id = Column(UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="SET NULL"))
+    payee_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    commission_percent = Column(Numeric(5, 2))
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     project = relationship("Project", backref="expenses")
+    payee = relationship("User", foreign_keys=[payee_user_id])
+    related_invoice = relationship("Invoice", foreign_keys=[related_invoice_id])

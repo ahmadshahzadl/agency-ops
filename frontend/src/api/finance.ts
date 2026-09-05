@@ -37,6 +37,12 @@ export interface Payment {
 }
 
 export interface Expense {
+  category?: string;
+  related_invoice_id?: string | null;
+  payee_user_id?: string | null;
+  commission_percent?: number | string | null;
+  payee_name?: string | null;
+  invoice_number?: string | null;
   id: string;
   project_id: string | null;
   description: string;

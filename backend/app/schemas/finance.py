@@ -86,12 +86,19 @@ class PaymentResponse(PaymentBase):
         from_attributes = True
 
 
+EXPENSE_CATEGORIES = ("office", "commission", "salary", "software", "travel", "other")
+
+
 class ExpenseBase(BaseModel):
     project_id: Optional[UUID] = None
     description: str
-    amount: Decimal
-    currency: str = "USD"
+    category: str = "other"
+    amount: Decimal = Decimal("0")  # optional for commissions (computed from invoice x percent)
+    currency: str = "PKR"
     expense_date: Optional[date] = None
+    related_invoice_id: Optional[UUID] = None
+    payee_user_id: Optional[UUID] = None
+    commission_percent: Optional[Decimal] = None
 
 
 class ExpenseCreate(ExpenseBase):
@@ -100,12 +107,17 @@ class ExpenseCreate(ExpenseBase):
 
 class ExpenseUpdate(BaseModel):
     description: Optional[str] = None
+    category: Optional[str] = None
     amount: Optional[Decimal] = None
     expense_date: Optional[date] = None
+    payee_user_id: Optional[UUID] = None
+    commission_percent: Optional[Decimal] = None
 
 
 class ExpenseResponse(ExpenseBase):
     id: UUID
+    payee_name: Optional[str] = None
+    invoice_number: Optional[str] = None
     created_by: Optional[UUID] = None
     created_at: datetime
 

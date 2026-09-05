@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { listExpenses, createExpense, updateExpense, deleteExpense, type Expense } from "@/api/finance";
+import { listExpenses, createExpense, updateExpense, deleteExpense, listInvoices, type Expense, type Invoice } from "@/api/finance";
+import { listAssignableUsers, type UserList } from "@/api/users";
 import { listProjects, type Project } from "@/api/projects";
 import { useAuth } from "@/store/auth";
 import { NotesSection } from "@/components/NotesSection";
@@ -23,13 +24,21 @@ export default function ExpensesPage() {
   const [form, setForm] = useState({
     project_id: "",
     description: "",
+    category: "office",
     amount: "",
-    currency: "USD",
+    currency: "PKR",
     expense_date: "",
+    related_invoice_id: "",
+    payee_user_id: "",
+    commission_percent: "",
   });
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [users, setUsers] = useState<UserList[]>([]);
 
   const load = () => {
     listProjects().then(setProjects).catch(() => setProjects([]));
+    listInvoices({ limit: 100 }).then(setInvoices).catch(() => setInvoices([]));
+    listAssignableUsers().then(setUsers).catch(() => setUsers([]));
     const params = projectFilter ? { project_id: projectFilter } : undefined;
     listExpenses(params).then(setItems).catch(() => setItems([])).finally(() => setLoading(false));
   };
@@ -42,9 +51,13 @@ export default function ExpensesPage() {
     setForm({
       project_id: "",
       description: "",
+      category: "office",
       amount: "",
-      currency: "USD",
+      currency: "PKR",
       expense_date: new Date().toISOString().slice(0, 10),
+      related_invoice_id: "",
+      payee_user_id: "",
+      commission_percent: "",
     });
     setModal("new");
   };
@@ -52,21 +65,30 @@ export default function ExpensesPage() {
     setForm({
       project_id: e.project_id || "",
       description: e.description,
+      category: e.category || "other",
       amount: String(e.amount),
       currency: e.currency,
       expense_date: e.expense_date || "",
+      related_invoice_id: e.related_invoice_id || "",
+      payee_user_id: e.payee_user_id || "",
+      commission_percent: e.commission_percent != null ? String(e.commission_percent) : "",
     });
     setModal(e);
   };
 
   const save = async () => {
     if (modal === null) return;
+    const isCommission = form.category === "commission";
     const payload = {
       project_id: form.project_id || undefined,
       description: form.description,
-      amount: Number(form.amount),
+      category: form.category,
+      amount: Number(form.amount) || 0,
       currency: form.currency,
       expense_date: form.expense_date || undefined,
+      related_invoice_id: isCommission && form.related_invoice_id ? form.related_invoice_id : undefined,
+      payee_user_id: isCommission && form.payee_user_id ? form.payee_user_id : undefined,
+      commission_percent: isCommission && form.commission_percent ? Number(form.commission_percent) : undefined,
     };
     try {
       if (modal === "new") {
@@ -293,6 +315,36 @@ export default function ExpensesPage() {
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 className={inputClass}
               />
+              <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className={inputClass}>
+                <option value="office">Office expense</option>
+                <option value="commission">Commission (BD / referral)</option>
+                <option value="salary">Salary</option>
+                <option value="software">Software / subscriptions</option>
+                <option value="travel">Travel</option>
+                <option value="other">Other</option>
+              </select>
+              {form.category === "commission" && (
+                <div className="rounded-xl border border-gray-200 p-3 space-y-2">
+                  <p className="text-[11px] uppercase tracking-wide text-gray-400">Commission details</p>
+                  <select value={form.related_invoice_id} onChange={(e) => setForm((f) => ({ ...f, related_invoice_id: e.target.value }))} className={inputClass}>
+                    <option value="">Link to invoice (for auto amount)...</option>
+                    {invoices.map((i) => <option key={i.id} value={i.id}>{i.number} - {i.currency} {Number(i.amount).toLocaleString()}</option>)}
+                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={form.payee_user_id} onChange={(e) => setForm((f) => ({ ...f, payee_user_id: e.target.value }))} className={inputClass}>
+                      <option value="">Paid to...</option>
+                      {users.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
+                    </select>
+                    <input type="number" min="0" max="100" step="0.5" placeholder="% of invoice" value={form.commission_percent} onChange={(e) => setForm((f) => ({ ...f, commission_percent: e.target.value }))} className={inputClass} />
+                  </div>
+                  {form.related_invoice_id && form.commission_percent && (
+                    <p className="text-xs text-gray-500 text-right">
+                      = {((Number(invoices.find((i) => i.id === form.related_invoice_id)?.amount) || 0) * Number(form.commission_percent) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })} {invoices.find((i) => i.id === form.related_invoice_id)?.currency} (leave Amount empty to use this)
+                    </p>
+                  )}
+                </div>
+              )}
+
               <input
                 placeholder="Amount"
                 type="number"
