@@ -21,7 +21,8 @@ export interface AnalyticsOverview {
   quote_pipeline_value: number | string | null;
   quote_win_rate: number | null;
   quotes_open: number;
-  expenses_this_month: number | null;
+  expenses_this_month: number | string | null;
+  expenses_by_currency: Record<string, number | string> | null;
 }
 
 export interface ConversionOverTimePoint {

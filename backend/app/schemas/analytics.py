@@ -16,6 +16,7 @@ class AnalyticsOverview(BaseModel):
     outstanding_total: Optional[Decimal] = None
     revenue_this_month: Optional[Decimal] = None
     expenses_this_month: Optional[Decimal] = None
+    expenses_by_currency: Optional[dict[str, Decimal]] = None  # e.g. {"PKR": 150000, "USD": 200}
     hours_this_month: Decimal = Decimal("0")
     billable_hours_this_month: Decimal = Decimal("0")
     unbilled_value: Optional[Decimal] = None  # finance-gated
@@ -52,6 +53,7 @@ class DashboardResponse(BaseModel):
     outstanding_total: Optional[Decimal] = None
     revenue_this_month: Optional[Decimal] = None
     expenses_this_month: Optional[Decimal] = None
+    expenses_by_currency: Optional[dict[str, Decimal]] = None  # e.g. {"PKR": 150000, "USD": 200}
     hours_this_month: Decimal = Decimal("0")
     billable_hours_this_month: Decimal = Decimal("0")
     unbilled_value: Optional[Decimal] = None

@@ -138,11 +138,13 @@ def overview(
         revenue_this_month = Decimal(str(db.query(func.coalesce(func.sum(Payment.amount), 0)).filter(
             Payment.paid_at >= month_start, Payment.paid_at <= month_end,
         ).scalar() or 0))
-        expenses_this_month = Decimal(str(db.query(func.coalesce(func.sum(Expense.amount), 0)).filter(
+        _exp_rows = db.query(Expense.currency, func.coalesce(func.sum(Expense.amount), 0)).filter(
             Expense.expense_date.isnot(None),
             Expense.expense_date >= month_start,
             Expense.expense_date <= month_end,
-        ).scalar() or 0))
+        ).group_by(Expense.currency).all()
+        expenses_by_currency = {(cur or "PKR"): Decimal(str(t)) for cur, t in _exp_rows}
+        expenses_this_month = sum(expenses_by_currency.values(), Decimal("0"))
     elif manager_scope is not None:
         total_clients = db.query(func.count(Client.id)).filter(
             Client.deleted_at.is_(None), Client.created_by.in_(manager_scope),
@@ -172,6 +174,7 @@ def overview(
             Expense.expense_date <= month_end,
             Client.created_by.in_(manager_scope),
         ).scalar() or 0))
+        expenses_by_currency = None
     else:
         # No reports (members): only tasks assigned to them, same as task list
         total_clients = 0
@@ -182,6 +185,7 @@ def overview(
         outstanding_total = Decimal("0")
         revenue_this_month = Decimal("0")
         expenses_this_month = Decimal("0")
+        expenses_by_currency = None
     # Finance figures require finance:read - hidden (None) otherwise, so tiles disappear
     if "admin:all" not in permissions and "finance:read" not in permissions:
         revenue_total = None
@@ -191,6 +195,7 @@ def overview(
     # Expenses are stricter: expenses:read only (managers have finance:read but not expenses)
     if "admin:all" not in permissions and "expenses:read" not in permissions:
         expenses_this_month = None
+        expenses_by_currency = None
     quote_pipeline, quote_win_rate, quotes_open = _quote_metrics(db, permissions, manager_scope, user)
     hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
     qa_review_queue, qa_failed_awaiting, client_reported_open = _role_focus_metrics(db, user, permissions, manager_scope)
@@ -207,6 +212,7 @@ def overview(
         outstanding_total=outstanding_total,
         revenue_this_month=revenue_this_month,
         expenses_this_month=expenses_this_month,
+        expenses_by_currency=expenses_by_currency,
         hours_this_month=hours_month,
         billable_hours_this_month=billable_month,
         unbilled_value=unbilled_value,
@@ -322,12 +328,13 @@ def dashboard(
             Payment.paid_at >= month_start, Payment.paid_at <= month_end
         ).scalar()
         revenue_this_month = Decimal(str(revenue_this_month or 0))
-        expenses_this_month = db.query(func.coalesce(func.sum(Expense.amount), 0)).filter(
+        _exp_rows = db.query(Expense.currency, func.coalesce(func.sum(Expense.amount), 0)).filter(
             Expense.expense_date.isnot(None),
             Expense.expense_date >= month_start,
             Expense.expense_date <= month_end,
-        ).scalar()
-        expenses_this_month = Decimal(str(expenses_this_month or 0))
+        ).group_by(Expense.currency).all()
+        expenses_by_currency = {(cur or "PKR"): Decimal(str(t)) for cur, t in _exp_rows}
+        expenses_this_month = sum(expenses_by_currency.values(), Decimal("0"))
         week_start = today - timedelta(days=6)
         leads_today = db.query(func.count(Lead.id)).filter(func.date(Lead.created_at) == today).scalar() or 0
         leads_this_week = db.query(func.count(Lead.id)).filter(
@@ -370,13 +377,13 @@ def dashboard(
             Payment.paid_at >= month_start, Payment.paid_at <= month_end, Client.created_by.in_(manager_scope),
         ).scalar()
         revenue_this_month = Decimal(str(revenue_this_month or 0))
-        expenses_this_month = db.query(func.coalesce(func.sum(Expense.amount), 0)).join(Project).join(Client).filter(
+        expenses_this_month = Decimal(str(db.query(func.coalesce(func.sum(Expense.amount), 0)).join(Project).join(Client).filter(
             Expense.expense_date.isnot(None),
             Expense.expense_date >= month_start,
             Expense.expense_date <= month_end,
             Client.created_by.in_(manager_scope),
-        ).scalar()
-        expenses_this_month = Decimal(str(expenses_this_month or 0))
+        ).scalar() or 0))
+        expenses_by_currency = None
         projects_by_stage_rows = (
             db.query(Project.pipeline_stage, func.count(Project.id))
             .filter(Project.deleted_at.is_(None), Project.owner_id.in_(manager_scope))
@@ -406,6 +413,7 @@ def dashboard(
         total_users = 0
         revenue_this_month = Decimal("0")
         expenses_this_month = Decimal("0")
+        expenses_by_currency = None
         leads_today = 0
         leads_this_week = 0
         leads_this_month = 0
@@ -423,6 +431,7 @@ def dashboard(
     # Expenses are stricter: expenses:read only (managers have finance:read but not expenses)
     if "admin:all" not in permissions and "expenses:read" not in permissions:
         expenses_this_month = None
+        expenses_by_currency = None
     quote_pipeline, quote_win_rate, quotes_open = _quote_metrics(db, permissions, manager_scope, user)
     hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
     qa_review_queue, qa_failed_awaiting, client_reported_open = _role_focus_metrics(db, user, permissions, manager_scope)
@@ -439,6 +448,7 @@ def dashboard(
         outstanding_total=outstanding_total,
         revenue_this_month=revenue_this_month,
         expenses_this_month=expenses_this_month,
+        expenses_by_currency=expenses_by_currency,
         hours_this_month=hours_month,
         billable_hours_this_month=billable_month,
         unbilled_value=unbilled_value,

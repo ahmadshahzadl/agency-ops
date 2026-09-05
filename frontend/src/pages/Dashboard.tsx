@@ -191,11 +191,13 @@ export default function Dashboard() {
       to: "/users" as const,
       highlight: false,
     },
-    ...(data.expenses_this_month != null
+    ...(data.expenses_by_currency && Object.keys(data.expenses_by_currency).length > 0
       ? [
           {
             label: "Expenses (this month)",
-            value: `$${Number(data.expenses_this_month).toLocaleString()}`,
+            value: Object.entries(data.expenses_by_currency)
+              .map(([cur, amt]) => `${cur} ${Number(amt).toLocaleString()}`)
+              .join(" · "),
             to: "/expenses" as const,
             highlight: false,
           },
