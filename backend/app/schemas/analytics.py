@@ -27,6 +27,7 @@ class AnalyticsOverview(BaseModel):
     quote_pipeline_value: Optional[Decimal] = None  # draft + sent quote totals (quotes-gated)
     quote_win_rate: Optional[float] = None  # accepted / (accepted + rejected)
     quotes_open: int = 0
+    agreements_awaiting_signature: Optional[int] = None  # sent agreements (agreements-gated)
 
 
 class ConversionOverTimePoint(BaseModel):
@@ -64,6 +65,7 @@ class DashboardResponse(BaseModel):
     quote_pipeline_value: Optional[Decimal] = None
     quote_win_rate: Optional[float] = None
     quotes_open: int = 0
+    agreements_awaiting_signature: Optional[int] = None  # sent agreements (agreements-gated)
     leads_today: int = 0
     leads_this_week: int = 0
     leads_this_month: int = 0

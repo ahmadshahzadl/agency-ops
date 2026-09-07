@@ -45,6 +45,38 @@ export interface PortalQuote {
   items: { description: string; quantity: string; unit_price: string; line_total: string }[];
 }
 
+export interface PortalAgreement {
+  id: string;
+  number: string;
+  title: string;
+  status: string;
+  effective_date: string | null;
+  valid_until: string | null;
+  contract_value: string | null;
+  currency: string;
+  clauses: { heading: string; body: string }[];
+  accepted_at: string | null;
+  accepted_by_name: string | null;
+}
+
+export async function listPortalAgreements(): Promise<PortalAgreement[]> {
+  return apiFetch<PortalAgreement[]>("/api/v1/portal/agreements");
+}
+
+export async function acceptPortalAgreement(id: string, signerName: string): Promise<PortalAgreement> {
+  return apiFetch<PortalAgreement>(`/api/v1/portal/agreements/${id}/accept`, {
+    method: "POST",
+    body: JSON.stringify({ signer_name: signerName }),
+  });
+}
+
+export async function declinePortalAgreement(id: string, reason?: string): Promise<PortalAgreement> {
+  return apiFetch<PortalAgreement>(`/api/v1/portal/agreements/${id}/decline`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason || null }),
+  });
+}
+
 export async function getPortalOverview(): Promise<PortalOverview> {
   return apiFetch<PortalOverview>("/api/v1/portal/overview");
 }
@@ -78,7 +110,7 @@ export async function reportPortalIssue(projectId: string, data: {
   await apiFetch(`/api/v1/portal/projects/${projectId}/issues`, { method: "POST", body: JSON.stringify(data) });
 }
 
-export async function openPortalPdf(path: "invoices" | "quotes", id: string, number: string): Promise<void> {
+export async function openPortalPdf(path: "invoices" | "quotes" | "agreements", id: string, number: string): Promise<void> {
   const token = getToken();
   const res = await fetch(`${API_BASE}/api/v1/portal/${path}/${id}/pdf`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,

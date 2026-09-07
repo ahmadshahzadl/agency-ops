@@ -9,7 +9,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
@@ -17,7 +17,7 @@ from app.database import get_db
 from app.models import (
     Client as ClientModel, Project as ProjectModel, Task as TaskModel,
     Milestone as MilestoneModel, Invoice as InvoiceModel, Quote as QuoteModel,
-    Notification as NotificationModel, User as UserModel,
+    Agreement as AgreementModel, Notification as NotificationModel, User as UserModel,
 )
 from app.api.deps import get_portal_user
 from app.services.activity_service import log_activity, notifications_updated_this_request
@@ -93,6 +93,7 @@ class PortalOverview(BaseModel):
     projects: list[PortalProject] = []
     open_invoices: int = 0
     pending_quotes: int = 0
+    pending_agreements: int = 0
 
 
 class IssueReport(BaseModel):
@@ -146,11 +147,15 @@ def overview(db: Session = Depends(get_db), user: UserModel = Depends(get_portal
     pending_quotes = db.query(func.count(QuoteModel.id)).filter(
         QuoteModel.client_id == user.client_id, QuoteModel.status == "sent"
     ).scalar() or 0
+    pending_agreements = db.query(func.count(AgreementModel.id)).filter(
+        AgreementModel.client_id == user.client_id, AgreementModel.status == "sent"
+    ).scalar() or 0
     return PortalOverview(
         client_name=client.name,
         projects=[_project_summary(db, p) for p in projects],
         open_invoices=open_invoices,
         pending_quotes=pending_quotes,
+        pending_agreements=pending_agreements,
     )
 
 
@@ -340,3 +345,140 @@ def accept_quote(quote_id: UUID, db: Session = Depends(get_db), user: UserModel 
 @router.post("/quotes/{quote_id}/decline", response_model=PortalQuote)
 def decline_quote(quote_id: UUID, db: Session = Depends(get_db), user: UserModel = Depends(get_portal_user)):
     return _portal_quote(_decide_quote(db, user, quote_id, accept=False))
+
+
+# ---------- service agreements ----------
+
+class PortalClause(BaseModel):
+    heading: str
+    body: str
+
+
+class PortalAgreement(BaseModel):
+    id: UUID
+    number: str
+    title: str
+    status: str
+    effective_date: Optional[str] = None
+    valid_until: Optional[str] = None
+    contract_value: Optional[Decimal] = None
+    currency: str
+    clauses: list[PortalClause] = []
+    accepted_at: Optional[datetime] = None
+    accepted_by_name: Optional[str] = None
+
+
+class AgreementAcceptIn(BaseModel):
+    signer_name: str
+
+
+class AgreementDeclineIn(BaseModel):
+    reason: Optional[str] = None
+
+
+def _portal_agreement(a: AgreementModel) -> PortalAgreement:
+    return PortalAgreement(
+        id=a.id, number=a.number, title=a.title, status=a.status,
+        effective_date=str(a.effective_date) if a.effective_date else None,
+        valid_until=str(a.valid_until) if a.valid_until else None,
+        contract_value=a.contract_value, currency=a.currency,
+        clauses=[PortalClause(**c) for c in (a.clauses or [])],
+        accepted_at=a.accepted_at, accepted_by_name=a.accepted_by_name,
+    )
+
+
+def _own_visible_agreement(db: Session, user, agreement_id: UUID) -> AgreementModel:
+    a = db.query(AgreementModel).filter(
+        AgreementModel.id == agreement_id,
+        AgreementModel.client_id == user.client_id,
+        AgreementModel.status != "draft",
+    ).first()
+    if not a:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agreement not found")
+    return a
+
+
+def _notify_agreement_creator(db: Session, a: AgreementModel, actor, outcome: str) -> None:
+    if not a.created_by:
+        return
+    msg = f'Agreement {a.number} "{a.title}" was {outcome}'
+    db.add(NotificationModel(user_id=a.created_by, title=f"Agreement update", message=msg, link="/agreements", type="agreement", reference_id=None))
+    notifications_updated_this_request.set(True)
+    creator = db.query(UserModel).filter(UserModel.id == a.created_by).first()
+    if creator:
+        email_service.send_notification(creator.email, "Agreement update", msg, "/agreements")
+
+
+@router.get("/agreements", response_model=list[PortalAgreement])
+def agreements(db: Session = Depends(get_db), user: UserModel = Depends(get_portal_user)):
+    from app.api.v1.agreements import _apply_expiry as _agr_expiry
+    rows = db.query(AgreementModel).filter(
+        AgreementModel.client_id == user.client_id, AgreementModel.status != "draft"
+    ).order_by(AgreementModel.created_at.desc()).all()
+    _agr_expiry(db, rows)
+    return [_portal_agreement(a) for a in rows]
+
+
+@router.get("/agreements/{agreement_id}/pdf")
+def agreement_pdf(agreement_id: UUID, db: Session = Depends(get_db), user: UserModel = Depends(get_portal_user)):
+    from fastapi.responses import Response
+    from app.services.pdf_service import build_agreement_pdf
+    a = _own_visible_agreement(db, user, agreement_id)
+    return Response(
+        content=build_agreement_pdf(a),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{a.number}.pdf"'},
+    )
+
+
+@router.post("/agreements/{agreement_id}/accept", response_model=PortalAgreement)
+def accept_agreement(
+    agreement_id: UUID,
+    data: AgreementAcceptIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_portal_user),
+):
+    """Clickwrap acceptance: an affirmative action with a preserved record of
+    who accepted, when, and from where — the legally meaningful artifact."""
+    from app.api.v1.agreements import _apply_expiry as _agr_expiry
+    a = _own_visible_agreement(db, user, agreement_id)
+    _agr_expiry(db, [a])
+    if a.status != "sent":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A {a.status} agreement cannot be accepted")
+    signer = data.signer_name.strip()
+    if not signer:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please type your full name to sign")
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+    a.status = "signed"
+    a.accepted_at = datetime.utcnow()
+    a.accepted_by_name = signer
+    a.accepted_ip = (ip or "")[:64] or None
+    a.acceptance_method = "portal"
+    _notify_agreement_creator(db, a, user, f"signed by {signer} via the client portal")
+    log_activity(db, user.id, "agreement_signed", "agreement", a.id, details=f"Agreement {a.number} signed by {signer} via client portal")
+    db.commit()
+    db.refresh(a)
+    return _portal_agreement(a)
+
+
+@router.post("/agreements/{agreement_id}/decline", response_model=PortalAgreement)
+def decline_agreement(
+    agreement_id: UUID,
+    data: AgreementDeclineIn,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_portal_user),
+):
+    from app.api.v1.agreements import _apply_expiry as _agr_expiry
+    a = _own_visible_agreement(db, user, agreement_id)
+    _agr_expiry(db, [a])
+    if a.status != "sent":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A {a.status} agreement cannot be declined")
+    a.status = "declined"
+    a.decline_reason = (data.reason or "").strip() or None
+    _notify_agreement_creator(db, a, user, "declined by the client" + (f": {a.decline_reason}" if a.decline_reason else ""))
+    log_activity(db, user.id, "agreement_declined", "agreement", a.id, details=f"Agreement {a.number} declined via client portal")
+    db.commit()
+    db.refresh(a)
+    return _portal_agreement(a)

@@ -5,7 +5,8 @@ import { APP_NAME, getBrandMarkUrl } from "@/config";
 import {
   getPortalOverview, getPortalProject, listPortalInvoices, listPortalQuotes,
   acceptPortalQuote, declinePortalQuote, reportPortalIssue, openPortalPdf,
-  type PortalOverview, type PortalProjectDetail, type PortalInvoice, type PortalQuote,
+  listPortalAgreements, acceptPortalAgreement, declinePortalAgreement,
+  type PortalOverview, type PortalProjectDetail, type PortalInvoice, type PortalQuote, type PortalAgreement,
 } from "@/api/portal";
 
 const TASK_LABELS: Record<string, string> = { todo: "Planned", in_progress: "In progress", review: "In review", done: "Completed" };
@@ -20,6 +21,13 @@ const QUOTE_BADGE: Record<string, string> = {
   rejected: "bg-red-100 text-red-600",
   expired: "bg-amber-100 text-amber-700",
 };
+const AGREEMENT_BADGE: Record<string, string> = {
+  sent: "bg-blue-100 text-blue-700",
+  signed: "bg-green-100 text-green-700",
+  declined: "bg-red-100 text-red-600",
+  expired: "bg-amber-100 text-amber-700",
+  terminated: "bg-red-50 text-red-500",
+};
 
 export default function Portal() {
   const { user, logout } = useAuth();
@@ -27,6 +35,10 @@ export default function Portal() {
   const [overview, setOverview] = useState<PortalOverview | null>(null);
   const [invoices, setInvoices] = useState<PortalInvoice[]>([]);
   const [quotes, setQuotes] = useState<PortalQuote[]>([]);
+  const [agreements, setAgreements] = useState<PortalAgreement[]>([]);
+  const [signing, setSigning] = useState<PortalAgreement | null>(null);
+  const [signerName, setSignerName] = useState("");
+  const [agreeChecked, setAgreeChecked] = useState(false);
   const [detail, setDetail] = useState<PortalProjectDetail | null>(null);
   const [issueFor, setIssueFor] = useState<string | null>(null);
   const [issue, setIssue] = useState({ title: "", description: "", steps_to_reproduce: "", severity: "medium" });
@@ -36,6 +48,7 @@ export default function Portal() {
     getPortalOverview().then(setOverview).catch(() => {});
     listPortalInvoices().then(setInvoices).catch(() => {});
     listPortalQuotes().then(setQuotes).catch(() => {});
+    listPortalAgreements().then(setAgreements).catch(() => {});
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -133,6 +146,52 @@ export default function Portal() {
           </section>
         )}
 
+        {/* Service agreements */}
+        {agreements.length > 0 && (
+          <section>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Agreements</h2>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 divide-y divide-gray-50">
+              {agreements.map((a) => (
+                <div key={a.id} className="px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-gray-800">{a.title}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${AGREEMENT_BADGE[a.status] ?? "bg-gray-100 text-gray-600"}`}>{a.status}</span>
+                    {a.contract_value != null && (
+                      <span className="ml-auto font-semibold text-gray-800">{Number(a.contract_value).toLocaleString()} {a.currency}</span>
+                    )}
+                  </div>
+                  {a.status === "sent" && a.valid_until && <p className="text-xs text-gray-400 mt-0.5">Please sign by {a.valid_until}</p>}
+                  {a.status === "signed" && a.accepted_by_name && (
+                    <p className="text-xs text-gray-400 mt-0.5">Signed by {a.accepted_by_name}{a.accepted_at ? ` on ${a.accepted_at.slice(0, 10)}` : ""}</p>
+                  )}
+                  <div className="mt-2 flex gap-3">
+                    <button onClick={() => openPortalPdf("agreements", a.id, a.number).catch(() => flash("Could not load PDF"))} className="text-xs font-medium text-gray-500 hover:text-[#01184e] underline-offset-2 hover:underline">View PDF</button>
+                    {a.status === "sent" && (
+                      <>
+                        <button
+                          onClick={() => { setSigning(a); setSignerName(user?.full_name || ""); setAgreeChecked(false); }}
+                          className="text-xs font-semibold text-white bg-[#01184e] hover:bg-[#032a75] rounded-lg px-3 py-1"
+                        >
+                          Review & sign
+                        </button>
+                        <button
+                          onClick={() => {
+                            const reason = window.prompt("Optional: tell us why you're declining");
+                            declinePortalAgreement(a.id, reason || undefined).then(() => { refresh(); flash("Agreement declined — we'll be in touch."); }).catch((e) => flash(e.message));
+                          }}
+                          className="text-xs font-medium text-red-500 hover:underline"
+                        >
+                          Decline
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Invoices */}
         {invoices.length > 0 && (
           <section>
@@ -164,6 +223,54 @@ export default function Portal() {
           </section>
         )}
       </div>
+
+      {/* Review & sign agreement (clickwrap: full terms + affirmative action) */}
+      {signing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSigning(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900">{signing.title}</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{signing.number}{signing.effective_date ? ` · effective ${signing.effective_date}` : ""}{signing.contract_value != null ? ` · ${Number(signing.contract_value).toLocaleString()} ${signing.currency}` : ""}</p>
+
+            <div className="mt-4 max-h-[45vh] overflow-y-auto rounded-xl border border-gray-200 p-4 space-y-4 bg-gray-50/60">
+              {signing.clauses.map((c, i) => (
+                <div key={i}>
+                  <p className="text-sm font-semibold text-[#01184e]">{i + 1}. {c.heading}</p>
+                  <p className="text-sm text-gray-600 whitespace-pre-line mt-1">{c.body}</p>
+                </div>
+              ))}
+            </div>
+
+            <label className="mt-4 flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" className="mt-0.5" checked={agreeChecked} onChange={(e) => setAgreeChecked(e.target.checked)} />
+              <span>I have read and agree to the terms of this agreement, and I am authorized to sign it on behalf of my organization.</span>
+            </label>
+            <input
+              className={`${inputClass} mt-3`}
+              placeholder="Type your full name to sign *"
+              value={signerName}
+              onChange={(e) => setSignerName(e.target.value)}
+            />
+            <p className="mt-2 text-[11px] text-gray-400">Your name, the date and time, and your network address are recorded as your electronic signature.</p>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setSigning(null)} className="px-4 py-2 text-gray-500 hover:text-gray-800 text-sm font-medium">Cancel</button>
+              <button
+                disabled={!agreeChecked || !signerName.trim()}
+                onClick={() =>
+                  acceptPortalAgreement(signing.id, signerName.trim()).then(() => {
+                    setSigning(null);
+                    refresh();
+                    flash("Agreement signed — thank you! A copy is available in your portal anytime.");
+                  }).catch((e) => flash(e.message))
+                }
+                className="px-5 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
+              >
+                Sign agreement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Project detail */}
       {detail && (

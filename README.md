@@ -18,13 +18,14 @@
 - **Time tracking** — per-project/task hours with billable flags, manager timesheets, rate handling
 
 **Sales & money**
+- **Service agreements** — contracts from a built-in minimal clause template (scope, IP, confidentiality, liability, termination...), prefilled from a quote's items and a project's milestones, fully editable per agreement; branded PDF, email delivery, and legally-recorded click-to-sign in the client portal (signer name + timestamp + IP). Signed agreements become immutable records; terminate with a reason, renew by duplication
 - **Quotes/proposals** — line-item quotes against leads or clients with a full lifecycle (draft → sent → accepted/rejected, auto-expiry), PDF + email delivery, one-click conversion to project (budget carried over) and fixed-price invoice
 - **Invoices** — line items or generated from unbilled hours / accepted quotes; branded PDFs with your logo, bank/payment details, and optional currency-equivalent display (e.g. USD total with PKR conversion); emailed to clients with the PDF attached
 - **Payment reconciliation** — payments auto-settle invoices (partial → balance tracking, full → paid), overpayment guards, paid invoices become immutable, automatic overdue detection
 - **CRM & leads** — pipeline tracking, new-lead visibility for the sales role, conversion flow
 
 **Clients**
-- **Client portal** — real client logins locked to a dedicated API namespace: project progress with milestone timelines, invoices with PDFs, proposals with one-click accept/decline, and issue reporting that lands as bug tasks in your QA intake. Zero access to anything internal — enforced by construction and tests
+- **Client portal** — real client logins locked to a dedicated API namespace: project progress with milestone timelines, invoices with PDFs, proposals with one-click accept/decline, service agreements with clickwrap e-signing, and issue reporting that lands as bug tasks in your QA intake. Zero access to anything internal — enforced by construction and tests
 - **Share links** — no-account alternative: revocable tokenized progress pages, sanitized (no assignees, notes, or internal QA states)
 
 **Platform**
@@ -32,7 +33,7 @@
 - **Email** — SMTP-based password resets (single-use hashed tokens, session revocation), task/QA/quote/announcement notification emails, document delivery
 - **Hardened auth** — revocable JWTs (logout-everywhere, password change kills stolen sessions), login rate limiting, no-enumeration password reset, login audit trail, fail-hard startup on insecure config
 - **Real-time** — WebSocket-powered messaging and live board/task updates
-- **REST API** — versioned `/api/v1` with interactive docs at `/docs`; 149-test backend suite
+- **REST API** — versioned `/api/v1` with interactive docs at `/docs`; 157-test backend suite
 - **Desktop app** — Electron shell for Windows, macOS, Linux
 
 ### Tech stack
@@ -126,7 +127,7 @@ Seeded by `scripts/seed_db.py` (customizable in the Roles UI):
 | Role       | Access |
 | ---------- | ------ |
 | `admin`    | Everything, including finance, expenses, and user/team/role management |
-| `manager`  | Team-scoped clients, projects, tasks, meetings, leads, quotes, and timesheets; **no finance or expenses**; creates boards, milestones, and client share links for their projects |
+| `manager`  | Team-scoped clients, projects, tasks, meetings, leads, quotes, agreements, and timesheets; **no finance or expenses**; creates boards, milestones, and client share links for their projects |
 | `employee` | Own tasks, assigned projects/boards, own timesheet, meetings (read), notes, attachments |
 | `qa`       | Employee access **plus** `tasks:qa_approve` — the only non-admin role that can approve a review to done or fail it back with notes; their dashboard surfaces the review queue |
 | `client`   | Portal-only external users (set the user's client link): project progress, invoices, proposals, issue reporting — zero internal access |
@@ -148,7 +149,7 @@ Security notes for internet-facing deployments: run a **single backend worker** 
 
 ## Project structure
 
-- **backend/** — FastAPI app, SQLAlchemy models, 23 Alembic migrations, RBAC, JWT, PDF generation, email service
+- **backend/** — FastAPI app, SQLAlchemy models, 25 Alembic migrations, RBAC, JWT, PDF generation, email service
 - **frontend/** — React + Vite + TypeScript + Tailwind: internal app, client portal, public status pages
 - **docs/** — architecture, database schema, deployment runbooks
 
@@ -159,7 +160,7 @@ Security notes for internet-facing deployments: run a **single backend worker** 
 
 ## API base path
 
-All API routes are under `/api/v1`: auth (incl. password reset), users, roles, teams, clients, leads, quotes, projects, milestones, tasks, boards, meetings, finance (invoices with line items, payments, expenses), time entries, attachments, analytics, announcements, notifications, notes, messages, team activity, share links, and the client-scoped `/portal/*` namespace — plus the unauthenticated `GET /api/v1/public/status/{token}` for share-link progress pages. Interactive docs at `/docs`.
+All API routes are under `/api/v1`: auth (incl. password reset), users, roles, teams, clients, leads, quotes, agreements, projects, milestones, tasks, boards, meetings, finance (invoices with line items, payments, expenses), time entries, attachments, analytics, announcements, notifications, notes, messages, team activity, share links, and the client-scoped `/portal/*` namespace — plus the unauthenticated `GET /api/v1/public/status/{token}` for share-link progress pages. Interactive docs at `/docs`.
 
 ## Contributing
 

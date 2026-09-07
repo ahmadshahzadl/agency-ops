@@ -206,6 +206,74 @@ def build_invoice_pdf(invoice, client, project, time_entries, quote, paid_total:
     return bytes(pdf.output())
 
 
+def build_agreement_pdf(agreement) -> bytes:
+    pdf = _BrandedPDF("SERVICE AGREEMENT")
+    pdf.add_page()
+    pdf.meta_row("Agreement", agreement.number)
+    pdf.meta_row("Client", agreement.client.name if agreement.client else "-")
+    pdf.meta_row("Title", agreement.title)
+    if agreement.effective_date:
+        pdf.meta_row("Effective date", str(agreement.effective_date))
+    if agreement.contract_value:
+        pdf.meta_row("Contract value", f"{agreement.contract_value} {agreement.currency}")
+    if agreement.valid_until and agreement.status in ("draft", "sent", "expired"):
+        pdf.meta_row("Sign by", str(agreement.valid_until))
+
+    for idx, clause in enumerate(agreement.clauses or [], start=1):
+        pdf.ln(4)
+        pdf.set_font("helvetica", "B", 10)
+        pdf.set_text_color(*NAVY)
+        pdf.cell(0, 6, _txt(f"{idx}. {clause.get('heading', '')}"), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("helvetica", "", 9)
+        pdf.set_text_color(60, 64, 72)
+        pdf.multi_cell(0, 4.8, _txt(clause.get("body", "")))
+    pdf.set_text_color(0, 0, 0)
+
+    pdf.ln(8)
+    if agreement.status in ("signed", "terminated") and agreement.accepted_at:
+        # Acceptance record box (the clickwrap/e-sign evidence)
+        box_top = pdf.get_y()
+        if box_top > 250:
+            pdf.add_page()
+            box_top = pdf.get_y()
+        pdf.set_fill_color(*LIGHT)
+        pdf.rect(12, box_top, 186, 24, "F")
+        pdf.set_xy(16, box_top + 3)
+        pdf.set_font("helvetica", "B", 8)
+        pdf.set_text_color(*NAVY)
+        pdf.cell(170, 5, "ACCEPTANCE RECORD")
+        pdf.set_xy(16, box_top + 9)
+        pdf.set_font("helvetica", "", 9)
+        pdf.set_text_color(0, 0, 0)
+        via = "electronically via the client portal" if agreement.acceptance_method == "portal" else "by signature"
+        line = f"Accepted by {agreement.accepted_by_name or '-'} on {agreement.accepted_at:%Y-%m-%d %H:%M} UTC {via}"
+        if agreement.accepted_ip:
+            line += f" (IP {agreement.accepted_ip})"
+        pdf.multi_cell(178, 5, _txt(line))
+        if agreement.status == "terminated" and agreement.terminated_at:
+            pdf.set_xy(16, pdf.get_y() + 1)
+            pdf.set_text_color(200, 40, 40)
+            pdf.multi_cell(178, 5, _txt(f"Terminated on {agreement.terminated_at:%Y-%m-%d}: {agreement.termination_reason or ''}"))
+            pdf.set_text_color(0, 0, 0)
+        pdf.set_y(box_top + 28)
+    else:
+        # Signature lines for a wet signature
+        y = pdf.get_y()
+        if y > 250:
+            pdf.add_page()
+            y = pdf.get_y() + 6
+        company = settings.app_name.replace(" API", "")
+        for x, party in ((12, company), (110, agreement.client.name if agreement.client else "Client")):
+            pdf.line(x, y + 14, x + 80, y + 14)
+            pdf.set_xy(x, y + 15)
+            pdf.set_font("helvetica", "", 8)
+            pdf.set_text_color(*GRAY)
+            pdf.cell(80, 5, _txt(f"For {party} - name, signature, date"))
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_y(y + 24)
+    return bytes(pdf.output())
+
+
 def build_quote_pdf(quote) -> bytes:
     pdf = _BrandedPDF("PROPOSAL")
     pdf.add_page()

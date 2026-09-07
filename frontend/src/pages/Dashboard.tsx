@@ -267,6 +267,14 @@ export default function Dashboard() {
       highlight: true,
     });
   }
+  if (data.agreements_awaiting_signature != null && data.agreements_awaiting_signature > 0) {
+    metricCards.push({
+      label: "Agreements awaiting signature",
+      value: data.agreements_awaiting_signature,
+      to: "/agreements",
+      highlight: true,
+    });
+  }
   if (data.quote_win_rate != null) {
     metricCards.push({
       label: "Quote win rate",

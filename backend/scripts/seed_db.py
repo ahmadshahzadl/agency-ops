@@ -31,6 +31,7 @@ PERMISSIONS = [
     "attachments:read", "attachments:write",
     "time:read", "time:write",
     "quotes:read", "quotes:write",
+    "agreements:read", "agreements:write",
 ]
 
 # Three primary roles per docs/roles-permissions-flow.md: Admin, Manager, Employee
@@ -41,6 +42,7 @@ ROLE_PERMISSIONS = {
         "dashboard:read",
         "leads:read", "leads:write",
         "quotes:read", "quotes:write",
+        "agreements:read", "agreements:write",
         "clients:read", "clients:write",
         "projects:read", "projects:write",
         "tasks:read", "tasks:write",

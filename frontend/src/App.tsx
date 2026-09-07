@@ -11,6 +11,7 @@ import Tasks from "@/pages/Tasks";
 import Boards from "@/pages/Boards";
 import Timesheet from "@/pages/Timesheet";
 import Quotes from "@/pages/Quotes";
+import Agreements from "@/pages/Agreements";
 import Meetings from "@/pages/Meetings";
 import Invoices from "@/pages/Invoices";
 import Expenses from "@/pages/Expenses";
@@ -90,6 +91,7 @@ function AppRoutes() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="leads" element={<Leads />} />
         <Route path="quotes" element={<Quotes />} />
+        <Route path="agreements" element={<Agreements />} />
         <Route path="clients" element={<Clients />} />
         <Route path="projects" element={<Projects />} />
         <Route path="tasks" element={<Tasks />} />

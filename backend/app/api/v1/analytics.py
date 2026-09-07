@@ -55,6 +55,20 @@ def _quote_metrics(db: Session, permissions: set, manager_scope, user):
     return pipeline, win_rate, open_count
 
 
+def _agreement_metrics(db: Session, permissions: set, manager_scope, user):
+    """Count of sent (awaiting-signature) agreements, scoped like the agreements list; None-gated."""
+    if "admin:all" not in permissions and "agreements:read" not in permissions:
+        return None
+    from app.models import Agreement
+    q = db.query(func.count(Agreement.id)).filter(Agreement.status == "sent")
+    if "admin:all" not in permissions:
+        if manager_scope is not None:
+            q = q.filter(Agreement.created_by.in_(manager_scope))
+        else:
+            q = q.filter(Agreement.created_by == user.id)
+    return q.scalar() or 0
+
+
 def _hours_metrics(db: Session, permissions: set, manager_scope, user, month_start, month_end):
     """(hours_this_month, billable_hours_this_month, unbilled_value) scoped like the timesheet.
     unbilled_value is finance-gated (None without finance:read)."""
@@ -197,6 +211,7 @@ def overview(
         expenses_this_month = None
         expenses_by_currency = None
     quote_pipeline, quote_win_rate, quotes_open = _quote_metrics(db, permissions, manager_scope, user)
+    agreements_awaiting = _agreement_metrics(db, permissions, manager_scope, user)
     hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
     qa_review_queue, qa_failed_awaiting, client_reported_open = _role_focus_metrics(db, user, permissions, manager_scope)
     return AnalyticsOverview(
@@ -222,6 +237,7 @@ def overview(
         quote_pipeline_value=quote_pipeline,
         quote_win_rate=quote_win_rate,
         quotes_open=quotes_open,
+        agreements_awaiting_signature=agreements_awaiting,
     )
 
 
@@ -433,6 +449,7 @@ def dashboard(
         expenses_this_month = None
         expenses_by_currency = None
     quote_pipeline, quote_win_rate, quotes_open = _quote_metrics(db, permissions, manager_scope, user)
+    agreements_awaiting = _agreement_metrics(db, permissions, manager_scope, user)
     hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
     qa_review_queue, qa_failed_awaiting, client_reported_open = _role_focus_metrics(db, user, permissions, manager_scope)
     return DashboardResponse(
@@ -458,6 +475,7 @@ def dashboard(
         quote_pipeline_value=quote_pipeline,
         quote_win_rate=quote_win_rate,
         quotes_open=quotes_open,
+        agreements_awaiting_signature=agreements_awaiting,
         leads_today=leads_today,
         leads_this_week=leads_this_week,
         leads_this_month=leads_this_month,
