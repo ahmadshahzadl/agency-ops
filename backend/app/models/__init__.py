@@ -19,9 +19,11 @@ from app.models.time_entry import TimeEntry
 from app.models.quote import Quote, QuoteItem
 from app.models.milestone import Milestone
 from app.models.agreement import Agreement
+from app.models.letter import Letter
 
 __all__ = [
     "Agreement",
+    "Letter",
     "Milestone",
     "PasswordResetToken",
     "TimeEntry",
