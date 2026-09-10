@@ -7,6 +7,7 @@ import Dashboard from "@/pages/Dashboard";
 import Leads from "@/pages/Leads";
 import Clients from "@/pages/Clients";
 import Projects from "@/pages/Projects";
+import ProjectDetail from "@/pages/ProjectDetail";
 import Tasks from "@/pages/Tasks";
 import Boards from "@/pages/Boards";
 import Timesheet from "@/pages/Timesheet";
@@ -96,6 +97,7 @@ function AppRoutes() {
         <Route path="letters" element={<Letters />} />
         <Route path="clients" element={<Clients />} />
         <Route path="projects" element={<Projects />} />
+        <Route path="projects/:projectId" element={<ProjectDetail />} />
         <Route path="tasks" element={<Tasks />} />
         <Route path="boards" element={<Boards />} />
         <Route path="timesheet" element={<Timesheet />} />

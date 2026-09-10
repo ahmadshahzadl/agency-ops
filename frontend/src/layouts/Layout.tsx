@@ -207,7 +207,9 @@ export default function Layout() {
   const [notificationItems, setNotificationItems] = useState<Notification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
 
-  const headerTitle = PATH_TO_HEADER_TITLE[location.pathname] ?? (location.pathname === "/" ? "Dashboard" : location.pathname.slice(1).replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
+  const headerTitle = PATH_TO_HEADER_TITLE[location.pathname]
+    ?? (location.pathname.startsWith("/projects/") ? "Project details" : undefined)
+    ?? (location.pathname === "/" ? "Dashboard" : location.pathname.slice(1).replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
 
   const refreshUnreadCount = () => {
     getUnreadCount()

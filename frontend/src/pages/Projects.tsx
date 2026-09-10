@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { listProjects, createProject, updateProject, deleteProject, type Project } from "@/api/projects";
 import { listClients, type Client } from "@/api/clients";
 import { listTeams, listMyTeams } from "@/api/teams";
@@ -66,6 +67,19 @@ export default function Projects() {
   useEffect(() => {
     load();
   }, [isAdmin, clientFilter, statusFilter]);
+
+  // Deep link from the project detail page: /projects?edit=<id> opens the editor
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId || items.length === 0) return;
+    const p = items.find((x) => x.id === editId);
+    if (p) {
+      openEdit(p);
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, items]);
 
   const openNew = () => {
     setForm({
@@ -314,7 +328,9 @@ export default function Projects() {
                       />
                     </td>
                   )}
-                  <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
+                  <td className="px-4 py-3">
+                    <Link to={`/projects/${p.id}`} className="font-medium text-gray-900 hover:text-primary">{p.name}</Link>
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{p.client_name ?? clientMap[p.client_id] ?? p.client_id}</td>
                   <td className="px-4 py-3 text-gray-600">{p.status}</td>
                   <td className="px-4 py-3 text-gray-600">{p.pipeline_stage || "—"}</td>
