@@ -20,10 +20,12 @@ from app.models.quote import Quote, QuoteItem
 from app.models.milestone import Milestone
 from app.models.agreement import Agreement
 from app.models.letter import Letter
+from app.models.credential import ProjectCredential
 
 __all__ = [
     "Agreement",
     "Letter",
+    "ProjectCredential",
     "Milestone",
     "PasswordResetToken",
     "TimeEntry",

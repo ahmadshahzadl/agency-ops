@@ -33,6 +33,7 @@ PERMISSIONS = [
     "quotes:read", "quotes:write",
     "agreements:read", "agreements:write",
     "letters:read", "letters:write",
+    "credentials:read", "credentials:write",  # vault: seeded to admin only - grant to others deliberately
 ]
 
 # Three primary roles per docs/roles-permissions-flow.md: Admin, Manager, Employee

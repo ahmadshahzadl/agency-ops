@@ -30,11 +30,12 @@
 - **Share links** — no-account alternative: revocable tokenized progress pages, sanitized (no assignees, notes, or internal QA states)
 
 **Platform**
+- **Credentials vault** — per-project secrets (hosting, API keys, client logins) encrypted at rest (Fernet); secrets never appear in API responses, reveal is an explicit audited action, gated by dedicated permissions seeded to admin only
 - **RBAC** — seeded Admin / Manager / Employee / QA / Client roles over a permission table, with object-level and row-level scoping on every module; role-focused dashboards (QA sees their review queue, sales sees their pipeline, finance figures admin-gated)
 - **Email** — SMTP-based password resets (single-use hashed tokens, session revocation), task/QA/quote/announcement notification emails, document delivery
 - **Hardened auth** — revocable JWTs (logout-everywhere, password change kills stolen sessions), login rate limiting, no-enumeration password reset, login audit trail, fail-hard startup on insecure config
 - **Real-time** — WebSocket-powered messaging and live board/task updates
-- **REST API** — versioned `/api/v1` with interactive docs at `/docs`; 162-test backend suite
+- **REST API** — versioned `/api/v1` with interactive docs at `/docs`; 168-test backend suite
 - **Desktop app** — Electron shell for Windows, macOS, Linux
 
 ### Tech stack
@@ -150,13 +151,13 @@ Security notes for internet-facing deployments: run a **single backend worker** 
 
 ## Project structure
 
-- **backend/** — FastAPI app, SQLAlchemy models, 26 Alembic migrations, RBAC, JWT, PDF generation, email service
+- **backend/** — FastAPI app, SQLAlchemy models, 27 Alembic migrations, RBAC, JWT, PDF generation, email service
 - **frontend/** — React + Vite + TypeScript + Tailwind: internal app, client portal, public status pages
 - **docs/** — architecture, database schema, deployment runbooks
 
 ## Environment
 
-- **Backend** (`backend/.env`, see `backend/.env.example`): `DATABASE_URL`, `JWT_SECRET` (required in production), `CORS_ORIGINS` (explicit origins), `FRONTEND_URL` (links in emails), `UPLOAD_DIR` (attachment storage), `SMTP_*` (email — password resets and notifications are inert without it), `COMPANY_DETAILS` (PDF footer), `ADMIN_EMAIL`/`ADMIN_PASSWORD` (seed only), `SUPER_ADMIN_EMAIL` (optional, off by default)
+- **Backend** (`backend/.env`, see `backend/.env.example`): `DATABASE_URL`, `JWT_SECRET` (required in production), `CORS_ORIGINS` (explicit origins), `FRONTEND_URL` (links in emails), `UPLOAD_DIR` (attachment storage), `SMTP_*` (email — password resets and notifications are inert without it), `VAULT_KEY` (credentials-vault encryption key — set once, never rotate after secrets exist), `COMPANY_DETAILS` (PDF footer), `ADMIN_EMAIL`/`ADMIN_PASSWORD` (seed only), `SUPER_ADMIN_EMAIL` (optional, off by default)
 - **Frontend** (`frontend/.env`): `VITE_API_URL` (API base URL, **baked in at build time**), optional `VITE_APP_NAME` / `VITE_APP_LOGO` branding overrides
 
 ## API base path

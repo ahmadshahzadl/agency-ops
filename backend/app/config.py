@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/office_software"
     jwt_secret: str = _DEFAULT_JWT_SECRET
+    vault_key: str = ""  # Fernet key for the credentials vault; derived from jwt_secret when empty
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
