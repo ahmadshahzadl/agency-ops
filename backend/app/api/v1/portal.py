@@ -18,9 +18,10 @@ from app.models import (
     Client as ClientModel, Project as ProjectModel, Task as TaskModel,
     Milestone as MilestoneModel, Invoice as InvoiceModel, Quote as QuoteModel,
     Agreement as AgreementModel, Notification as NotificationModel, User as UserModel,
+    Board as BoardModel, BoardMember as BoardMemberModel,
 )
 from app.api.deps import get_portal_user
-from app.services.activity_service import log_activity, notifications_updated_this_request
+from app.services.activity_service import log_activity, notifications_updated_this_request, tasks_updated_this_request
 from app.services import email_service
 
 router = APIRouter(prefix="/portal", tags=["portal"])
@@ -203,8 +204,24 @@ def report_issue(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid severity")
     if not data.title.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Title is required")
+    # Land the report on the project's board so it shows up in the To do
+    # column immediately; a project with no board yet gets one created.
+    board = db.query(BoardModel).filter(BoardModel.project_id == p.id).order_by(
+        BoardModel.position, BoardModel.created_at
+    ).first()
+    if not board:
+        board = BoardModel(project_id=p.id, name=f"{p.name} board", created_by=p.owner_id)
+        db.add(board)
+        db.flush()
+        if p.owner_id:
+            db.add(BoardMemberModel(board_id=board.id, user_id=p.owner_id))
+    max_order = db.query(func.coalesce(func.max(TaskModel.order_index), -1)).filter(
+        TaskModel.board_id == board.id, TaskModel.status == "todo"
+    ).scalar()
     task = TaskModel(
         project_id=p.id,
+        board_id=board.id,
+        order_index=(max_order if max_order is not None else -1) + 1,
         title=data.title.strip()[:255],
         description=(data.description or "").strip() or None,
         status="todo",
@@ -216,6 +233,7 @@ def report_issue(
     )
     db.add(task)
     db.flush()
+    tasks_updated_this_request.set(True)
     if p.owner_id:
         db.add(NotificationModel(
             user_id=p.owner_id,

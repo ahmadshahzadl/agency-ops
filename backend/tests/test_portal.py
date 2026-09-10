@@ -142,3 +142,31 @@ def test_portal_issue_report_creates_bug(client, auth_headers):
     assert bug["item_type"] == "bug"
     assert bug["severity"] == "high"
     assert bug["status"] == "todo"
+
+
+def test_client_issue_lands_on_board_autocreated(client, auth_headers):
+    cid = _make_client_record(client, auth_headers)
+    proj = _make_project(client, auth_headers, cid, "Boardless Project")
+    headers = _make_portal_user(client, auth_headers, cid)
+
+    # No board exists yet - reporting an issue creates one and lands the bug in To do
+    r = client.post(f"/api/v1/portal/projects/{proj['id']}/issues", headers=headers,
+                    json={"title": "Login broken", "severity": "high"})
+    assert r.status_code == 201, r.text
+    boards = client.get(f"/api/v1/boards?project_id={proj['id']}", headers=auth_headers).json()
+    assert len(boards) == 1
+    assert boards[0]["name"] == "Boardless Project board"
+    tasks = client.get(f"/api/v1/boards/{boards[0]['id']}/tasks", headers=auth_headers).json()
+    reported = [t for t in tasks if t["title"] == "Login broken"]
+    assert len(reported) == 1
+    assert reported[0]["status"] == "todo"
+    assert reported[0]["item_type"] == "bug"
+
+    # A second report reuses the same board instead of creating another
+    client.post(f"/api/v1/portal/projects/{proj['id']}/issues", headers=headers,
+                json={"title": "Checkout broken", "severity": "critical"})
+    boards = client.get(f"/api/v1/boards?project_id={proj['id']}", headers=auth_headers).json()
+    assert len(boards) == 1
+    tasks = client.get(f"/api/v1/boards/{boards[0]['id']}/tasks", headers=auth_headers).json()
+    titles = [t["title"] for t in tasks]
+    assert "Login broken" in titles and "Checkout broken" in titles
