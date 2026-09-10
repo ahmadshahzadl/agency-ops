@@ -303,8 +303,8 @@ export default function TeamActivity() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-            <table className="w-full">
+          <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
                 <tr>
                   <th className="px-4 py-3">Time</th>

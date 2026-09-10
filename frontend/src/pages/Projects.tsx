@@ -288,8 +288,8 @@ export default function Projects() {
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
-        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full">
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
                 {canBulk && (
@@ -407,11 +407,11 @@ export default function Projects() {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} className={inputClass} />
                 <input type="date" value={form.end_date} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))} className={inputClass} />
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="number"
                   min="0"

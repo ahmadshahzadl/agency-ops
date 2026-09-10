@@ -137,7 +137,7 @@ export function CredentialsSection({ projectId }: { projectId?: string }) {
 
       {adding && (
         <div className="mt-2 rounded-lg border border-gray-200 dark:border-gray-600 p-2 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input autoFocus className={inputClass} placeholder="Label * (e.g. cPanel — client hosting)" value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} />
             <input className={inputClass} placeholder="URL (optional)" value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} />
             <input className={inputClass} placeholder="Username (optional)" autoComplete="off" value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} />

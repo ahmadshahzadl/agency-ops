@@ -227,7 +227,7 @@ export default function Messages() {
   return (
     <div className="h-[calc(100vh-7rem)] flex rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 shadow-sm overflow-hidden">
       {/* Conversation list */}
-      <div className="w-80 md:w-96 shrink-0 flex flex-col bg-gray-50 dark:bg-slate-800/50 border-r border-gray-200 dark:border-slate-700">
+      <div className={`${selectedUserId ? "hidden sm:flex" : "flex"} w-full sm:w-80 md:w-96 shrink-0 flex-col bg-gray-50 dark:bg-slate-800/50 sm:border-r border-gray-200 dark:border-slate-700`}>
         <div className="p-4 border-b border-gray-200 dark:border-slate-700 shrink-0">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight">Messages</h2>
@@ -363,12 +363,22 @@ export default function Messages() {
       </div>
 
       {/* Thread */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900/30">
+      <div className={`${selectedUserId ? "flex" : "hidden sm:flex"} flex-1 flex-col min-w-0 bg-white dark:bg-slate-900/30`}>
         {!selectedUserId ? (
           emptyState
         ) : (
           <>
-            <div className="shrink-0 flex items-center gap-3 p-4 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/40">
+            <div className="shrink-0 flex items-center gap-3 p-3 sm:p-4 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/40">
+              <button
+                type="button"
+                onClick={() => setSelectedUserId(null)}
+                className="sm:hidden p-1.5 -ml-1 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700"
+                aria-label="Back to conversations"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
               <Avatar name={threadTitle} className="w-10 h-10" />
               <div className="min-w-0 flex-1">
                 <h3 className="font-semibold text-gray-900 dark:text-white truncate">{threadTitle}</h3>

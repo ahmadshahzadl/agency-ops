@@ -182,7 +182,7 @@ export default function Quotes() {
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
               {modal === "new" ? "New quote" : `Edit ${modal.number}`}
             </h2>
@@ -191,7 +191,7 @@ export default function Quotes() {
             ) : null}
             <div className="space-y-3">
               <input className={inputClass} placeholder="Title (becomes the project name on conversion)" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <select className={inputClass} value={form.target} onChange={(e) => setForm((f) => ({ ...f, target: e.target.value }))}>
                   <option value="">For: select client or lead…</option>
                   <optgroup label="Clients">
@@ -201,7 +201,7 @@ export default function Quotes() {
                     {leads.map((l) => <option key={l.id} value={`l:${l.id}`}>{l.company_name}</option>)}
                   </optgroup>
                 </select>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Valid until</label>
                     <input type="date" className={inputClass} value={form.valid_until} onChange={(e) => setForm((f) => ({ ...f, valid_until: e.target.value }))} />
@@ -216,12 +216,12 @@ export default function Quotes() {
               </div>
 
               {/* Line items */}
-              <div className="rounded-xl border border-gray-200 dark:border-gray-600 p-3 space-y-2">
-                <div className="grid grid-cols-[1fr_80px_110px_90px_28px] gap-2 text-[11px] uppercase tracking-wide text-gray-400 px-1">
+              <div className="rounded-xl border border-gray-200 dark:border-gray-600 p-3 space-y-2 overflow-x-auto">
+                <div className="grid grid-cols-[minmax(140px,1fr)_64px_96px_80px_28px] sm:grid-cols-[1fr_80px_110px_90px_28px] gap-2 min-w-[440px] text-[11px] uppercase tracking-wide text-gray-400 px-1">
                   <span>Item</span><span>Qty</span><span>Unit price</span><span className="text-right">Total</span><span />
                 </div>
                 {rows.map((r, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_80px_110px_90px_28px] gap-2 items-center">
+                  <div key={i} className="grid grid-cols-[minmax(140px,1fr)_64px_96px_80px_28px] sm:grid-cols-[1fr_80px_110px_90px_28px] gap-2 min-w-[440px] items-center">
                     <input className={inputClass} placeholder="Description" value={r.description} onChange={(e) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
                     <input type="number" min="0" step="0.5" className={inputClass} value={r.quantity} onChange={(e) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
                     <input type="number" min="0" step="0.01" className={inputClass} value={r.unit_price} onChange={(e) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, unit_price: e.target.value } : x)))} />

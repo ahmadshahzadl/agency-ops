@@ -69,7 +69,7 @@ export default function Portal() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-[#01184e] text-white">
-        <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-3">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-5 flex flex-wrap items-center gap-x-3 gap-y-2">
           <img src={getBrandMarkUrl()} alt="" className="w-9 h-9" />
           <div className="min-w-0">
             <p className="font-semibold leading-tight">{APP_NAME} · Client portal</p>
@@ -90,7 +90,7 @@ export default function Portal() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-8 space-y-10">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 sm:space-y-10">
         {notice && <div className="rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-2.5">{notice}</div>}
 
         {/* Projects */}
@@ -277,7 +277,7 @@ export default function Portal() {
       {/* Review & sign agreement (clickwrap: full terms + affirmative action) */}
       {signing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSigning(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900">{signing.title}</h3>
             <p className="text-xs text-gray-400 mt-0.5">{signing.number}{signing.effective_date ? ` · effective ${signing.effective_date}` : ""}{signing.contract_value != null ? ` · ${Number(signing.contract_value).toLocaleString()} ${signing.currency}` : ""}</p>
 
@@ -325,7 +325,7 @@ export default function Portal() {
       {/* Project detail */}
       {detail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setDetail(null); setIssueFor(null); }}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-4 sm:p-6 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">{detail.name}</h3>
               <span className="text-sm font-semibold text-[#01184e]">{detail.percent_done}%</span>

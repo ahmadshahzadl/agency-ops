@@ -259,7 +259,7 @@ export default function Agreements() {
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-3xl p-6 max-h-[92vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-3xl p-4 sm:p-6 max-h-[92vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
               {modal === "new" ? "New service agreement" : `${editable ? "Edit" : "View"} ${modal.number}`}
             </h2>
@@ -275,7 +275,7 @@ export default function Agreements() {
             )}
             <div className="space-y-3">
               <input className={inputClass} placeholder="Title (e.g. Website development for Acme)" disabled={!editable} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Client *</label>
                   <select className={inputClass} disabled={!editable} value={form.client_id} onChange={(e) => { setForm((f) => ({ ...f, client_id: e.target.value })); if (editable && e.target.value) loadTemplate({ client_id: e.target.value }); }}>
@@ -297,7 +297,7 @@ export default function Agreements() {
                     {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Effective date</label>
                     <input type="date" className={inputClass} disabled={!editable} value={form.effective_date} onChange={(e) => setForm((f) => ({ ...f, effective_date: e.target.value }))} />
@@ -307,7 +307,7 @@ export default function Agreements() {
                     <input type="date" className={inputClass} disabled={!editable} value={form.valid_until} onChange={(e) => setForm((f) => ({ ...f, valid_until: e.target.value }))} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Contract value</label>
                     <input type="number" min="0" step="0.01" className={inputClass} disabled={!editable} value={form.contract_value} onChange={(e) => setForm((f) => ({ ...f, contract_value: e.target.value }))} />

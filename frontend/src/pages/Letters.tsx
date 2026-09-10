@@ -204,7 +204,7 @@ export default function Letters() {
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-3xl p-6 max-h-[92vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-3xl p-4 sm:p-6 max-h-[92vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
               {modal === "new" ? "New letter" : `${editable ? "Edit" : "View"} ${modal.number}`}
             </h2>
@@ -214,7 +214,7 @@ export default function Letters() {
               </p>
             )}
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Letter type</label>
                   <select
@@ -233,7 +233,7 @@ export default function Letters() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input className={inputClass} placeholder="Recipient name (person or organization)" disabled={!editable} value={form.recipient_name} onChange={(e) => setForm((f) => ({ ...f, recipient_name: e.target.value }))} />
                 <select className={inputClass} disabled={!editable} value={form.client_id} onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}>
                   <option value="">Link to client (optional)…</option>
@@ -246,7 +246,7 @@ export default function Letters() {
               <input className={inputClass} placeholder="Subject *" disabled={!editable} value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} />
               <textarea rows={12} className={`${inputClass} leading-relaxed`} placeholder="Letter body * — [square brackets] mark text to replace" disabled={!editable} value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} />
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Signatory</label>
                   <input className={inputClass} placeholder="Name" disabled={!editable} value={form.signatory_name} onChange={(e) => setForm((f) => ({ ...f, signatory_name: e.target.value }))} />

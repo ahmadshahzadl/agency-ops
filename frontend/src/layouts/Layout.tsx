@@ -180,6 +180,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLoginMorph, setShowLoginMorph] = useState(() =>
     typeof sessionStorage !== "undefined" ? !!sessionStorage.getItem(LOGIN_TRANSITION_KEY) : false
   );
@@ -206,6 +207,8 @@ export default function Layout() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState<Notification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+  useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
   const headerTitle = PATH_TO_HEADER_TITLE[location.pathname]
     ?? (location.pathname.startsWith("/projects/") ? "Project details" : undefined)
@@ -319,7 +322,10 @@ export default function Layout() {
         />
       )}
       {/* Sidebar - full viewport height, does not scroll */}
-      <aside className="w-60 h-full flex flex-col shrink-0 shadow-lg overflow-hidden bg-[#01184e] dark:bg-gray-800">
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" aria-hidden onClick={() => setSidebarOpen(false)} />
+      )}
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-60 h-full flex flex-col shrink-0 shadow-lg overflow-hidden bg-[#01184e] dark:bg-gray-800 transform transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="p-6 flex justify-center">
           <div className="flex flex-col items-center gap-2">
             <BrandLogo variant="sidebar" />
@@ -358,10 +364,22 @@ export default function Layout() {
       </aside>
       {/* Main: white header + content (only this area scrolls) */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <header className="shrink-0 h-20 px-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <h1 className="font-titillium text-2xl font-bold text-gray-900 dark:text-white truncate">
-            {headerTitle}
-          </h1>
+        <header className="shrink-0 h-16 sm:h-20 px-3 sm:px-6 flex items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+              aria-label="Open menu"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <h1 className="font-titillium text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
+              {headerTitle}
+            </h1>
+          </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -395,7 +413,7 @@ export default function Layout() {
             </button>
           </div>
         </header>
-        <main className="flex-1 overflow-auto bg-[#f5f6f8] dark:bg-gray-900 p-6">
+        <main className="flex-1 overflow-auto bg-[#f5f6f8] dark:bg-gray-900 p-4 sm:p-6">
           <Outlet />
         </main>
       </div>

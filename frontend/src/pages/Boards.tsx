@@ -306,7 +306,7 @@ export default function Boards() {
       {/* Task detail modal */}
       {detailTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDetailTask(null)}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-4 sm:p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{detailTask.title}</h3>
               <span className="px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{COLUMNS.find((c) => c.key === detailTask.status)?.label ?? detailTask.status}</span>
@@ -398,7 +398,7 @@ export default function Boards() {
       {/* Share progress modal */}
       {showShare && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowShare(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-4 sm:p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Client progress links</h3>
             <p className="text-sm text-gray-500 mt-1">
               Anyone with a link sees a read-only progress page for this project — task titles and status only, no assignees, notes, or internal details.
@@ -536,12 +536,12 @@ export default function Boards() {
       {/* New task modal */}
       {showNewTask && board && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[85vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-4 sm:p-6 max-h-[85vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Add {newTask.item_type === "bug" ? "bug" : "task"} to {board.name}</h3>
             <div className="mt-3 space-y-3">
               <input autoFocus className={inputClass} placeholder="Title" value={newTask.title} onChange={(e) => setNewTask({ ...newTask, title: e.target.value })} />
               <textarea rows={3} className={inputClass} placeholder="Description" value={newTask.description} onChange={(e) => setNewTask({ ...newTask, description: e.target.value })} />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <select className={inputClass} value={newTask.item_type} onChange={(e) => setNewTask({ ...newTask, item_type: e.target.value, severity: e.target.value === "bug" ? newTask.severity || "medium" : "" })}>
                   <option value="task">Task</option>
                   <option value="bug">Bug</option>
@@ -564,7 +564,7 @@ export default function Boards() {
                   <input className={inputClass} placeholder="Environment (e.g. prod, Chrome 130, iOS)" value={newTask.environment} onChange={(e) => setNewTask({ ...newTask, environment: e.target.value })} />
                 </>
               )}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <select className={inputClass} value={newTask.assignee_id} onChange={(e) => setNewTask({ ...newTask, assignee_id: e.target.value })}>
                   <option value="">Unassigned</option>
                   {users.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}

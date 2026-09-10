@@ -119,9 +119,9 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="h-full min-h-0 flex gap-4 -m-6 p-6 overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col lg:flex-row gap-4 -m-4 p-4 sm:-m-6 sm:p-6 overflow-y-auto lg:overflow-hidden">
       {/* Left: avatar, name, email, role, contact — wider and larger */}
-      <section className="w-80 min-w-[18rem] shrink-0 flex flex-col">
+      <section className="w-full lg:w-80 lg:min-w-[18rem] shrink-0 flex flex-col">
         <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm p-6 flex flex-col items-center text-center h-full">
           <div
             className="w-32 h-32 rounded-full flex items-center justify-center text-white text-4xl font-semibold shrink-0 bg-primary"
@@ -154,7 +154,7 @@ export default function ProfilePage() {
       </section>
 
       {/* Right: 2 cols — row1 (Profile | Contact) takes space, row2 (Appearance | Updates) minimal height */}
-      <div className="flex-1 min-w-0 min-h-0 grid grid-cols-2 grid-rows-[1fr_auto] gap-4 overflow-hidden">
+      <div className="flex-1 min-w-0 min-h-0 grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[1fr_auto] gap-4 lg:overflow-hidden">
         {/* Profile — half width */}
         <section className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm p-4 min-h-0 flex flex-col overflow-auto">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">Profile</h2>
@@ -172,7 +172,7 @@ export default function ProfilePage() {
             <div>
               <label className={labelClass}>Change password</label>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Leave blank to keep current.</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 mb-0.5 block">Current</label>
                   <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={inputClass} placeholder="Current" />

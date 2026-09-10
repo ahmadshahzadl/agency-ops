@@ -321,7 +321,7 @@ export default function InvoicesPage() {
                 <option value="">Select project…</option>
                 {projectNames.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input type="date" value={fromTimeForm.date_from} onChange={(e) => setFromTimeForm((f) => ({ ...f, date_from: e.target.value }))} className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900" />
                 <input type="date" value={fromTimeForm.date_to} onChange={(e) => setFromTimeForm((f) => ({ ...f, date_to: e.target.value }))} className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900" />
               </div>
@@ -370,8 +370,8 @@ export default function InvoicesPage() {
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
-        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full">
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
                 {canBulk && (
@@ -509,12 +509,12 @@ export default function InvoicesPage() {
                 className={inputClass}
               />
               {/* Line items */}
-              <div className="rounded-xl border border-gray-200 p-3 space-y-2">
-                <div className="grid grid-cols-[1fr_64px_90px_28px] gap-2 text-[11px] uppercase tracking-wide text-gray-400 px-1">
+              <div className="rounded-xl border border-gray-200 p-3 space-y-2 overflow-x-auto">
+                <div className="grid grid-cols-[minmax(140px,1fr)_56px_84px_28px] sm:grid-cols-[1fr_64px_90px_28px] gap-2 min-w-[380px] text-[11px] uppercase tracking-wide text-gray-400 px-1">
                   <span>Item</span><span>Qty</span><span>Price</span><span />
                 </div>
                 {itemRows.map((r, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_64px_90px_28px] gap-2 items-center">
+                  <div key={i} className="grid grid-cols-[minmax(140px,1fr)_56px_84px_28px] sm:grid-cols-[1fr_64px_90px_28px] gap-2 min-w-[380px] items-center">
                     <input className={inputClass} placeholder="Description" value={r.description} onChange={(e) => setItemRows((rs) => rs.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
                     <input type="number" min="0" step="0.5" className={inputClass} value={r.quantity} onChange={(e) => setItemRows((rs) => rs.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
                     <input type="number" min="0" step="0.01" className={inputClass} value={r.unit_price} onChange={(e) => setItemRows((rs) => rs.map((x, j) => (j === i ? { ...x, unit_price: e.target.value } : x)))} />
@@ -523,7 +523,7 @@ export default function InvoicesPage() {
                 ))}
                 <button onClick={() => setItemRows((rs) => [...rs, { description: "", quantity: "1", unit_price: "" }])} className="text-xs font-medium text-primary hover:underline">+ Add line item</button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className={labelClass}>Amount{itemRows.some((r) => r.description.trim()) ? " (from items)" : ""}</label>
                   <input
@@ -543,7 +543,7 @@ export default function InvoicesPage() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className={labelClass}>Show equivalent in (optional)</label>
                   <select value={form.fx_currency} onChange={(e) => setForm((f) => ({ ...f, fx_currency: e.target.value }))} className={inputClass}>
@@ -559,7 +559,7 @@ export default function InvoicesPage() {
               <div className="rounded-xl border border-gray-200 p-3 space-y-2">
                 <p className="text-[11px] uppercase tracking-wide text-gray-400">Payment details (printed on the PDF)</p>
                 <input placeholder="Bank name (e.g. Meezan Bank)" value={form.bank_name} onChange={(e) => setForm((f) => ({ ...f, bank_name: e.target.value }))} className={inputClass} />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input placeholder="Account title" value={form.account_title} onChange={(e) => setForm((f) => ({ ...f, account_title: e.target.value }))} className={inputClass} />
                   <input placeholder="Account / IBAN number" value={form.account_number} onChange={(e) => setForm((f) => ({ ...f, account_number: e.target.value }))} className={inputClass} />
                 </div>
@@ -582,7 +582,7 @@ export default function InvoicesPage() {
                   <option value="overdue">Overdue</option>
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className={labelClass}>Due date</label>
                   <input

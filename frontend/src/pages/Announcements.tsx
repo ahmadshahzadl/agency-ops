@@ -189,8 +189,8 @@ export default function AnnouncementsPage() {
       {loading ? (
         <p className="text-gray-500">Loading…</p>
       ) : (
-        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full">
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
                 {canBulk && (

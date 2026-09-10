@@ -286,8 +286,8 @@ export default function TasksPage() {
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
-        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full">
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 text-left text-sm font-medium text-gray-600">
               <tr>
                 {canBulk && (
@@ -384,7 +384,7 @@ export default function TasksPage() {
                 className={`${inputClass} placeholder-gray-500`}
                 rows={2}
               />
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className={inputClass}>
                   {(modal === "new"
                     ? newTaskStatusOptions(isAdmin)
