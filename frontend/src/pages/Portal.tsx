@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/store/auth";
+import { updateProfile } from "@/api/auth";
 import { APP_NAME, getBrandMarkUrl } from "@/config";
 import {
   getPortalOverview, getPortalProject, listPortalInvoices, listPortalQuotes,
@@ -40,6 +41,10 @@ export default function Portal() {
   const [signerName, setSignerName] = useState("");
   const [agreeChecked, setAgreeChecked] = useState(false);
   const [detail, setDetail] = useState<PortalProjectDetail | null>(null);
+  const [pwModal, setPwModal] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwSaving, setPwSaving] = useState(false);
   const [issueFor, setIssueFor] = useState<string | null>(null);
   const [issue, setIssue] = useState({ title: "", description: "", steps_to_reproduce: "", severity: "medium" });
   const [notice, setNotice] = useState<string | null>(null);
@@ -71,8 +76,14 @@ export default function Portal() {
             <p className="text-white/60 text-sm truncate">{overview?.client_name ?? user?.client_name ?? ""}</p>
           </div>
           <button
-            onClick={async () => { await logout(); navigate("/login"); }}
+            onClick={() => { setPwForm({ current: "", next: "", confirm: "" }); setPwError(null); setPwModal(true); }}
             className="ml-auto text-sm text-white/70 hover:text-white"
+          >
+            Change password
+          </button>
+          <button
+            onClick={async () => { await logout(); navigate("/login"); }}
+            className="text-sm text-white/70 hover:text-white"
           >
             Sign out
           </button>
@@ -223,6 +234,45 @@ export default function Portal() {
           </section>
         )}
       </div>
+
+      {/* Change password */}
+      {pwModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPwModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900">Change password</h3>
+            <div className="mt-4 space-y-3">
+              <input type="password" autoFocus className={inputClass} placeholder="Current password" autoComplete="current-password" value={pwForm.current} onChange={(e) => setPwForm((f) => ({ ...f, current: e.target.value }))} />
+              <input type="password" className={inputClass} placeholder="New password (min 8 characters)" autoComplete="new-password" value={pwForm.next} onChange={(e) => setPwForm((f) => ({ ...f, next: e.target.value }))} />
+              <input type="password" className={inputClass} placeholder="Repeat new password" autoComplete="new-password" value={pwForm.confirm} onChange={(e) => setPwForm((f) => ({ ...f, confirm: e.target.value }))} />
+            </div>
+            {pwError && <p className="mt-2 text-xs text-red-500">{pwError}</p>}
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setPwModal(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 font-medium">Cancel</button>
+              <button
+                disabled={pwSaving || !pwForm.current || pwForm.next.length < 8 || pwForm.next !== pwForm.confirm}
+                onClick={async () => {
+                  setPwError(null);
+                  setPwSaving(true);
+                  try {
+                    await updateProfile({ current_password: pwForm.current, new_password: pwForm.next });
+                    setPwModal(false);
+                    flash("Password changed. Other signed-in sessions were signed out.");
+                  } catch (e) {
+                    setPwError(e instanceof Error ? e.message : "Could not change password");
+                  } finally {
+                    setPwSaving(false);
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-[#01184e] text-white text-sm font-medium hover:bg-[#032a75] disabled:opacity-50"
+              >
+                {pwSaving ? "Saving…" : "Change password"}
+              </button>
+            </div>
+            {pwForm.next.length > 0 && pwForm.next.length < 8 && <p className="mt-2 text-[11px] text-gray-400">New password must be at least 8 characters.</p>}
+            {pwForm.confirm.length > 0 && pwForm.next !== pwForm.confirm && <p className="mt-1 text-[11px] text-red-400">Passwords don't match.</p>}
+          </div>
+        </div>
+      )}
 
       {/* Review & sign agreement (clickwrap: full terms + affirmative action) */}
       {signing && (
