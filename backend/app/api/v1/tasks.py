@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Task as TaskModel, Project as ProjectModel, Client as ClientModel, Notification as NotificationModel, Board as BoardModel, BoardMember as BoardMemberModel, User as UserModel
+from app.models import Task as TaskModel, Project as ProjectModel, ProjectMember as ProjectMemberModel, Client as ClientModel, Notification as NotificationModel, Board as BoardModel, BoardMember as BoardMemberModel, User as UserModel
 from app.services import email_service
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, VALID_STATUSES, VALID_ITEM_TYPES, VALID_SEVERITIES
 from sqlalchemy import or_
@@ -106,18 +106,37 @@ def _can_access_task_project(
     team_ids: set[UUID],
     is_admin: bool,
     manager_scope: set[UUID] | None = None,
+    user_id: UUID | None = None,
 ) -> bool:
-    """When project_id is None, allow (task without project). Else check access."""
+    """When project_id is None, allow (task without project). Else mirror the
+    projects module's access rule: owner, assigned team, project member, the
+    client's team (legacy), manager scope - and membership of any of the
+    project's boards (board members work that project by definition)."""
     if project_id is None:
         return True
     if is_admin:
         return True
     proj = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
-    if not proj or not proj.client:
+    if not proj:
         return False
+    if user_id is not None and proj.owner_id == user_id:
+        return True
+    if proj.assigned_team_id and proj.assigned_team_id in team_ids:
+        return True
+    if proj.client and proj.client.team_id and proj.client.team_id in team_ids:
+        return True
+    if user_id is not None:
+        if db.query(ProjectMemberModel.user_id).filter(
+            ProjectMemberModel.project_id == proj.id, ProjectMemberModel.user_id == user_id
+        ).first():
+            return True
+        if db.query(BoardMemberModel.user_id).join(BoardModel, BoardModel.id == BoardMemberModel.board_id).filter(
+            BoardModel.project_id == proj.id, BoardMemberModel.user_id == user_id
+        ).first():
+            return True
     if manager_scope is not None:
         return proj.owner_id is not None and proj.owner_id in manager_scope
-    return proj.client.team_id in team_ids
+    return False
 
 
 @router.get("", response_model=list[TaskResponse])
@@ -182,7 +201,7 @@ def create_task(
             and assignee_id not in manager_scope
         ):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers can only assign tasks to themselves or to their team members")
-    if data.project_id is not None and not _can_access_task_project(data.project_id, db, team_ids, "admin:all" in permissions, manager_scope):
+    if data.project_id is not None and not _can_access_task_project(data.project_id, db, team_ids, "admin:all" in permissions, manager_scope, user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot add task to this project")
     if data.status not in VALID_STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"status must be one of: {', '.join(VALID_STATUSES)}")

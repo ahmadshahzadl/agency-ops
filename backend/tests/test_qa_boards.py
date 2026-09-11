@@ -200,3 +200,31 @@ def test_task_must_match_board_project(client, auth_headers):
         json={"project_id": project_b, "title": "wrong project", "board_id": board_a["id"]},
     )
     assert r.status_code == 400
+
+
+def test_board_member_can_create_task_on_board(client, auth_headers, employee_headers):
+    """Regression: a board member (e.g. QA) whose team/client links don't cover
+    the project could not create tasks on their own board (403)."""
+    import uuid as _uuid
+    cid = client.post("/api/v1/clients", headers=auth_headers,
+                      json={"name": f"BoardAccess {_uuid.uuid4().hex[:6]}"}).json()["id"]
+    proj = client.post("/api/v1/projects", headers=auth_headers,
+                       json={"client_id": cid, "name": f"BA Proj {_uuid.uuid4().hex[:6]}", "status": "active"}).json()
+    emp_id = client.get("/api/v1/auth/me", headers=employee_headers).json()["id"]
+    board = client.post("/api/v1/boards", headers=auth_headers,
+                        json={"project_id": proj["id"], "name": "QA board", "member_ids": [emp_id]}).json()
+
+    r = client.post("/api/v1/tasks", headers=employee_headers, json={
+        "title": "Found a bug", "project_id": proj["id"], "board_id": board["id"],
+        "item_type": "bug", "severity": "medium",
+    })
+    assert r.status_code in (200, 201), r.text
+    body = r.json()
+    assert body["board_id"] == board["id"]
+    assert body["project_id"] == proj["id"]
+
+    # Non-members without any project link still cannot
+    other = client.post("/api/v1/projects", headers=auth_headers,
+                        json={"client_id": cid, "name": f"NoAccess {_uuid.uuid4().hex[:6]}", "status": "active"}).json()
+    r = client.post("/api/v1/tasks", headers=employee_headers, json={"title": "sneak", "project_id": other["id"]})
+    assert r.status_code == 403
