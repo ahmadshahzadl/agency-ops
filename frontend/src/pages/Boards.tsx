@@ -5,6 +5,8 @@ import { allowedTargets } from "@/lib/taskFlow";
 import { listProjectNames } from "@/api/projects";
 import { listBoards, createBoard, deleteBoard, listBoardTasks, addBoardMember, removeBoardMember, type Board } from "@/api/boards";
 import { createTask, updateTask, type Task } from "@/api/tasks";
+import { uploadAttachment } from "@/api/attachments";
+import { ImageDropInput } from "@/components/ImageDropInput";
 import { listAssignableUsers, type UserList } from "@/api/users";
 import { listMilestones, type Milestone } from "@/api/milestones";
 import { createShareLink, listShareLinks, revokeShareLink, shareUrlFor, type ShareLink } from "@/api/share";
@@ -121,6 +123,7 @@ export default function Boards() {
   const [showNewTask, setShowNewTask] = useState(false);
   const [newBoardName, setNewBoardName] = useState("");
   const [newTask, setNewTask] = useState({ title: "", description: "", item_type: "task", severity: "", steps_to_reproduce: "", environment: "", priority: "medium", assignee_id: "", due_date: "", milestone_id: "" });
+  const [newTaskFiles, setNewTaskFiles] = useState<File[]>([]);
   const [addMemberId, setAddMemberId] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
@@ -579,6 +582,7 @@ export default function Boards() {
                   ))}
                 </select>
               )}
+              <ImageDropInput files={newTaskFiles} onChange={setNewTaskFiles} />
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setShowNewTask(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">Cancel</button>
@@ -586,7 +590,7 @@ export default function Boards() {
                 disabled={!newTask.title.trim()}
                 onClick={async () => {
                   try {
-                    await createTask({
+                    const created = await createTask({
                       title: newTask.title.trim(),
                       description: newTask.description || null,
                       project_id: board.project_id,
@@ -601,6 +605,10 @@ export default function Boards() {
                       due_date: newTask.due_date || null,
                       milestone_id: newTask.milestone_id || null,
                     });
+                    for (const f of newTaskFiles) {
+                      try { await uploadAttachment("task", created.id, f); } catch { /* task exists; skip failed image */ }
+                    }
+                    setNewTaskFiles([]);
                     setShowNewTask(false);
                     setNewTask({ title: "", description: "", item_type: "task", severity: "", steps_to_reproduce: "", environment: "", priority: "medium", assignee_id: "", due_date: "", milestone_id: "" });
                     refreshTasks();

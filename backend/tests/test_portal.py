@@ -170,3 +170,33 @@ def test_client_issue_lands_on_board_autocreated(client, auth_headers):
     tasks = client.get(f"/api/v1/boards/{boards[0]['id']}/tasks", headers=auth_headers).json()
     titles = [t["title"] for t in tasks]
     assert "Login broken" in titles and "Checkout broken" in titles
+
+
+def test_client_issue_screenshot_upload(client, auth_headers):
+    import io
+    cid = _make_client_record(client, auth_headers)
+    other_cid = _make_client_record(client, auth_headers)
+    proj = _make_project(client, auth_headers, cid)
+    headers = _make_portal_user(client, auth_headers, cid)
+    other_headers = _make_portal_user(client, auth_headers, other_cid)
+
+    created = client.post(f"/api/v1/portal/projects/{proj['id']}/issues", headers=headers,
+                          json={"title": "Broken button", "severity": "low"}).json()
+    assert created["id"]
+
+    png = (b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+    r = client.post(f"/api/v1/portal/issues/{created['id']}/attachments", headers=headers,
+                    files={"file": ("shot.png", io.BytesIO(png), "image/png")})
+    assert r.status_code == 201, r.text
+
+    # Shows up as a normal task attachment for staff
+    atts = client.get(f"/api/v1/attachments?entity_type=task&entity_id={created['id']}", headers=auth_headers).json()
+    assert any(a["filename"] == "shot.png" for a in atts)
+
+    # Non-image rejected; other client's portal user rejected
+    r = client.post(f"/api/v1/portal/issues/{created['id']}/attachments", headers=headers,
+                    files={"file": ("notes.txt", io.BytesIO(b"hello"), "text/plain")})
+    assert r.status_code == 400
+    r = client.post(f"/api/v1/portal/issues/{created['id']}/attachments", headers=other_headers,
+                    files={"file": ("shot.png", io.BytesIO(png), "image/png")})
+    assert r.status_code == 404

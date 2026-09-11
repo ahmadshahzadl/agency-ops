@@ -9,7 +9,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
@@ -191,7 +191,13 @@ def project_detail(project_id: UUID, db: Session = Depends(get_db), user: UserMo
     )
 
 
-@router.post("/projects/{project_id}/issues", response_model=PortalTask, status_code=status.HTTP_201_CREATED)
+class PortalIssueCreated(BaseModel):
+    id: UUID
+    title: str
+    status: str = "todo"
+
+
+@router.post("/projects/{project_id}/issues", response_model=PortalIssueCreated, status_code=status.HTTP_201_CREATED)
 def report_issue(
     project_id: UUID,
     data: IssueReport,
@@ -253,7 +259,7 @@ def report_issue(
             )
     log_activity(db, user.id, "client_issue_reported", "task", task.id, details=f"Issue on {p.name}: {task.title}")
     db.commit()
-    return PortalTask(title=task.title, status="todo", item_type="bug", due_date=None)
+    return PortalIssueCreated(id=task.id, title=task.title)
 
 
 @router.get("/invoices", response_model=list[PortalInvoice])
@@ -500,3 +506,68 @@ def decline_agreement(
     db.commit()
     db.refresh(a)
     return _portal_agreement(a)
+
+
+# Screenshots on client-reported issues. Portal users cannot touch the
+# internal attachments API, so this is a narrow, heavily-guarded upload:
+# only onto bug tasks the caller reported themselves, images only.
+PORTAL_IMAGE_EXTENSIONS = frozenset({"png", "jpg", "jpeg", "gif", "webp"})
+PORTAL_MAX_ISSUE_ATTACHMENTS = 5
+
+
+@router.post("/issues/{task_id}/attachments", status_code=status.HTTP_201_CREATED)
+async def upload_issue_attachment(
+    task_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_portal_user),
+):
+    import os
+    import secrets as _secrets
+    from app.config import get_settings
+    from app.models import Attachment as AttachmentModel
+
+    task = db.query(TaskModel).join(ProjectModel, TaskModel.project_id == ProjectModel.id).filter(
+        TaskModel.id == task_id,
+        TaskModel.created_by == user.id,
+        TaskModel.environment == "reported via client portal",
+        ProjectModel.client_id == user.client_id,
+        ProjectModel.deleted_at.is_(None),
+    ).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+
+    existing = db.query(func.count(AttachmentModel.id)).filter(
+        AttachmentModel.entity_type == "task", AttachmentModel.entity_id == task.id
+    ).scalar() or 0
+    if existing >= PORTAL_MAX_ISSUE_ATTACHMENTS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"At most {PORTAL_MAX_ISSUE_ATTACHMENTS} screenshots per issue")
+
+    settings = get_settings()
+    original = (file.filename or "image").strip().replace("\\", "/").split("/")[-1][:255] or "image"
+    ext = original.rsplit(".", 1)[-1].lower() if "." in original else ""
+    if ext not in PORTAL_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only images (png, jpg, gif, webp) can be attached to an issue")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
+    if len(content) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds {settings.max_upload_mb} MB limit")
+
+    stored_name = f"{_secrets.token_hex(16)}.{ext}"
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    with open(os.path.join(settings.upload_dir, stored_name), "wb") as f:
+        f.write(content)
+    att = AttachmentModel(
+        entity_type="task",
+        entity_id=task.id,
+        filename=original,
+        stored_name=stored_name,
+        content_type=file.content_type or "application/octet-stream",
+        size_bytes=len(content),
+        uploaded_by=user.id,
+    )
+    db.add(att)
+    log_activity(db, user.id, "client_issue_attachment", "task", task.id, details=f"Screenshot on issue: {original}")
+    db.commit()
+    return {"id": str(att.id), "filename": original}

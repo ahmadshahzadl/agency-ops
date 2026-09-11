@@ -106,8 +106,20 @@ export async function reportPortalIssue(projectId: string, data: {
   description?: string;
   steps_to_reproduce?: string;
   severity?: string;
-}): Promise<void> {
-  await apiFetch(`/api/v1/portal/projects/${projectId}/issues`, { method: "POST", body: JSON.stringify(data) });
+}): Promise<{ id: string | null }> {
+  return apiFetch<{ id: string | null }>(`/api/v1/portal/projects/${projectId}/issues`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function uploadPortalIssueAttachment(taskId: string, file: File): Promise<void> {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`${API_BASE}/api/v1/portal/issues/${taskId}/attachments`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: fd,
+  });
+  if (!res.ok) throw new Error("Could not upload screenshot");
 }
 
 export async function openPortalPdf(path: "invoices" | "quotes" | "agreements", id: string, number: string): Promise<void> {

@@ -7,8 +7,10 @@ import {
   getPortalOverview, getPortalProject, listPortalInvoices, listPortalQuotes,
   acceptPortalQuote, declinePortalQuote, reportPortalIssue, openPortalPdf,
   listPortalAgreements, acceptPortalAgreement, declinePortalAgreement,
+  uploadPortalIssueAttachment,
   type PortalOverview, type PortalProjectDetail, type PortalInvoice, type PortalQuote, type PortalAgreement,
 } from "@/api/portal";
+import { ImageDropInput } from "@/components/ImageDropInput";
 
 const TASK_LABELS: Record<string, string> = { todo: "Planned", in_progress: "In progress", review: "In review", done: "Completed" };
 const INVOICE_BADGE: Record<string, string> = {
@@ -47,6 +49,8 @@ export default function Portal() {
   const [pwSaving, setPwSaving] = useState(false);
   const [issueFor, setIssueFor] = useState<string | null>(null);
   const [issue, setIssue] = useState({ title: "", description: "", steps_to_reproduce: "", severity: "medium" });
+  const [issueFiles, setIssueFiles] = useState<File[]>([]);
+  const [issueSubmitting, setIssueSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -366,6 +370,7 @@ export default function Portal() {
                 <input autoFocus className={inputClass} placeholder="What's wrong? *" value={issue.title} onChange={(e) => setIssue({ ...issue, title: e.target.value })} />
                 <textarea rows={2} className={inputClass} placeholder="Details (optional)" value={issue.description} onChange={(e) => setIssue({ ...issue, description: e.target.value })} />
                 <textarea rows={2} className={inputClass} placeholder="Steps to reproduce (optional)" value={issue.steps_to_reproduce} onChange={(e) => setIssue({ ...issue, steps_to_reproduce: e.target.value })} />
+                <ImageDropInput files={issueFiles} onChange={setIssueFiles} />
                 <div className="flex items-center gap-2">
                   <select className={`${inputClass} !w-auto`} value={issue.severity} onChange={(e) => setIssue({ ...issue, severity: e.target.value })}>
                     <option value="low">Low</option>
@@ -374,23 +379,38 @@ export default function Portal() {
                     <option value="critical">Critical</option>
                   </select>
                   <button
-                    disabled={!issue.title.trim()}
-                    onClick={() =>
-                      reportPortalIssue(detail.id, {
-                        title: issue.title.trim(),
-                        description: issue.description || undefined,
-                        steps_to_reproduce: issue.steps_to_reproduce || undefined,
-                        severity: issue.severity,
-                      }).then(() => {
+                    disabled={!issue.title.trim() || issueSubmitting}
+                    onClick={async () => {
+                      setIssueSubmitting(true);
+                      try {
+                        const created = await reportPortalIssue(detail.id, {
+                          title: issue.title.trim(),
+                          description: issue.description || undefined,
+                          steps_to_reproduce: issue.steps_to_reproduce || undefined,
+                          severity: issue.severity,
+                        });
+                        let failed = 0;
+                        if (created.id) {
+                          for (const f of issueFiles) {
+                            try { await uploadPortalIssueAttachment(created.id, f); } catch { failed += 1; }
+                          }
+                        }
                         setIssueFor(null);
                         setIssue({ title: "", description: "", steps_to_reproduce: "", severity: "medium" });
+                        setIssueFiles([]);
                         setDetail(null);
-                        flash("Issue reported — our team has been notified.");
-                      }).catch((e) => flash(e.message))
-                    }
+                        flash(failed > 0
+                          ? `Issue reported — but ${failed} screenshot${failed > 1 ? "s" : ""} failed to upload.`
+                          : "Issue reported — our team has been notified.");
+                      } catch (e) {
+                        flash(e instanceof Error ? e.message : "Could not report the issue");
+                      } finally {
+                        setIssueSubmitting(false);
+                      }
+                    }}
                     className="ml-auto px-4 py-2 rounded-lg bg-[#01184e] text-white text-sm font-medium hover:bg-[#032a75] disabled:opacity-50"
                   >
-                    Submit issue
+                    {issueSubmitting ? "Submitting…" : "Submit issue"}
                   </button>
                   <button onClick={() => setIssueFor(null)} className="text-sm text-gray-500">Cancel</button>
                 </div>
