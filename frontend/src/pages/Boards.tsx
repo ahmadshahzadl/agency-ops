@@ -4,7 +4,7 @@ import { useAuth } from "@/store/auth";
 import { allowedTargets } from "@/lib/taskFlow";
 import { listProjectNames } from "@/api/projects";
 import { listBoards, createBoard, deleteBoard, listBoardTasks, addBoardMember, removeBoardMember, type Board } from "@/api/boards";
-import { createTask, updateTask, type Task } from "@/api/tasks";
+import { createTask, updateTask, deleteTask, type Task } from "@/api/tasks";
 import { uploadAttachment } from "@/api/attachments";
 import { ImageDropInput } from "@/components/ImageDropInput";
 import { listAssignableUsers, type UserList } from "@/api/users";
@@ -342,10 +342,33 @@ export default function Boards() {
                 <p className="text-sm text-amber-800 dark:text-amber-300 whitespace-pre-wrap">{detailTask.qa_notes}</p>
               </div>
             )}
-            <div className="mt-3 text-xs text-gray-400">
-              Assignee: {users.find((u) => u.id === detailTask.assignee_id)?.full_name ?? "—"}
-              {detailTask.due_date && <> · Due {detailTask.due_date}</>}
-              {detailTask.milestone_id && <> · ⚑ {milestones.find((m) => m.id === detailTask.milestone_id)?.name ?? "milestone"}</>}
+            <div className="mt-3 text-xs text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-1">
+              {user?.can_manage_tasks ? (
+                <label className="inline-flex items-center gap-1.5">
+                  Assignee:
+                  <select
+                    className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-xs text-gray-700 dark:text-gray-200"
+                    value={detailTask.assignee_id ?? ""}
+                    onChange={async (e) => {
+                      const v = e.target.value || null;
+                      try {
+                        const updated = await updateTask(detailTask.id, { assignee_id: v });
+                        setDetailTask(updated);
+                        refreshTasks();
+                      } catch (err) {
+                        showError(err instanceof Error ? err.message : "Could not change assignee");
+                      }
+                    }}
+                  >
+                    <option value="">Unassigned</option>
+                    {users.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <span>Assignee: {users.find((u) => u.id === detailTask.assignee_id)?.full_name ?? "—"}</span>
+              )}
+              {detailTask.due_date && <span>· Due {detailTask.due_date}</span>}
+              {detailTask.milestone_id && <span>· ⚑ {milestones.find((m) => m.id === detailTask.milestone_id)?.name ?? "milestone"}</span>}
             </div>
             <AttachmentsSection entityType="task" entityId={detailTask.id} />
             {/* Action buttons for the allowed transitions */}
@@ -371,6 +394,23 @@ export default function Boards() {
                   </button>
                 );
               })}
+              {user?.can_manage_tasks && (
+                <button
+                  onClick={async () => {
+                    if (!window.confirm(`Delete "${detailTask.title}"? This cannot be undone.`)) return;
+                    try {
+                      await deleteTask(detailTask.id);
+                      setDetailTask(null);
+                      refreshTasks();
+                    } catch (err) {
+                      showError(err instanceof Error ? err.message : "Delete failed");
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  Delete
+                </button>
+              )}
               <button onClick={() => setDetailTask(null)} className="ml-auto px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200">Close</button>
             </div>
           </div>
