@@ -6,7 +6,10 @@ export default defineConfig({
     resolve: {
         alias: { "@": path.resolve(__dirname, "src") },
     },
-    base: "./",
+    // Relative base only for the Electron build (loads dist over file://).
+    // Web builds need "/" - with "./", assets 404 on nested routes like
+    // /status/<token> and the SPA fallback serves HTML as JS.
+    base: process.env.ELECTRON_BUILD ? "./" : "/",
     build: {
         outDir: "dist",
     },
