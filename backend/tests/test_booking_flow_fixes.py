@@ -242,3 +242,22 @@ def test_reminders_sent_once_per_window(client, auth_headers, monkeypatch):
     finally:
         db.close()
     client.delete(f"{ADMIN}/{page['id']}", headers=auth_headers)
+
+
+# 9. choice questions (budget) ------------------------------------------------------------
+
+def test_select_question_validates_choices(client, auth_headers):
+    budget = {"id": "budget", "label": "Estimated budget", "type": "select", "required": True, "options": ["Less than $500", "$10,000+", "Not sure yet"]}
+    page = _make_page(client, auth_headers, _host_user_id(client, auth_headers), questions=[budget])
+    assert client.get(f"{PUB}/{page['slug']}").json()["questions"][0]["options"] == budget["options"]
+    start = _slots(client, page["slug"], 1, 5)[0]
+    r = _book(client, page["slug"], start, answers={"budget": "a million"})
+    assert r.status_code == 400 and "offered choices" in r.json()["detail"]
+    r = _book(client, page["slug"], start, answers={})
+    assert r.status_code == 400 and "required" in r.json()["detail"]
+    r = _book(client, page["slug"], start, answers={"budget": "$10,000+"})
+    assert r.status_code == 201, r.text
+    # A select with a single option is rejected at page level
+    bad = client.post(ADMIN, headers=auth_headers, json={"slug": f"bad-{uuid.uuid4().hex[:6]}", "name": "x", "questions": [{"id": "q", "label": "Q", "type": "select", "options": ["only"]}]})
+    assert bad.status_code == 422
+    client.delete(f"{ADMIN}/{page['id']}", headers=auth_headers)

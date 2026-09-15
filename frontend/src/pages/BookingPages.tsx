@@ -77,6 +77,7 @@ function emptyForm(): BookingPageInput {
     hours: DEFAULT_HOURS,
     questions: [
       { id: "company", label: "Company name", type: "text", required: true },
+      { id: "budget", label: "Estimated budget", type: "select", required: true, options: ["Less than $500", "$500 – $2,000", "$2,000 – $5,000", "$5,000 – $10,000", "$10,000+", "Not sure yet"] },
       { id: "project", label: "What are you looking to build?", type: "textarea", required: false },
     ],
     location_text: "Video call (link in your calendar invite)",
@@ -149,7 +150,7 @@ export default function BookingPagesPage() {
         ...form,
         description: form.description || null,
         location_text: form.location_text || null,
-        questions: form.questions.filter((q) => q.label.trim()).map((q) => ({ ...q, id: q.id || slugify(q.label) })),
+        questions: form.questions.filter((q) => q.label.trim()).map((q) => ({ ...q, id: q.id || slugify(q.label), options: q.type === "select" ? (q.options ?? []).map((o) => o.trim()).filter(Boolean) : [] })),
       };
       if (modal === "new") await createBookingPage(payload);
       else if (modal) await updateBookingPage(modal.id, payload);
@@ -232,7 +233,7 @@ export default function BookingPagesPage() {
   const setQuestion = (idx: number, patch: Partial<BookingQuestion>) =>
     setForm((f) => ({ ...f, questions: f.questions.map((q, i) => (i === idx ? { ...q, ...patch } : q)) }));
   const addQuestion = () =>
-    setForm((f) => ({ ...f, questions: [...f.questions, { id: "", label: "", type: "text", required: false }] }));
+    setForm((f) => ({ ...f, questions: [...f.questions, { id: "", label: "", type: "text", required: false, options: [] }] }));
   const removeQuestion = (idx: number) => setForm((f) => ({ ...f, questions: f.questions.filter((_, i) => i !== idx) }));
 
   const num = (v: string, fallback: number) => (v === "" ? fallback : Math.max(0, parseInt(v, 10) || 0));
@@ -535,12 +536,21 @@ export default function BookingPagesPage() {
             <p className="text-xs text-gray-500 mb-2">Name and email are always collected. A question mentioning &ldquo;company&rdquo; names the lead.</p>
             <div className="space-y-2">
               {form.questions.map((q, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input className={inputClass} placeholder="Question label" value={q.label} onChange={(e) => setQuestion(i, { label: e.target.value, id: q.id || slugify(e.target.value) })} />
+                <div key={i} className="flex items-center gap-2 flex-wrap">
+                  <input className={`${inputClass} flex-1 min-w-[180px]`} placeholder="Question label" value={q.label} onChange={(e) => setQuestion(i, { label: e.target.value, id: q.id || slugify(e.target.value) })} />
                   <select className={`${inputClass} w-32`} value={q.type} onChange={(e) => setQuestion(i, { type: e.target.value as BookingQuestion["type"] })}>
                     <option value="text">Short</option>
                     <option value="textarea">Long</option>
+                    <option value="select">Choice</option>
                   </select>
+                  {q.type === "select" && (
+                    <input
+                      className={`${inputClass} basis-full`}
+                      placeholder="Choices, comma-separated (e.g. Less than $500, $500 – $2,000, Not sure yet)"
+                      value={(q.options ?? []).join(", ")}
+                      onChange={(e) => setQuestion(i, { options: e.target.value.split(",").map((o) => o.trim()) })}
+                    />
+                  )}
                   <label className="flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap">
                     <input type="checkbox" checked={q.required} onChange={(e) => setQuestion(i, { required: e.target.checked })} className="rounded border-gray-300 text-primary focus:ring-primary/20" />
                     Required

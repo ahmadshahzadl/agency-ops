@@ -5,8 +5,9 @@ export type BookingHours = Record<string, [string, string][]>;
 export interface BookingQuestion {
   id: string;
   label: string;
-  type: "text" | "textarea";
+  type: "text" | "textarea" | "select";
   required: boolean;
+  options?: string[];
 }
 
 export interface BookingPage {

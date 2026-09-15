@@ -3,7 +3,7 @@ from typing import Any, Literal, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 Hours = dict[str, list[list[str]]]
@@ -56,8 +56,23 @@ def _validate_hours(hours: Hours) -> Hours:
 class BookingQuestion(BaseModel):
     id: str = Field(min_length=1, max_length=48, pattern=r"^[a-z0-9_\-]+$")
     label: str = Field(min_length=1, max_length=200)
-    type: Literal["text", "textarea"] = "text"
+    type: Literal["text", "textarea", "select"] = "text"
     required: bool = False
+    options: list[str] = []  # for type=select
+
+    @field_validator("options")
+    @classmethod
+    def _opts(cls, v: list[str]) -> list[str]:
+        clean = [o.strip()[:80] for o in v if o and o.strip()]
+        if len(set(clean)) != len(clean):
+            raise ValueError("Options must be unique")
+        return clean
+
+    @model_validator(mode="after")
+    def _select_needs_options(self):
+        if self.type == "select" and len(self.options) < 2:
+            raise ValueError(f"Question '{self.label}' needs at least two options")
+        return self
 
 
 # ---------------- admin ----------------

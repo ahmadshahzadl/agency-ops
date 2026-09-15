@@ -255,6 +255,10 @@ def _clean_answers(page: BookingPage, answers: dict[str, Any]) -> dict[str, str]
         text = ("" if val is None else str(val)).strip()
         if q.get("required") and not text:
             raise ValueError(f"'{q.get('label', qid)}' is required")
+        if text and q.get("type") == "select":
+            options = [str(o) for o in (q.get("options") or [])]
+            if text not in options:
+                raise ValueError(f"'{q.get('label', qid)}' must be one of the offered choices")
         if text:
             out[qid] = text[:2000]
     return out
