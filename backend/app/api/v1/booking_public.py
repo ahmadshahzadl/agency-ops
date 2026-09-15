@@ -124,7 +124,7 @@ def book(slug: str, data: PublicBookRequest, request: Request, db: Session = Dep
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many bookings from this network. Please try again later.")
     page = _page_or_404(db, slug)
     try:
-        meeting = booking_service.create_booking(db, page, data.start, data.name, str(data.email), data.timezone, data.answers)
+        meeting = booking_service.create_booking(db, page, data.start, data.name, str(data.email), data.timezone, data.answers, data.tracking)
     except booking_service.SlotUnavailable as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))

@@ -22,6 +22,12 @@ export interface Meeting {
   assigned_to_name?: string | null;
   company_name?: string | null;
   lead_status?: string | null;
+  host_user_id?: string | null;
+  host_name?: string | null;
+  tracking?: Record<string, string> | null;
+  outcome_note?: string | null;
+  reminder_24h_sent_at?: string | null;
+  reminder_1h_sent_at?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -36,6 +42,10 @@ export interface BookingAssignee {
 
 export async function listBookingAssignees(): Promise<BookingAssignee[]> {
   return apiFetch<BookingAssignee[]>("/api/v1/meetings/booking-assignees");
+}
+
+export async function setMeetingOutcome(id: string, data: { status: "completed" | "no_show" | "scheduled"; note?: string; lead_status?: string }): Promise<Meeting> {
+  return apiFetch<Meeting>(`/api/v1/meetings/${id}/outcome`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
 export async function assignMeeting(id: string, assigned_to: string | null): Promise<Meeting> {

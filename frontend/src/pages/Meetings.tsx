@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listMeetings, createMeeting, updateMeeting, deleteMeeting, assignMeeting, listBookingAssignees, type Meeting, type BookingAssignee } from "@/api/meetings";
+import { listMeetings, createMeeting, updateMeeting, deleteMeeting, assignMeeting, listBookingAssignees, setMeetingOutcome, type Meeting, type BookingAssignee } from "@/api/meetings";
 import { listProjectNames } from "@/api/projects";
 import { listAssignableUsers, type UserList } from "@/api/users";
 import { SearchableUserMultiSelect } from "@/components/SearchableUserMultiSelect";
@@ -27,6 +27,23 @@ export default function MeetingsPage() {
   const [assignedFilter, setAssignedFilter] = useState("");
   const [assignees, setAssignees] = useState<BookingAssignee[]>([]);
   const [assigning, setAssigning] = useState<string | null>(null);
+  const [outcomeNote, setOutcomeNote] = useState("");
+  const [outcomeLead, setOutcomeLead] = useState("");
+  const [savingOutcome, setSavingOutcome] = useState(false);
+
+  const recordOutcome = async (m: Meeting, status: "completed" | "no_show" | "scheduled") => {
+    setSavingOutcome(true);
+    try {
+      const updated = await setMeetingOutcome(m.id, { status, note: outcomeNote || undefined, lead_status: outcomeLead || undefined });
+      setItems((list) => list.map((x) => (x.id === m.id ? updated : x)));
+      setModal(updated);
+      setOutcomeLead("");
+    } catch (e: unknown) {
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" });
+    } finally {
+      setSavingOutcome(false);
+    }
+  };
   const [modal, setModal] = useState<"new" | Meeting | null>(null);
   const [form, setForm] = useState({
     title: "",
@@ -98,6 +115,8 @@ export default function MeetingsPage() {
     setModal("new");
   };
   const openEdit = (m: Meeting) => {
+    setOutcomeNote(m.outcome_note ?? "");
+    setOutcomeLead("");
     setForm({
       title: m.title,
       description: m.description || "",
@@ -346,6 +365,15 @@ export default function MeetingsPage() {
                       {m.status === "canceled" && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100" title={m.cancel_reason ?? undefined}>Canceled</span>
                       )}
+                      {m.status === "completed" && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100" title={m.outcome_note ?? undefined}>Completed</span>
+                      )}
+                      {m.status === "no_show" && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-100" title={m.outcome_note ?? undefined}>No-show</span>
+                      )}
+                      {m.source !== "manual" && m.status === "scheduled" && new Date(m.end_at).getTime() < Date.now() && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600" title="The call time has passed: record what happened">Outcome?</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
@@ -442,8 +470,49 @@ export default function MeetingsPage() {
                     <span className="font-medium">{(modal as Meeting).assigned_to_name || "Unassigned"}</span>
                   )}
                 </div>
+                {(modal as Meeting).host_name && (
+                  <div className="text-xs text-gray-500">Host: {(modal as Meeting).host_name}{(modal as Meeting).location?.startsWith("http") ? <> · <a href={(modal as Meeting).location ?? "#"} target="_blank" rel="noreferrer" className="text-primary hover:underline">Join link</a></> : null}</div>
+                )}
+                {(modal as Meeting).tracking && Object.keys((modal as Meeting).tracking ?? {}).length > 0 && (
+                  <div className="text-xs text-gray-500">
+                    Came from: {Object.entries((modal as Meeting).tracking ?? {}).map(([k, v]) => `${k.replace("utm_", "")}=${v}`).join(" · ")}
+                  </div>
+                )}
+                {((modal as Meeting).reminder_24h_sent_at || (modal as Meeting).reminder_1h_sent_at) && (
+                  <div className="text-xs text-gray-500">
+                    Reminders sent: {(modal as Meeting).reminder_24h_sent_at ? "24h" : ""}{(modal as Meeting).reminder_24h_sent_at && (modal as Meeting).reminder_1h_sent_at ? " · " : ""}{(modal as Meeting).reminder_1h_sent_at ? "1h" : ""}
+                  </div>
+                )}
                 {(modal as Meeting).lead_id && (
                   <a href="/leads" className="text-primary hover:underline">Open in Leads</a>
+                )}
+                {(modal as Meeting).status !== "canceled" && (
+                  <div className="mt-2 pt-2 border-t border-blue-100">
+                    <div className="text-xs font-semibold text-gray-700 mb-1">Outcome</div>
+                    <textarea
+                      placeholder="What happened on the call? Next step?"
+                      value={outcomeNote}
+                      onChange={(e) => setOutcomeNote(e.target.value)}
+                      rows={2}
+                      className="w-full px-2 py-1.5 rounded-lg border border-gray-300 text-xs text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                    <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                      {(modal as Meeting).lead_id && (
+                        <select value={outcomeLead} onChange={(e) => setOutcomeLead(e.target.value)} className="px-2 py-1 rounded-lg border border-gray-300 text-xs bg-white">
+                          <option value="">Lead stage: keep {(modal as Meeting).lead_status || "as is"}</option>
+                          <option value="contacted">Lead → contacted</option>
+                          <option value="qualified">Lead → qualified</option>
+                          <option value="lost">Lead → lost</option>
+                          <option value="dead">Lead → dead</option>
+                        </select>
+                      )}
+                      <button type="button" disabled={savingOutcome} onClick={() => recordOutcome(modal as Meeting, "completed")} className="px-2.5 py-1 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 disabled:opacity-50">Completed</button>
+                      <button type="button" disabled={savingOutcome} onClick={() => recordOutcome(modal as Meeting, "no_show")} className="px-2.5 py-1 rounded-lg bg-orange-500 text-white text-xs font-medium hover:bg-orange-600 disabled:opacity-50">No-show</button>
+                      {(modal as Meeting).status !== "scheduled" && (
+                        <button type="button" disabled={savingOutcome} onClick={() => recordOutcome(modal as Meeting, "scheduled")} className="text-xs text-gray-500 hover:underline">Reset to scheduled</button>
+                      )}
+                    </div>
+                  </div>
                 )}
                 {(modal as Meeting).invitee_timezone && (
                   <div className="text-xs text-gray-500">Invitee timezone: {(modal as Meeting).invitee_timezone}</div>

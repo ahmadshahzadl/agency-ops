@@ -81,6 +81,8 @@ function emptyForm(): BookingPageInput {
     ],
     location_text: "Video call (link in your calendar invite)",
     host_user_id: null,
+    co_host_ids: [],
+    overrides: {},
     is_active: true,
   };
 }
@@ -129,6 +131,8 @@ export default function BookingPagesPage() {
       questions: p.questions ?? [],
       location_text: p.location_text ?? "",
       host_user_id: p.host_user_id,
+      co_host_ids: p.co_host_ids ?? [],
+      overrides: p.overrides ?? {},
       is_active: p.is_active,
     });
     setSlugTouched(true);
@@ -233,6 +237,29 @@ export default function BookingPagesPage() {
 
   const num = (v: string, fallback: number) => (v === "" ? fallback : Math.max(0, parseInt(v, 10) || 0));
 
+  // ---- overrides (per-date exceptions) ----
+  const [newOverrideDate, setNewOverrideDate] = useState("");
+  const overrideDates = Object.keys(form.overrides ?? {}).sort();
+  const addOverride = (closed: boolean) => {
+    if (!newOverrideDate) return;
+    setForm((f) => ({ ...f, overrides: { ...f.overrides, [newOverrideDate]: closed ? [] : [["10:00", "13:00"]] } }));
+    setNewOverrideDate("");
+  };
+  const removeOverride = (d: string) =>
+    setForm((f) => {
+      const o = { ...f.overrides };
+      delete o[d];
+      return { ...f, overrides: o };
+    });
+  const setOverrideWindow = (d: string, idx: number, pos: 0 | 1, value: string) =>
+    setForm((f) => {
+      const windows = (f.overrides[d] ?? []).map((w) => [...w] as [string, string]);
+      windows[idx][pos] = value;
+      return { ...f, overrides: { ...f.overrides, [d]: windows } };
+    });
+  const toggleCoHost = (id: string) =>
+    setForm((f) => ({ ...f, co_host_ids: f.co_host_ids.includes(id) ? f.co_host_ids.filter((x) => x !== id) : [...f.co_host_ids, id] }));
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -280,11 +307,20 @@ export default function BookingPagesPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {p.host_name || <span className="text-red-600">No host</span>}
-                    {p.host_name && (
-                      <div className={`text-xs mt-0.5 ${p.host_google_connected ? "text-green-700" : "text-amber-700"}`} title={p.host_google_connected ? "Bookings get a Google Meet link and sync to the host's calendar" : "The host has not connected Google Calendar in Profile: invites go out as .ics without a Meet link"}>
-                        {p.host_google_connected ? "Google Calendar · Meet links" : "No Google Calendar"}
+                    {p.hosts?.length ? (
+                      <div className="space-y-0.5">
+                        {p.hosts.map((h, i) => (
+                          <div key={h.id} className="text-sm">
+                            {h.name}{i === 0 && p.hosts.length > 1 ? <span className="text-xs text-gray-400"> · primary</span> : null}
+                            <span className={`ml-1.5 text-xs ${h.google_connected ? "text-green-700" : "text-amber-700"}`} title={h.google_connected ? "Google Meet links + calendar sync" : "Not connected to Google Calendar: invites go out as .ics without a Meet link"}>
+                              {h.google_connected ? "Google ✓" : "no Google"}
+                            </span>
+                          </div>
+                        ))}
+                        {p.hosts.length > 1 && <div className="text-xs text-gray-400">round-robin, least-loaded first</div>}
                       </div>
+                    ) : (
+                      <span className="text-red-600">No host</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{p.duration_minutes} min</td>
@@ -389,6 +425,19 @@ export default function BookingPagesPage() {
                 </select>
               </div>
               <div className="md:col-span-2">
+                <label className={labelClass}>Co-hosts (optional, round-robin)</label>
+                <div className="flex flex-wrap gap-2">
+                  {users.filter((u) => u.id !== form.host_user_id).map((u) => (
+                    <label key={u.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs cursor-pointer ${form.co_host_ids.includes(u.id) ? "bg-primary/10 border-primary/30 text-primary" : "border-gray-300 text-gray-600"}`}>
+                      <input type="checkbox" className="hidden" checked={form.co_host_ids.includes(u.id)} onChange={() => toggleCoHost(u.id)} />
+                      {u.full_name || u.email}
+                    </label>
+                  ))}
+                  {users.length <= 1 && <span className="text-xs text-gray-400">Add more users to enable co-hosts.</span>}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Slots are offered whenever any host is free; the free host with the fewest upcoming bookings takes the call.</p>
+              </div>
+              <div className="md:col-span-2">
                 <label className={labelClass}>Description (shown to visitors)</label>
                 <textarea className={inputClass} rows={2} value={form.description ?? ""} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
               </div>
@@ -451,6 +500,35 @@ export default function BookingPagesPage() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <h3 className="text-sm font-semibold text-gray-900 mt-5 mb-2">Date overrides</h3>
+            <p className="text-xs text-gray-500 mb-2">Close a day (holiday, leave) or give one date special hours. Times are in the page timezone.</p>
+            <div className="space-y-2">
+              {overrideDates.map((d) => (
+                <div key={d} className="flex items-start gap-3">
+                  <span className="w-32 pt-2 text-sm text-gray-700 font-medium">{d}</span>
+                  <div className="flex-1 space-y-1">
+                    {(form.overrides[d] ?? []).length === 0 ? (
+                      <p className="text-sm text-red-700 pt-2">Closed</p>
+                    ) : (
+                      (form.overrides[d] ?? []).map((w, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input type="time" className={inputClass} value={w[0]} onChange={(e) => setOverrideWindow(d, i, 0, e.target.value)} />
+                          <span className="text-gray-400 text-sm">to</span>
+                          <input type="time" className={inputClass} value={w[1]} onChange={(e) => setOverrideWindow(d, i, 1, e.target.value)} />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <button type="button" onClick={() => removeOverride(d)} className="text-gray-400 hover:text-red-600 text-lg leading-none px-1 pt-1" title="Remove override">×</button>
+                </div>
+              ))}
+              <div className="flex items-center gap-2 flex-wrap">
+                <input type="date" className={`${inputClass} w-44`} value={newOverrideDate} onChange={(e) => setNewOverrideDate(e.target.value)} />
+                <button type="button" onClick={() => addOverride(true)} disabled={!newOverrideDate} className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Close this day</button>
+                <button type="button" onClick={() => addOverride(false)} disabled={!newOverrideDate} className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Special hours</button>
+              </div>
             </div>
 
             <h3 className="text-sm font-semibold text-gray-900 mt-5 mb-2">Questions asked when booking</h3>

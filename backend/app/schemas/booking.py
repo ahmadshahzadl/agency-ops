@@ -17,6 +17,17 @@ def _validate_timezone(tz: str) -> str:
     return tz
 
 
+def _validate_overrides(overrides: dict) -> dict:
+    clean: dict = {}
+    for day, windows in (overrides or {}).items():
+        try:
+            datetime.strptime(day, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError(f"Override key must be YYYY-MM-DD, got {day!r}")
+        clean[day] = _validate_hours({"mon": windows or []}).get("mon", [])
+    return clean
+
+
 def _validate_hours(hours: Hours) -> Hours:
     clean: Hours = {}
     for day, windows in (hours or {}).items():
@@ -65,12 +76,19 @@ class BookingPageBase(BaseModel):
     questions: list[BookingQuestion] = []
     location_text: Optional[str] = Field(None, max_length=255)
     host_user_id: Optional[UUID] = None
+    co_host_ids: list[UUID] = []
+    overrides: dict[str, list[list[str]]] = {}
     is_active: bool = True
 
     @field_validator("timezone")
     @classmethod
     def _tz(cls, v: str) -> str:
         return _validate_timezone(v)
+
+    @field_validator("overrides")
+    @classmethod
+    def _ov(cls, v: dict) -> dict:
+        return _validate_overrides(v)
 
     @field_validator("hours")
     @classmethod
@@ -104,6 +122,8 @@ class BookingPageUpdate(BaseModel):
     questions: Optional[list[BookingQuestion]] = None
     location_text: Optional[str] = Field(None, max_length=255)
     host_user_id: Optional[UUID] = None
+    co_host_ids: Optional[list[UUID]] = None
+    overrides: Optional[dict[str, list[list[str]]]] = None
     is_active: Optional[bool] = None
 
     @field_validator("timezone")
@@ -111,16 +131,28 @@ class BookingPageUpdate(BaseModel):
     def _tz(cls, v: Optional[str]) -> Optional[str]:
         return _validate_timezone(v) if v is not None else v
 
+    @field_validator("overrides")
+    @classmethod
+    def _ov(cls, v: Optional[dict]) -> Optional[dict]:
+        return _validate_overrides(v) if v is not None else v
+
     @field_validator("hours")
     @classmethod
     def _hours(cls, v: Optional[Hours]) -> Optional[Hours]:
         return _validate_hours(v) if v is not None else v
 
 
+class BookingHostInfo(BaseModel):
+    id: UUID
+    name: str
+    google_connected: bool = False
+
+
 class BookingPageResponse(BookingPageBase):
     id: UUID
     host_name: Optional[str] = None
     host_google_connected: bool = False
+    hosts: list[BookingHostInfo] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -157,6 +189,8 @@ class PublicBookRequest(BaseModel):
     email: EmailStr
     timezone: str = "UTC"
     answers: dict[str, Any] = {}
+    # utm_* / referrer / landing_page captured on the website
+    tracking: dict[str, Any] = {}
     # Honeypot: real users never fill it; bots often do.
     website: Optional[str] = None
 

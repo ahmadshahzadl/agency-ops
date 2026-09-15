@@ -26,6 +26,12 @@ class MeetingUpdate(BaseModel):
     attendee_ids: Optional[list[UUID]] = None
 
 
+class MeetingOutcomeRequest(BaseModel):
+    status: str  # completed | no_show | scheduled
+    note: Optional[str] = None
+    lead_status: Optional[str] = None  # optionally advance the linked lead
+
+
 class MeetingAssignRequest(BaseModel):
     assigned_to: Optional[UUID] = None  # null = unassign
 
@@ -47,6 +53,12 @@ class MeetingResponse(MeetingBase):
     assigned_to_name: Optional[str] = None
     company_name: Optional[str] = None
     lead_status: Optional[str] = None
+    host_user_id: Optional[UUID] = None
+    host_name: Optional[str] = None
+    tracking: Optional[dict[str, Any]] = None
+    outcome_note: Optional[str] = None
+    reminder_24h_sent_at: Optional[datetime] = None
+    reminder_1h_sent_at: Optional[datetime] = None
     created_by: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime

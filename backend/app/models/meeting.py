@@ -37,6 +37,14 @@ class Meeting(Base):
     google_calendar_user_id = Column(UUID(as_uuid=True))
     # Solutions engineer who owns this prospect (mirrored onto the lead when set).
     assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    # Host who takes this booking (round-robin picks among the page's hosts).
+    host_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    reminder_24h_sent_at = Column(DateTime(timezone=True))
+    reminder_1h_sent_at = Column(DateTime(timezone=True))
+    # Marketing attribution captured on the website (utm_*, referrer, landing_page).
+    tracking = Column(JSONB)
+    # Free-text outcome once status is completed / no_show.
+    outcome_note = Column(Text)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -46,6 +54,7 @@ class Meeting(Base):
     lead = relationship("Lead", foreign_keys=[lead_id])
     booking_page = relationship("BookingPage", foreign_keys=[booking_page_id])
     assignee = relationship("User", foreign_keys=[assigned_to])
+    host = relationship("User", foreign_keys=[host_user_id])
     attendee_links = relationship("MeetingAttendee", back_populates="meeting", cascade="all, delete-orphan")
 
 

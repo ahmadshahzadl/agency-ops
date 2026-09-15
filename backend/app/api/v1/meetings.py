@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Meeting as MeetingModel, MeetingAttendee, Project as ProjectModel, Client as ClientModel, Notification as NotificationModel, Lead as LeadModel, User as UserModel
-from app.schemas.meeting import MeetingCreate, MeetingUpdate, MeetingResponse, MeetingAssignRequest
+from app.schemas.meeting import MeetingCreate, MeetingUpdate, MeetingResponse, MeetingAssignRequest, MeetingOutcomeRequest
+from app.services import booking_service
 from sqlalchemy import or_, exists
 from app.api.deps import get_current_user, require_permission, require_any_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids, get_is_sales_member
 from app.services.permission_service import users_with_permission, BOOKINGS_MANAGE
@@ -80,6 +81,12 @@ def _meeting_to_response(m: MeetingModel) -> MeetingResponse:
         assigned_to_name=(m.assignee.full_name or m.assignee.email) if m.assignee else None,
         company_name=m.lead.company_name if m.lead else None,
         lead_status=m.lead.status if m.lead else None,
+        host_user_id=m.host_user_id,
+        host_name=(m.host.full_name or m.host.email) if m.host else None,
+        tracking=m.tracking,
+        outcome_note=m.outcome_note,
+        reminder_24h_sent_at=m.reminder_24h_sent_at,
+        reminder_1h_sent_at=m.reminder_1h_sent_at,
         source=m.source or "manual",
         external_id=m.external_id,
         status=m.status or "scheduled",
@@ -238,6 +245,8 @@ def assign_meeting(
     lead = db.query(LeadModel).filter(LeadModel.id == meeting.lead_id).first() if meeting.lead_id else None
     if lead is not None and not lead.converted_to_client_id:
         lead.assigned_to = meeting.assigned_to
+        if assignee and lead.status == "new":
+            lead.status = "contacted"
     db.flush()
     who = (assignee.full_name or assignee.email) if assignee else "nobody"
     log_activity(db, user.id, "meeting_assigned", "meeting", meeting.id, details=f"{meeting.title} -> {who}")
@@ -250,6 +259,44 @@ def assign_meeting(
             type="meeting",
         ))
         notifications_updated_this_request.set(True)
+    meetings_updated_this_request.set(True)
+    db.commit()
+    db.refresh(meeting)
+    return _meeting_to_response(meeting)
+
+
+@router.patch("/{meeting_id}/outcome", response_model=MeetingResponse)
+def set_meeting_outcome(
+    meeting_id: UUID,
+    data: MeetingOutcomeRequest,
+    db: Session = Depends(get_db),
+    user=Depends(require_permission("meetings:read")),
+    permissions=Depends(get_user_permissions),
+    team_ids=Depends(get_user_team_ids),
+    manager_scope=Depends(get_manager_scope_user_ids),
+    sales_own_only=Depends(get_is_sales_member),
+):
+    """Record what happened: completed / no_show (or back to scheduled), a note, and optionally the lead's new stage.
+    Allowed for admins, bookings:manage, the host, the assignee and attendees."""
+    meeting = db.query(MeetingModel).filter(MeetingModel.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id, BOOKINGS_MANAGE in permissions):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    involved = (
+        "admin:all" in permissions
+        or BOOKINGS_MANAGE in permissions
+        or meeting.host_user_id == user.id
+        or meeting.assigned_to == user.id
+        or any(a.user_id == user.id for a in meeting.attendee_links)
+    )
+    if not involved:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only people on this meeting can record its outcome")
+    try:
+        booking_service.set_outcome(db, meeting, data.status, data.note, data.lead_status)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    log_activity(db, user.id, "meeting_outcome", "meeting", meeting.id, details=f"{meeting.title}: {data.status}" + (f" / lead {data.lead_status}" if data.lead_status else ""))
     meetings_updated_this_request.set(True)
     db.commit()
     db.refresh(meeting)
@@ -290,10 +337,24 @@ def update_meeting(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
     if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id, BOOKINGS_MANAGE in permissions):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    inbound = (meeting.source or "manual") != "manual" and meeting.booking_page_id is not None
+    time_changed = inbound and (
+        (data.start_at is not None and data.start_at != meeting.start_at)
+        or (data.end_at is not None and data.end_at != meeting.end_at)
+    )
     for k in ["title", "description", "start_at", "end_at", "location"]:
         v = getattr(data, k, None)
-        if v is not None:
+        if v is not None and not (time_changed and k in ("start_at", "end_at")):
             setattr(meeting, k, v)
+    if time_changed:
+        # Host-side move: push to Google Calendar and tell the invitee (no availability check).
+        try:
+            booking_service.reschedule_booking(
+                db, meeting, data.start_at or meeting.start_at, by_host=True, new_end=data.end_at
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        notifications_updated_this_request.set(True)
     if data.attendee_ids is not None:
         for link in meeting.attendee_links:
             db.delete(link)
@@ -327,6 +388,10 @@ def delete_meeting(
     if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id, BOOKINGS_MANAGE in permissions):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
     meeting_title = meeting.title
+    if (meeting.source or "manual") != "manual" and meeting.status not in ("canceled",):
+        # Removing an inbound booking cancels it for real: Google event deleted, invitee told.
+        booking_service.cancel_booking(db, meeting, "Removed by our team", by="host")
+        notifications_updated_this_request.set(True)
     log_activity(db, user.id, "meeting_deleted", "meeting", meeting_id, details=f"Meeting deleted: {meeting_title}")
     purge_entity_artifacts(db, "meeting", meeting.id)
     db.delete(meeting)

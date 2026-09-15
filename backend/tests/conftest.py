@@ -7,6 +7,8 @@ import os
 
 # Settings refuse the built-in JWT secret unless DEBUG=true; tests are local dev.
 os.environ.setdefault("DEBUG", "true")
+# No background reminder thread during tests.
+os.environ.setdefault("BOOKING_REMINDERS_ENABLED", "false")
 
 import pytest
 from fastapi.testclient import TestClient

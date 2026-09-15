@@ -32,6 +32,12 @@ class BookingPage(Base):
     # Shown to the invitee as the meeting location (e.g. "Google Meet — link in your invite")
     location_text = Column(String(255))
     host_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    # Extra hosts (user ids as strings). Slots = union of all hosts' free time; bookings go
+    # to the least-loaded host who is free.
+    co_host_ids = Column(JSONB, nullable=False, default=list)
+    # Per-date exceptions in `timezone`: {"2026-12-25": [], "2026-12-27": [["10:00","13:00"]]}
+    # An empty list closes the day; windows replace the weekly hours for that date.
+    overrides = Column(JSONB, nullable=False, default=dict)
     is_active = Column(Boolean, nullable=False, default=True)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)

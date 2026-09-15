@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # cancel/reschedule link, e.g. https://fuorix.com -> https://fuorix.com/book/manage/<token>
     booking_public_url: str = ""
 
+    # Background thread that emails invitees 24h / 1h before inbound bookings.
+    booking_reminders_enabled: bool = True
+
     # Google Calendar + Meet for booking hosts (OAuth client from Google Cloud Console).
     # Redirect URI registered there must be <FRONTEND_URL>/api/v1/integrations/google/callback
     # unless GOOGLE_REDIRECT_URI overrides it. Empty client id = feature hidden.

@@ -144,6 +144,13 @@ app.include_router(booking_admin.router, prefix="/api/v1")
 app.include_router(integrations.router, prefix="/api/v1")
 
 
+@app.on_event("startup")
+def _start_background_jobs() -> None:
+    if settings.booking_reminders_enabled:
+        from app.services import booking_reminders
+        booking_reminders.start()
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

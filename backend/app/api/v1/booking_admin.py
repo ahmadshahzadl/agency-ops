@@ -9,7 +9,7 @@ from app.api.deps import require_permission
 from app.database import get_db
 from app.models import User as UserModel
 from app.models.booking import BookingPage
-from app.schemas.booking import BookingPageCreate, BookingPageResponse, BookingPageUpdate
+from app.schemas.booking import BookingPageCreate, BookingPageResponse, BookingPageUpdate, BookingHostInfo
 from app.services import booking_service
 from app.services import google_calendar_service as gcal
 
@@ -18,8 +18,15 @@ router = APIRouter(prefix="/booking-pages", tags=["booking-pages"])
 
 def _resp(p: BookingPage, db: Session | None = None) -> BookingPageResponse:
     connected = bool(db is not None and p.host_user_id and gcal.get_integration(db, p.host_user_id))
+    hosts: list[BookingHostInfo] = []
+    if db is not None:
+        for u in booking_service.page_hosts(db, p):
+            hosts.append(BookingHostInfo(id=u.id, name=u.full_name or u.email, google_connected=gcal.get_integration(db, u.id) is not None))
     return BookingPageResponse(
         host_google_connected=connected,
+        hosts=hosts,
+        co_host_ids=[UUID(str(x)) for x in (p.co_host_ids or []) if str(x)],
+        overrides=p.overrides or {},
         id=p.id,
         slug=p.slug,
         name=p.name,
@@ -61,8 +68,11 @@ def create_page(data: BookingPageCreate, db: Session = Depends(get_db), user=Dep
     if db.query(BookingPage).filter(BookingPage.slug == data.slug).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Slug already in use")
     _check_host(db, data.host_user_id)
+    for cid in data.co_host_ids:
+        _check_host(db, cid)
     payload = data.model_dump()
     payload["questions"] = [q.model_dump() for q in data.questions]
+    payload["co_host_ids"] = [str(x) for x in data.co_host_ids if x != data.host_user_id]
     page = BookingPage(**payload, created_by=user.id)
     db.add(page)
     db.commit()
@@ -91,6 +101,11 @@ def update_page(page_id: UUID, data: BookingPageUpdate, db: Session = Depends(ge
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Slug already in use")
     if "host_user_id" in changes:
         _check_host(db, changes["host_user_id"])
+    if "co_host_ids" in changes and data.co_host_ids is not None:
+        for cid in data.co_host_ids:
+            _check_host(db, cid)
+        primary = changes.get("host_user_id", page.host_user_id)
+        changes["co_host_ids"] = [str(x) for x in data.co_host_ids if x != primary]
     for k, v in changes.items():
         setattr(page, k, v)
     db.commit()

@@ -214,7 +214,7 @@ def _api(db: Session, integ: UserIntegration, method: str, path: str, *, params:
 # Free/busy (small TTL cache so a slots request per calendar month is one API call)
 # ---------------------------------------------------------------------------
 
-_FB_TTL = 60.0
+_FB_TTL = 15.0  # short: a slot taken on Google in this window could still be offered
 _fb_cache: dict[tuple, tuple[float, list[tuple[datetime, datetime]]]] = {}
 
 

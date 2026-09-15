@@ -4,6 +4,7 @@ SMTP_HOST is unset, so local dev and tests need no mail server."""
 import logging
 import smtplib
 import threading
+import time
 from email.message import EmailMessage
 from app.config import get_settings
 
@@ -58,16 +59,25 @@ def _send(to: str, subject: str, html: str, text: str, attachments: list[tuple] 
             msg.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename, params={"method": method})
         else:
             msg.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
-    try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
-            if settings.smtp_tls:
-                server.starttls()
-            if settings.smtp_user:
-                server.login(settings.smtp_user, settings.smtp_password)
-            server.send_message(msg)
-        logger.info("email sent to=%s subject=%s", to, subject)
-    except Exception:
-        logger.exception("email send failed to=%s subject=%s", to, subject)
+    # Transient SMTP hiccups (relay busy, TLS reset) are common; retry a few times before giving up.
+    delays = (0, 3, 10)
+    for attempt, delay in enumerate(delays, start=1):
+        if delay:
+            time.sleep(delay)
+        try:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+                if settings.smtp_tls:
+                    server.starttls()
+                if settings.smtp_user:
+                    server.login(settings.smtp_user, settings.smtp_password)
+                server.send_message(msg)
+            logger.info("email sent to=%s subject=%s attempt=%d", to, subject, attempt)
+            return
+        except Exception:
+            if attempt == len(delays):
+                logger.exception("email send failed to=%s subject=%s after %d attempts", to, subject, attempt)
+            else:
+                logger.warning("email send attempt %d failed to=%s; retrying", attempt, to, exc_info=True)
 
 
 def send_email(to: str, subject: str, html: str, text: str, attachments: list[tuple] | None = None) -> None:

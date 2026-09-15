@@ -26,12 +26,15 @@ export interface BookingPage {
   host_user_id: string | null;
   host_name: string | null;
   host_google_connected: boolean;
+  hosts: { id: string; name: string; google_connected: boolean }[];
+  co_host_ids: string[];
+  overrides: Record<string, [string, string][]>;
   is_active: boolean;
   created_at: string | null;
   updated_at: string | null;
 }
 
-export type BookingPageInput = Omit<BookingPage, "id" | "host_name" | "host_google_connected" | "created_at" | "updated_at">;
+export type BookingPageInput = Omit<BookingPage, "id" | "host_name" | "host_google_connected" | "hosts" | "created_at" | "updated_at">;
 
 export async function listBookingPages(): Promise<BookingPage[]> {
   return apiFetch<BookingPage[]>("/api/v1/booking-pages");
