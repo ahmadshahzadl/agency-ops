@@ -26,6 +26,10 @@ class MeetingUpdate(BaseModel):
     attendee_ids: Optional[list[UUID]] = None
 
 
+class MeetingAssignRequest(BaseModel):
+    assigned_to: Optional[UUID] = None  # null = unassign
+
+
 class MeetingResponse(MeetingBase):
     id: UUID
     source: str = "manual"
@@ -39,6 +43,10 @@ class MeetingResponse(MeetingBase):
     invitee_timezone: Optional[str] = None
     answers: Optional[dict[str, Any]] = None
     google_event_id: Optional[str] = None
+    assigned_to: Optional[UUID] = None
+    assigned_to_name: Optional[str] = None
+    company_name: Optional[str] = None
+    lead_status: Optional[str] = None
     created_by: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime

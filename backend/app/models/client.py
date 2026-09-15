@@ -24,3 +24,17 @@ class Client(Base):
     created_by_user = relationship("User", back_populates="clients_created", foreign_keys=[created_by])
     projects = relationship("Project", back_populates="client")
     source_lead = relationship("Lead", back_populates="converted_to_client", uselist=False, foreign_keys="Lead.converted_to_client_id")
+
+    # Attribution carried over from the lead this client was converted from.
+    @property
+    def source(self) -> str | None:
+        return self.source_lead.source if self.source_lead else None
+
+    @property
+    def solutions_engineer_id(self):
+        return self.source_lead.assigned_to if self.source_lead else None
+
+    @property
+    def solutions_engineer_name(self) -> str | None:
+        u = self.source_lead.assigned_to_user if self.source_lead else None
+        return (u.full_name or u.email) if u else None

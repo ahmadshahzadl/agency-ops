@@ -27,6 +27,9 @@ class ClientUpdate(BaseModel):
 class ClientResponse(ClientBase):
     id: UUID
     team_id: Optional[UUID] = None
+    source: Optional[str] = None  # from the converted lead (website, calendly, referral, ...)
+    solutions_engineer_id: Optional[UUID] = None
+    solutions_engineer_name: Optional[str] = None
     created_by: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime

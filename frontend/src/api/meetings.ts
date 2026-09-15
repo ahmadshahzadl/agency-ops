@@ -18,17 +18,37 @@ export interface Meeting {
   booking_page_id?: string | null;
   invitee_timezone?: string | null;
   answers?: Record<string, unknown> | null;
+  assigned_to?: string | null;
+  assigned_to_name?: string | null;
+  company_name?: string | null;
+  lead_status?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   attendee_ids: string[];
 }
 
-export async function listMeetings(params?: { skip?: number; limit?: number; project_id?: string }): Promise<Meeting[]> {
+export interface BookingAssignee {
+  id: string;
+  full_name: string | null;
+  email: string;
+}
+
+export async function listBookingAssignees(): Promise<BookingAssignee[]> {
+  return apiFetch<BookingAssignee[]>("/api/v1/meetings/booking-assignees");
+}
+
+export async function assignMeeting(id: string, assigned_to: string | null): Promise<Meeting> {
+  return apiFetch<Meeting>(`/api/v1/meetings/${id}/assign`, { method: "PATCH", body: JSON.stringify({ assigned_to }) });
+}
+
+export async function listMeetings(params?: { skip?: number; limit?: number; project_id?: string; source?: string; assigned?: string }): Promise<Meeting[]> {
   const sp = new URLSearchParams();
   if (params?.skip != null) sp.set("skip", String(params.skip));
   if (params?.limit != null) sp.set("limit", String(params.limit));
   if (params?.project_id) sp.set("project_id", params.project_id);
+  if (params?.source) sp.set("source", params.source);
+  if (params?.assigned) sp.set("assigned", params.assigned);
   const qs = sp.toString();
   return apiFetch<Meeting[]>(`/api/v1/meetings${qs ? `?${qs}` : ""}`);
 }

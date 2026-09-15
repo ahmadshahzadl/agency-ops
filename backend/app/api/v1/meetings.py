@@ -2,10 +2,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Meeting as MeetingModel, MeetingAttendee, Project as ProjectModel, Client as ClientModel, Notification as NotificationModel
-from app.schemas.meeting import MeetingCreate, MeetingUpdate, MeetingResponse
+from app.models import Meeting as MeetingModel, MeetingAttendee, Project as ProjectModel, Client as ClientModel, Notification as NotificationModel, Lead as LeadModel, User as UserModel
+from app.schemas.meeting import MeetingCreate, MeetingUpdate, MeetingResponse, MeetingAssignRequest
 from sqlalchemy import or_, exists
-from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids, get_is_sales_member
+from app.api.deps import get_current_user, require_permission, require_any_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids, get_is_sales_member
+from app.services.permission_service import users_with_permission, BOOKINGS_MANAGE
 from app.services.cleanup_service import purge_entity_artifacts
 from app.services.activity_service import log_activity, meetings_updated_this_request, notifications_updated_this_request
 
@@ -40,8 +41,13 @@ def _can_access_meeting(
     manager_scope: set[UUID] | None = None,
     sales_own_only: bool = False,
     user_id: UUID | None = None,
+    bookings_access: bool = False,
 ) -> bool:
     if is_admin:
+        return True
+    # bookings:manage (solutions engineers): every booking that came in from outside,
+    # plus anything assigned to them.
+    if bookings_access and (meeting.source != "manual" or (user_id and meeting.assigned_to == user_id)):
         return True
     if user_id and any(a.user_id == user_id for a in (meeting.attendee_links or [])):
         return True
@@ -70,6 +76,10 @@ def _meeting_to_response(m: MeetingModel) -> MeetingResponse:
         start_at=m.start_at,
         end_at=m.end_at,
         location=m.location,
+        assigned_to=m.assigned_to,
+        assigned_to_name=(m.assignee.full_name or m.assignee.email) if m.assignee else None,
+        company_name=m.lead.company_name if m.lead else None,
+        lead_status=m.lead.status if m.lead else None,
         source=m.source or "manual",
         external_id=m.external_id,
         status=m.status or "scheduled",
@@ -99,6 +109,8 @@ def list_meetings(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     project_id: UUID | None = None,
+    source: str | None = Query(None, description="manual | website | calendly | external (= not manual)"),
+    assigned: str | None = Query(None, description="me | unassigned | <user id>"),
 ):
     qry = db.query(MeetingModel)
     if "admin:all" not in permissions:
@@ -109,27 +121,40 @@ def list_meetings(
             MeetingAttendee.user_id == user.id,
         )
         if sales_own_only:
-            qry = qry.filter(
-                or_(MeetingModel.created_by == user.id, attendee_exists)
-            )
+            scope = or_(MeetingModel.created_by == user.id, attendee_exists)
         elif manager_scope is not None:
-            qry = qry.outerjoin(ProjectModel, MeetingModel.project_id == ProjectModel.id).filter(
-                or_(
-                    attendee_exists,
-                    MeetingModel.created_by.in_(manager_scope)
-                    & ((ProjectModel.id.is_(None)) | (ProjectModel.owner_id.in_(manager_scope))),
-                )
+            qry = qry.outerjoin(ProjectModel, MeetingModel.project_id == ProjectModel.id)
+            scope = or_(
+                attendee_exists,
+                MeetingModel.created_by.in_(manager_scope)
+                & ((ProjectModel.id.is_(None)) | (ProjectModel.owner_id.in_(manager_scope))),
             )
         elif not team_ids:
-            qry = qry.filter(attendee_exists)
+            scope = attendee_exists
         else:
-            qry = (
-                qry.outerjoin(ProjectModel, MeetingModel.project_id == ProjectModel.id)
-                .outerjoin(ClientModel, ProjectModel.client_id == ClientModel.id)
-                .filter(or_(attendee_exists, ClientModel.team_id.in_(team_ids)))
+            qry = qry.outerjoin(ProjectModel, MeetingModel.project_id == ProjectModel.id).outerjoin(
+                ClientModel, ProjectModel.client_id == ClientModel.id
             )
+            scope = or_(attendee_exists, ClientModel.team_id.in_(team_ids))
+        if BOOKINGS_MANAGE in permissions:
+            # Solutions engineers see every inbound booking and whatever is assigned to them.
+            scope = or_(scope, MeetingModel.source != "manual", MeetingModel.assigned_to == user.id)
+        qry = qry.filter(scope)
     if project_id:
         qry = qry.filter(MeetingModel.project_id == project_id)
+    if source == "external":
+        qry = qry.filter(MeetingModel.source != "manual")
+    elif source:
+        qry = qry.filter(MeetingModel.source == source)
+    if assigned == "me":
+        qry = qry.filter(MeetingModel.assigned_to == user.id)
+    elif assigned == "unassigned":
+        qry = qry.filter(MeetingModel.assigned_to.is_(None))
+    elif assigned:
+        try:
+            qry = qry.filter(MeetingModel.assigned_to == UUID(assigned))
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="assigned must be me, unassigned or a user id")
     # Tiebreaker keeps pagination stable when many meetings share a start time.
     qry = qry.order_by(MeetingModel.start_at.desc(), MeetingModel.id.desc())
     meetings = qry.offset(skip).limit(limit).all()
@@ -176,6 +201,61 @@ def create_meeting(
     return _meeting_to_response(meeting)
 
 
+@router.get("/booking-assignees")
+def list_booking_assignees(
+    db: Session = Depends(get_db),
+    user=Depends(require_permission("meetings:read")),
+):
+    """Users a booking can be assigned to: everyone with bookings:manage or admin."""
+    users = users_with_permission(db, BOOKINGS_MANAGE, include_admins=True)
+    return [{"id": u.id, "full_name": u.full_name, "email": u.email} for u in sorted(users, key=lambda u: (u.full_name or u.email).lower())]
+
+
+@router.patch("/{meeting_id}/assign", response_model=MeetingResponse)
+def assign_meeting(
+    meeting_id: UUID,
+    data: MeetingAssignRequest,
+    db: Session = Depends(get_db),
+    user=Depends(require_any_permission("admin:all", BOOKINGS_MANAGE)),
+    permissions=Depends(get_user_permissions),
+    team_ids=Depends(get_user_team_ids),
+    manager_scope=Depends(get_manager_scope_user_ids),
+    sales_own_only=Depends(get_is_sales_member),
+):
+    """Assign (or unassign) the solutions engineer who owns this prospect. Mirrors onto the lead."""
+    meeting = db.query(MeetingModel).filter(MeetingModel.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id, BOOKINGS_MANAGE in permissions):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    assignee = None
+    if data.assigned_to:
+        assignee = db.query(UserModel).filter(UserModel.id == data.assigned_to, UserModel.is_active.is_(True)).first()
+        if not assignee or assignee.client_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Assignee must be an active staff user")
+    previous = meeting.assigned_to
+    meeting.assigned_to = assignee.id if assignee else None
+    lead = db.query(LeadModel).filter(LeadModel.id == meeting.lead_id).first() if meeting.lead_id else None
+    if lead is not None and not lead.converted_to_client_id:
+        lead.assigned_to = meeting.assigned_to
+    db.flush()
+    who = (assignee.full_name or assignee.email) if assignee else "nobody"
+    log_activity(db, user.id, "meeting_assigned", "meeting", meeting.id, details=f"{meeting.title} -> {who}")
+    if assignee and assignee.id != user.id and assignee.id != previous:
+        db.add(NotificationModel(
+            user_id=assignee.id,
+            title=f"Prospect assigned to you: {meeting.invitee_name or meeting.title}",
+            message=f"{meeting.title} on {meeting.start_at.strftime('%Y-%m-%d %H:%M') if meeting.start_at else ''}" + (f" · {lead.company_name}" if lead else ""),
+            link=f"/meetings/{meeting.id}",
+            type="meeting",
+        ))
+        notifications_updated_this_request.set(True)
+    meetings_updated_this_request.set(True)
+    db.commit()
+    db.refresh(meeting)
+    return _meeting_to_response(meeting)
+
+
 @router.get("/{meeting_id}", response_model=MeetingResponse)
 def get_meeting(
     meeting_id: UUID,
@@ -189,7 +269,7 @@ def get_meeting(
     meeting = db.query(MeetingModel).filter(MeetingModel.id == meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
-    if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id):
+    if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id, BOOKINGS_MANAGE in permissions):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
     return _meeting_to_response(meeting)
 
@@ -208,7 +288,7 @@ def update_meeting(
     meeting = db.query(MeetingModel).filter(MeetingModel.id == meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
-    if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id):
+    if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id, BOOKINGS_MANAGE in permissions):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
     for k in ["title", "description", "start_at", "end_at", "location"]:
         v = getattr(data, k, None)
@@ -244,7 +324,7 @@ def delete_meeting(
     meeting = db.query(MeetingModel).filter(MeetingModel.id == meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
-    if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id):
+    if not _can_access_meeting(meeting, team_ids, "admin:all" in permissions, manager_scope, sales_own_only, user.id, BOOKINGS_MANAGE in permissions):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
     meeting_title = meeting.title
     log_activity(db, user.id, "meeting_deleted", "meeting", meeting_id, details=f"Meeting deleted: {meeting_title}")

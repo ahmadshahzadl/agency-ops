@@ -7,6 +7,9 @@ export interface Client {
   contact_phone: string | null;
   address: string | null;
   team_id: string | null;
+  source?: string | null;
+  solutions_engineer_id?: string | null;
+  solutions_engineer_name?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

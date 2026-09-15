@@ -35,6 +35,8 @@ class Meeting(Base):
     # Google Calendar event created for this meeting (host's calendar), when the host is connected.
     google_event_id = Column(String(255))
     google_calendar_user_id = Column(UUID(as_uuid=True))
+    # Solutions engineer who owns this prospect (mirrored onto the lead when set).
+    assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -43,6 +45,7 @@ class Meeting(Base):
     created_by_user = relationship("User", back_populates="meetings_created", foreign_keys=[created_by])
     lead = relationship("Lead", foreign_keys=[lead_id])
     booking_page = relationship("BookingPage", foreign_keys=[booking_page_id])
+    assignee = relationship("User", foreign_keys=[assigned_to])
     attendee_links = relationship("MeetingAttendee", back_populates="meeting", cascade="all, delete-orphan")
 
 

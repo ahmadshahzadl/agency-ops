@@ -1,8 +1,9 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import or_, exists
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Client as ClientModel
+from app.models import Client as ClientModel, Lead as LeadModel
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
 from app.services.activity_service import log_activity
@@ -15,8 +16,12 @@ def _can_access_client(
     user_team_ids: set[UUID],
     is_admin: bool,
     manager_scope: set[UUID] | None = None,
+    user_id: UUID | None = None,
 ) -> bool:
     if is_admin:
+        return True
+    # The solutions engineer who owned the lead keeps access to the client it became.
+    if user_id and client.source_lead is not None and client.source_lead.assigned_to == user_id:
         return True
     if manager_scope is not None:
         return client.created_by is not None and client.created_by in manager_scope
@@ -38,12 +43,13 @@ def list_clients(
 ):
     qry = db.query(ClientModel).filter(ClientModel.deleted_at.is_(None))
     if "admin:all" not in permissions:
+        owned_lead = exists().where(LeadModel.converted_to_client_id == ClientModel.id, LeadModel.assigned_to == user.id)
         if manager_scope is not None:
-            qry = qry.filter(ClientModel.created_by.in_(manager_scope))
+            qry = qry.filter(or_(ClientModel.created_by.in_(manager_scope), owned_lead))
         elif not team_ids:
-            return []
+            qry = qry.filter(owned_lead)
         else:
-            qry = qry.filter(ClientModel.team_id.in_(team_ids))
+            qry = qry.filter(or_(ClientModel.team_id.in_(team_ids), owned_lead))
     if q:
         qry = qry.filter(ClientModel.name.ilike(f"%{q}%"))
     return qry.offset(skip).limit(limit).all()
@@ -88,7 +94,7 @@ def get_client(
     client = db.query(ClientModel).filter(ClientModel.id == client_id, ClientModel.deleted_at.is_(None)).first()
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
-    if not _can_access_client(client, team_ids, "admin:all" in permissions, manager_scope):
+    if not _can_access_client(client, team_ids, "admin:all" in permissions, manager_scope, user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
     return client
 
@@ -106,7 +112,7 @@ def update_client(
     client = db.query(ClientModel).filter(ClientModel.id == client_id, ClientModel.deleted_at.is_(None)).first()
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
-    if not _can_access_client(client, team_ids, "admin:all" in permissions, manager_scope):
+    if not _can_access_client(client, team_ids, "admin:all" in permissions, manager_scope, user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
     if "admin:all" not in permissions and data.team_id is not None and data.team_id not in team_ids:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign to this team")
@@ -132,7 +138,7 @@ def delete_client(
     client = db.query(ClientModel).filter(ClientModel.id == client_id, ClientModel.deleted_at.is_(None)).first()
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
-    if not _can_access_client(client, team_ids, "admin:all" in permissions, manager_scope):
+    if not _can_access_client(client, team_ids, "admin:all" in permissions, manager_scope, user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
     from app.models import Project as ProjectModel
     active_projects = db.query(ProjectModel.id).filter(

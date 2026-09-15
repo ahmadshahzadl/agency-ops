@@ -135,6 +135,7 @@ Seeded by `scripts/seed_db.py` (customizable in the Roles UI):
 | `employee` | Own tasks, assigned projects/boards, own timesheet, meetings (read), notes, attachments |
 | `qa`       | Employee access **plus** `tasks:qa_approve` — the only non-admin role that can approve a review to done or fail it back with notes; their dashboard surfaces the review queue |
 | `client`   | Portal-only external users (set the user's client link): project progress, invoices, proposals, issue reporting — zero internal access |
+| `solutions_engineer` | Employee-level access **plus** `bookings:manage`: sees every inbound booking (website/Calendly) and inbound lead, can claim or be assigned a prospect, and keeps access to that lead and the client it becomes |
 
 Two conventions worth knowing:
 - **Manager scope comes from reports, not the role name**: whoever is set as a user's *Manager* gains team visibility over them (tasks, time, boards). A manager-role user with no reports behaves like a member for scoping.
@@ -153,6 +154,7 @@ Security notes for internet-facing deployments: run a **single backend worker** 
 
 ## Online booking
 
+0. **Ownership:** every inbound booking shows in **Meetings** for admins, the host and everyone with `bookings:manage` (the seeded `solutions_engineer` role). Assign it there (or "Assign to me"); the assignment is mirrored onto the lead, the assignee is notified, and when the lead is converted the client carries the solutions engineer as its source attribution. Filter Meetings by *Website / Calendly / Manual* and *Unassigned / Mine*.
 1. In the app, **Booking pages → New booking page**: name, URL slug, host, duration, buffers, weekly hours + timezone, intake questions (a question mentioning "company" names the lead). Set it Live. **Preview slots** shows exactly what visitors will see.
 2. Public API (no auth): `GET /api/v1/public/booking/{slug}`, `GET .../{slug}/slots?start=&end=`, `POST .../{slug}/book`, and `GET|POST .../manage/{token}[/cancel|/reschedule]`. Bookings are rate-limited per IP and protected by a honeypot field; the booking-page row is locked while a slot is confirmed so two visitors cannot take the same time.
 3. Your website calls those endpoints (the Fuorix site does it through a server-side proxy at `/api/booking/*` so the portal never has to be exposed to browsers). Set `BOOKING_PUBLIC_URL` in `backend/.env` to the website's base URL so the invitee's manage link in emails points at `<site>/book/manage/<token>`.

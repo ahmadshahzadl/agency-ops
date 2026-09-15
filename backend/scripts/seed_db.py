@@ -34,6 +34,7 @@ PERMISSIONS = [
     "agreements:read", "agreements:write",
     "letters:read", "letters:write",
     "credentials:read", "credentials:write",  # vault: seeded to admin only - grant to others deliberately
+    "bookings:manage",  # see every inbound booking/lead and assign it to a solutions engineer
 ]
 
 # Three primary roles per docs/roles-permissions-flow.md: Admin, Manager, Employee
@@ -80,6 +81,20 @@ ROLE_PERMISSIONS = {
         "announcements:read",
     ],
     "client": [],  # portal users: no internal permissions at all
+    "solutions_engineer": [
+        "dashboard:read",
+        "leads:read", "leads:write",
+        "clients:read",
+        "projects:read",
+        "tasks:read",
+        "meetings:read", "meetings:write",
+        "bookings:manage",
+        "notes:read", "notes:write",
+        "attachments:read", "attachments:write",
+        "time:read", "time:write",
+        "quotes:read",
+        "announcements:read",
+    ],
     "qa": [
         "dashboard:read",
         "projects:read",
@@ -119,6 +134,7 @@ def seed():
                     "member": "Member: same as Employee (backward compatibility)",
                         "qa": "QA: employee access plus approving/failing tasks in review",
                         "client": "Client portal: external client user, portal access only",
+                        "solutions_engineer": "Solutions engineer: sees and claims website bookings and leads, manages the prospects assigned to them",
                     }.get(role_name, role_name),
                 )
                 db.add(role)

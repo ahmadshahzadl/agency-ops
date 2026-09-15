@@ -251,6 +251,7 @@ export default function Clients() {
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Phone</th>
+                <th className="px-4 py-3">Source</th>
                 {isAdmin && <th className="px-4 py-3">Team</th>}
                 {canWrite && <th className="px-4 py-3 w-24 text-right">Actions</th>}
               </tr>
@@ -271,6 +272,12 @@ export default function Clients() {
                   <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
                   <td className="px-4 py-3 text-gray-600">{c.contact_email || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{c.contact_phone || "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {c.source ? <span className="capitalize">{c.source}</span> : "—"}
+                    {c.solutions_engineer_name && (
+                      <div className="text-xs text-gray-500 mt-0.5" title="Solutions engineer who brought this client in">via {c.solutions_engineer_name}</div>
+                    )}
+                  </td>
                   {isAdmin && (
                     <td className="px-4 py-3 text-gray-600">
                       {c.team_id ? teams.find((t) => t.id === c.team_id)?.name ?? "—" : "—"}

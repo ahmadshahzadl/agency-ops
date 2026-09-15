@@ -26,6 +26,7 @@ from app.models import (
 from app.models.booking import BookingPage
 from app.services import email_service
 from app.services import google_calendar_service as gcal
+from app.services.permission_service import users_with_permission, BOOKINGS_MANAGE
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +226,14 @@ def _admins(db: Session) -> list[UserModel]:
     return db.query(UserModel).join(UserModel.roles).filter(RoleModel.name == "admin", UserModel.is_active.is_(True)).all()
 
 
+def _watchers(db: Session, meeting: MeetingModel) -> list[UserModel]:
+    """Who follows this prospect besides host/admins: its assignee, or every solutions engineer while unassigned."""
+    if meeting.assigned_to:
+        u = db.query(UserModel).filter(UserModel.id == meeting.assigned_to).first()
+        return [u] if u else []
+    return users_with_permission(db, BOOKINGS_MANAGE)
+
+
 def _notify(db: Session, users: Iterable[UserModel], title: str, message: str, link: str) -> None:
     seen = set()
     for u in users:
@@ -286,7 +295,7 @@ def create_booking(
 
     google_ok = _google_create(db, page, meeting)
     when = _fmt_dt(start, page.timezone)
-    _notify(db, [host, *_admins(db)], f"New booking: {meeting.title}", f"{name} booked {page.name} for {when}.", f"/meetings/{meeting.id}")
+    _notify(db, [host, *_admins(db), *_watchers(db, meeting)], f"New booking: {meeting.title}", f"{name} booked {page.name} for {when}.", f"/meetings/{meeting.id}")
     send_confirmation(page, meeting, host, attach_ics=not google_ok)
     return meeting
 
@@ -359,7 +368,7 @@ def cancel_booking(db: Session, meeting: MeetingModel, reason: str | None, by: s
     page = _page_of(db, meeting)
     host = page.host if page else None
     google_ok = _google_delete(db, page, meeting)
-    _notify(db, [host, *_admins(db)], f"Booking canceled: {meeting.title}", text, f"/meetings/{meeting.id}")
+    _notify(db, [host, *_admins(db), *_watchers(db, meeting)], f"Booking canceled: {meeting.title}", text, f"/meetings/{meeting.id}")
     send_cancellation(page, meeting, host, attach_ics=not google_ok)
     return meeting
 
@@ -385,7 +394,7 @@ def reschedule_booking(db: Session, meeting: MeetingModel, new_start: datetime, 
     google_ok = _google_update(db, page, meeting)
     _notify(
         db,
-        [host, *_admins(db)],
+        [host, *_admins(db), *_watchers(db, meeting)],
         f"Booking rescheduled: {meeting.title}",
         f"Moved from {_fmt_dt(old, page.timezone)} to {_fmt_dt(new_start, page.timezone)}.",
         f"/meetings/{meeting.id}",

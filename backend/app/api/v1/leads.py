@@ -10,6 +10,7 @@ from app.schemas.lead import LeadCreate, LeadUpdate, LeadResponse, LeadConvertRe
 from app.schemas.client import ClientCreate, ClientResponse
 from app.schemas.project import ProjectCreate, ProjectResponse
 from app.api.deps import get_current_user, require_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids, get_is_sales_member, get_sales_team_user_ids
+from app.services.permission_service import BOOKINGS_MANAGE
 from app.services.cleanup_service import purge_entity_artifacts
 from app.services.activity_service import log_activity
 
@@ -17,6 +18,9 @@ router = APIRouter(prefix="/leads", tags=["leads"])
 
 # Stages where only management (manager/admin) can edit or delete the lead; members cannot.
 _LOCKED_STAGES_FOR_MEMBERS = frozenset({"converted", "closed"})
+
+
+INBOUND_SOURCES = ("website", "calendly")
 
 
 def _is_management(permissions: set, manager_scope: set[UUID] | None) -> bool:
@@ -31,9 +35,13 @@ def _can_access_lead(
     is_admin: bool,
     manager_scope: set[UUID] | None,
     sales_team_user_ids: set[UUID],
+    bookings_access: bool = False,
 ) -> bool:
-    """New leads: visible to all sales team. Once lead leaves 'new': only assignee, manager, admin."""
+    """New leads: visible to all sales team. Once lead leaves 'new': only assignee, manager, admin.
+    bookings:manage additionally sees every inbound (website/Calendly) lead."""
     if is_admin:
+        return True
+    if bookings_access and (lead.source or "") in INBOUND_SOURCES:
         return True
     if lead.status == "new":
         return user_id in sales_team_user_ids
@@ -75,6 +83,8 @@ def list_leads(
         ]
         if user.id in sales_team_user_ids:
             conds.insert(0, LeadModel.status == "new")
+        if BOOKINGS_MANAGE in permissions:
+            conds.append(LeadModel.source.in_(list(INBOUND_SOURCES)))
         qry = qry.filter(or_(*conds))
     if q:
         qry = qry.filter(
@@ -135,7 +145,7 @@ def get_lead(
     lead = db.query(LeadModel).options(joinedload(LeadModel.created_by_user), joinedload(LeadModel.assigned_to_user)).filter(LeadModel.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
-    if not _can_access_lead(lead, user.id, team_ids, "admin:all" in permissions, manager_scope, sales_team_user_ids):
+    if not _can_access_lead(lead, user.id, team_ids, "admin:all" in permissions, manager_scope, sales_team_user_ids, BOOKINGS_MANAGE in permissions):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return lead
 
@@ -154,7 +164,7 @@ def update_lead(
     lead = db.query(LeadModel).filter(LeadModel.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
-    if not _can_access_lead(lead, user.id, team_ids, "admin:all" in permissions, manager_scope, sales_team_user_ids):
+    if not _can_access_lead(lead, user.id, team_ids, "admin:all" in permissions, manager_scope, sales_team_user_ids, BOOKINGS_MANAGE in permissions):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     # Only management can edit leads that are already in converted or closed stage
     if not _is_management(permissions, manager_scope):
@@ -198,7 +208,7 @@ def convert_lead(
     lead = db.query(LeadModel).filter(LeadModel.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
-    if not _can_access_lead(lead, user.id, team_ids, "admin:all" in permissions, manager_scope, sales_team_user_ids):
+    if not _can_access_lead(lead, user.id, team_ids, "admin:all" in permissions, manager_scope, sales_team_user_ids, BOOKINGS_MANAGE in permissions):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     # Only management can create client and project from a lead; members only mark status as converted
     if not _is_management(permissions, manager_scope):
@@ -278,7 +288,7 @@ def delete_lead(
     lead = db.query(LeadModel).filter(LeadModel.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
-    if not _can_access_lead(lead, user.id, team_ids, "admin:all" in permissions, manager_scope, sales_team_user_ids):
+    if not _can_access_lead(lead, user.id, team_ids, "admin:all" in permissions, manager_scope, sales_team_user_ids, BOOKINGS_MANAGE in permissions):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     # Only management can delete leads that are in converted or closed stage
     if not _is_management(permissions, manager_scope):

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listMeetings, createMeeting, updateMeeting, deleteMeeting, type Meeting } from "@/api/meetings";
+import { listMeetings, createMeeting, updateMeeting, deleteMeeting, assignMeeting, listBookingAssignees, type Meeting, type BookingAssignee } from "@/api/meetings";
 import { listProjectNames } from "@/api/projects";
 import { listAssignableUsers, type UserList } from "@/api/users";
 import { SearchableUserMultiSelect } from "@/components/SearchableUserMultiSelect";
@@ -11,9 +11,10 @@ import { BulkActionsBar } from "@/components/BulkActionsBar";
 
 export default function MeetingsPage() {
   const { showConfirm, showAlert } = useModal();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const canBulk = hasPermission("admin:all");
   const canWrite = hasPermission("meetings:write");
+  const canAssign = hasPermission("admin:all") || hasPermission("bookings:manage");
   const [items, setItems] = useState<Meeting[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -22,6 +23,10 @@ export default function MeetingsPage() {
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [assignedFilter, setAssignedFilter] = useState("");
+  const [assignees, setAssignees] = useState<BookingAssignee[]>([]);
+  const [assigning, setAssigning] = useState<string | null>(null);
   const [modal, setModal] = useState<"new" | Meeting | null>(null);
   const [form, setForm] = useState({
     title: "",
@@ -34,7 +39,11 @@ export default function MeetingsPage() {
 
   const load = () => {
     listProjectNames().then(setProjectNames).catch(() => setProjectNames([]));
-    const params = projectFilter ? { project_id: projectFilter } : undefined;
+    const params = {
+      ...(projectFilter ? { project_id: projectFilter } : {}),
+      ...(sourceFilter ? { source: sourceFilter } : {}),
+      ...(assignedFilter ? { assigned: assignedFilter } : {}),
+    };
     listMeetings(params)
       .then(setItems)
       .catch(() => setItems([]))
@@ -43,7 +52,24 @@ export default function MeetingsPage() {
 
   useEffect(() => {
     load();
-  }, [projectFilter]);
+  }, [projectFilter, sourceFilter, assignedFilter]);
+
+  useEffect(() => {
+    if (canAssign) listBookingAssignees().then(setAssignees).catch(() => setAssignees([]));
+  }, [canAssign]);
+
+  const assign = async (m: Meeting, userId: string | null) => {
+    setAssigning(m.id);
+    try {
+      const updated = await assignMeeting(m.id, userId);
+      setItems((list) => list.map((x) => (x.id === m.id ? updated : x)));
+      if (modal && modal !== "new" && modal.id === m.id) setModal(updated);
+    } catch (e: unknown) {
+      showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed to assign" });
+    } finally {
+      setAssigning(null);
+    }
+  };
 
   useEffect(() => {
     const onMeetingsUpdated = () => load();
@@ -210,6 +236,35 @@ export default function MeetingsPage() {
             className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[200px]"
           />
         </div>
+        {canAssign && (
+          <>
+            <label className="text-sm font-medium text-gray-700">Type</label>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
+            >
+              <option value="">All types</option>
+              <option value="external">Bookings (website + Calendly)</option>
+              <option value="website">Website</option>
+              <option value="calendly">Calendly</option>
+              <option value="manual">Manual</option>
+            </select>
+            <label className="text-sm font-medium text-gray-700">Owner</label>
+            <select
+              value={assignedFilter}
+              onChange={(e) => setAssignedFilter(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
+            >
+              <option value="">Anyone</option>
+              <option value="unassigned">Unassigned</option>
+              <option value="me">Mine</option>
+              {assignees.filter((a) => a.id !== user?.id).map((a) => (
+                <option key={a.id} value={a.id}>{a.full_name || a.email}</option>
+              ))}
+            </select>
+          </>
+        )}
         {canWrite && (
           <button
             onClick={openNew}
@@ -249,6 +304,7 @@ export default function MeetingsPage() {
                 )}
                 <th className="px-4 py-3">Title</th>
                 <th className="px-4 py-3">Source</th>
+                <th className="px-4 py-3">Owner</th>
                 <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Start</th>
                 <th className="px-4 py-3">End</th>
@@ -272,6 +328,7 @@ export default function MeetingsPage() {
                     <div className={`font-medium ${m.status === "canceled" ? "text-gray-400 line-through" : "text-gray-900"}`}>{m.title}</div>
                     {m.invitee_email && (
                       <div className="text-xs text-gray-500 mt-0.5">
+                        {m.company_name ? <span className="font-medium text-gray-700">{m.company_name} · </span> : null}
                         {m.invitee_name ? `${m.invitee_name} · ` : ""}
                         <a href={`mailto:${m.invitee_email}`} className="hover:text-primary" onClick={(e) => e.stopPropagation()}>{m.invitee_email}</a>
                       </div>
@@ -290,6 +347,32 @@ export default function MeetingsPage() {
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100" title={m.cancel_reason ?? undefined}>Canceled</span>
                       )}
                     </div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {canAssign && m.source !== "manual" ? (
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={m.assigned_to ?? ""}
+                          disabled={assigning === m.id}
+                          onChange={(e) => assign(m, e.target.value || null)}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`px-2 py-1 rounded-lg border text-xs bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary min-w-[140px] ${m.assigned_to ? "border-gray-300 text-gray-800" : "border-amber-300 text-amber-800 bg-amber-50"}`}
+                          title="Solutions engineer who owns this prospect"
+                        >
+                          <option value="">Unassigned</option>
+                          {assignees.map((a) => (
+                            <option key={a.id} value={a.id}>{a.full_name || a.email}</option>
+                          ))}
+                        </select>
+                        {!m.assigned_to && user && assignees.some((a) => a.id === user.id) && (
+                          <button type="button" onClick={() => assign(m, user.id)} disabled={assigning === m.id} className="text-xs text-primary hover:underline whitespace-nowrap">
+                            Assign to me
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm">{m.assigned_to_name || (m.source !== "manual" ? <span className="text-amber-700">Unassigned</span> : "—")}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{m.project_id ? projectMap[m.project_id] || m.project_id : "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{new Date(m.start_at).toLocaleString()}</td>
@@ -338,6 +421,27 @@ export default function MeetingsPage() {
                 {(modal as Meeting).status === "canceled" && (
                   <div className="text-red-700">{(modal as Meeting).cancel_reason || "Canceled"}</div>
                 )}
+                {(modal as Meeting).company_name && (
+                  <div>Company: <span className="font-medium">{(modal as Meeting).company_name}</span>{(modal as Meeting).lead_status ? <span className="text-gray-500"> · lead {(modal as Meeting).lead_status}</span> : null}</div>
+                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span>Owner:</span>
+                  {canAssign ? (
+                    <select
+                      value={(modal as Meeting).assigned_to ?? ""}
+                      disabled={assigning === (modal as Meeting).id}
+                      onChange={(e) => assign(modal as Meeting, e.target.value || null)}
+                      className="px-2 py-1 rounded-lg border border-gray-300 text-xs bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    >
+                      <option value="">Unassigned</option>
+                      {assignees.map((a) => (
+                        <option key={a.id} value={a.id}>{a.full_name || a.email}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="font-medium">{(modal as Meeting).assigned_to_name || "Unassigned"}</span>
+                  )}
+                </div>
                 {(modal as Meeting).lead_id && (
                   <a href="/leads" className="text-primary hover:underline">Open in Leads</a>
                 )}

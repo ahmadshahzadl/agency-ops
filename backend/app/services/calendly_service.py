@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.services.permission_service import users_with_permission, BOOKINGS_MANAGE
 from app.models import (
     Client as ClientModel,
     Lead as LeadModel,
@@ -271,7 +272,7 @@ def handle_invitee_created(db: Session, body: dict[str, Any]) -> MeetingModel:
         when = start.strftime("%Y-%m-%d %H:%M UTC")
         _notify(
             db,
-            hosts + _admin_users(db),
+            hosts + _admin_users(db) + users_with_permission(db, BOOKINGS_MANAGE),
             f"New booking: {meeting.title}",
             f"{invitee_name or invitee_email or 'Someone'} booked via Calendly for {when}.",
             f"/meetings/{meeting.id}",
