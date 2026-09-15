@@ -28,6 +28,13 @@ class MeetingUpdate(BaseModel):
 
 class MeetingResponse(MeetingBase):
     id: UUID
+    source: str = "manual"
+    external_id: Optional[str] = None
+    status: str = "scheduled"
+    invitee_name: Optional[str] = None
+    invitee_email: Optional[str] = None
+    cancel_reason: Optional[str] = None
+    lead_id: Optional[UUID] = None
     created_by: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime

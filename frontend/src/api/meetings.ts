@@ -8,6 +8,13 @@ export interface Meeting {
   start_at: string;
   end_at: string;
   location: string | null;
+  source: "manual" | "calendly" | string;
+  external_id: string | null;
+  status: "scheduled" | "canceled" | string;
+  invitee_name: string | null;
+  invitee_email: string | null;
+  cancel_reason: string | null;
+  lead_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

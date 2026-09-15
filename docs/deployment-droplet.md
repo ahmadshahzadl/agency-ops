@@ -10,6 +10,11 @@ Replace throughout: `app.example.com` (your Fuorix domain), `YOURDOMAIN`.
 
 ---
 
+> **Calendly:** once the API is reachable over HTTPS, register the booking webhook from the
+> server (`CALENDLY_API_TOKEN=... .venv/bin/python scripts/register_calendly_webhook.py https://app.example.com`)
+> and add the printed `CALENDLY_WEBHOOK_SIGNING_KEY` to `backend/.env`. The `/api/` nginx block
+> below already proxies `/api/v1/webhooks/calendly`; no extra config needed.
+
 ## 0. DNS first
 
 Create an **A record**: `app.example.com -> <droplet IP>`.

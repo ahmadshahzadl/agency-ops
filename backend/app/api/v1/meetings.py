@@ -43,6 +43,8 @@ def _can_access_meeting(
 ) -> bool:
     if is_admin:
         return True
+    if user_id and any(a.user_id == user_id for a in (meeting.attendee_links or [])):
+        return True
     if sales_own_only and user_id:
         return meeting.created_by == user_id or any(
             a.user_id == user_id for a in (meeting.attendee_links or [])
@@ -68,6 +70,13 @@ def _meeting_to_response(m: MeetingModel) -> MeetingResponse:
         start_at=m.start_at,
         end_at=m.end_at,
         location=m.location,
+        source=m.source or "manual",
+        external_id=m.external_id,
+        status=m.status or "scheduled",
+        invitee_name=m.invitee_name,
+        invitee_email=m.invitee_email,
+        cancel_reason=m.cancel_reason,
+        lead_id=m.lead_id,
         created_by=m.created_by,
         created_at=m.created_at,
         updated_at=m.updated_at,
@@ -89,23 +98,32 @@ def list_meetings(
 ):
     qry = db.query(MeetingModel)
     if "admin:all" not in permissions:
+        # Attendees always see their own meetings (this is how webhook-created bookings,
+        # which have no creator, reach the people hosting them).
+        attendee_exists = exists().where(
+            MeetingAttendee.meeting_id == MeetingModel.id,
+            MeetingAttendee.user_id == user.id,
+        )
         if sales_own_only:
-            attendee_exists = exists().where(
-                MeetingAttendee.meeting_id == MeetingModel.id,
-                MeetingAttendee.user_id == user.id,
-            )
             qry = qry.filter(
                 or_(MeetingModel.created_by == user.id, attendee_exists)
             )
         elif manager_scope is not None:
             qry = qry.outerjoin(ProjectModel, MeetingModel.project_id == ProjectModel.id).filter(
-                MeetingModel.created_by.in_(manager_scope),
-                (ProjectModel.id.is_(None)) | (ProjectModel.owner_id.in_(manager_scope)),
+                or_(
+                    attendee_exists,
+                    MeetingModel.created_by.in_(manager_scope)
+                    & ((ProjectModel.id.is_(None)) | (ProjectModel.owner_id.in_(manager_scope))),
+                )
             )
         elif not team_ids:
-            return []
+            qry = qry.filter(attendee_exists)
         else:
-            qry = qry.join(ProjectModel).join(ClientModel).filter(ClientModel.team_id.in_(team_ids))
+            qry = (
+                qry.outerjoin(ProjectModel, MeetingModel.project_id == ProjectModel.id)
+                .outerjoin(ClientModel, ProjectModel.client_id == ClientModel.id)
+                .filter(or_(attendee_exists, ClientModel.team_id.in_(team_ids)))
+            )
     if project_id:
         qry = qry.filter(MeetingModel.project_id == project_id)
     qry = qry.order_by(MeetingModel.start_at.desc())

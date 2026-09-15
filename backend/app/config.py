@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     # Super admin (god mode): one email with full access and no activity/audit logs. Empty = disabled.
     super_admin_email: str = ""
 
+    # Calendly webhook signing key (shown once when the webhook subscription is created, see
+    # scripts/register_calendly_webhook.py). Empty = POST /api/v1/webhooks/calendly is disabled (404).
+    calendly_webhook_signing_key: str = ""
+    # Seconds a webhook timestamp may lag before it is rejected as a replay.
+    calendly_webhook_tolerance_seconds: int = 300
+
     @model_validator(mode="after")
     def _enforce_safe_config(self):
         # The default JWT secret is public (it's in the repo); anyone knowing it can forge

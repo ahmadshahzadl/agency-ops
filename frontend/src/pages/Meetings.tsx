@@ -178,6 +178,8 @@ export default function MeetingsPage() {
           (m.title ?? "").toLowerCase().includes(searchLower) ||
           (m.description ?? "").toLowerCase().includes(searchLower) ||
           (m.location ?? "").toLowerCase().includes(searchLower) ||
+          (m.invitee_name ?? "").toLowerCase().includes(searchLower) ||
+          (m.invitee_email ?? "").toLowerCase().includes(searchLower) ||
           (m.project_id && (projectMap[m.project_id] ?? "").toLowerCase().includes(searchLower))
       )
     : items;
@@ -246,6 +248,7 @@ export default function MeetingsPage() {
                   </th>
                 )}
                 <th className="px-4 py-3">Title</th>
+                <th className="px-4 py-3">Source</th>
                 <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Start</th>
                 <th className="px-4 py-3">End</th>
@@ -265,7 +268,27 @@ export default function MeetingsPage() {
                       />
                     </td>
                   )}
-                  <td className="px-4 py-3 font-medium text-gray-900">{m.title}</td>
+                  <td className="px-4 py-3">
+                    <div className={`font-medium ${m.status === "canceled" ? "text-gray-400 line-through" : "text-gray-900"}`}>{m.title}</div>
+                    {m.invitee_email && (
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {m.invitee_name ? `${m.invitee_name} · ` : ""}
+                        <a href={`mailto:${m.invitee_email}`} className="hover:text-primary" onClick={(e) => e.stopPropagation()}>{m.invitee_email}</a>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {m.source === "calendly" ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">Calendly</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Manual</span>
+                      )}
+                      {m.status === "canceled" && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100" title={m.cancel_reason ?? undefined}>Canceled</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{m.project_id ? projectMap[m.project_id] || m.project_id : "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{new Date(m.start_at).toLocaleString()}</td>
                   <td className="px-4 py-3 text-gray-600">{new Date(m.end_at).toLocaleString()}</td>
@@ -296,6 +319,29 @@ export default function MeetingsPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-10" onClick={() => setModal(null)}>
           <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{modal === "new" ? "New meeting" : "Edit meeting"}</h2>
+            {modal !== "new" && (modal as Meeting).source === "calendly" && (
+              <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/60 p-3 text-sm text-gray-700 space-y-1">
+                <div className="font-medium text-blue-800">Booked via Calendly</div>
+                {(modal as Meeting).invitee_name || (modal as Meeting).invitee_email ? (
+                  <div>
+                    {(modal as Meeting).invitee_name}
+                    {(modal as Meeting).invitee_email && (
+                      <>
+                        {(modal as Meeting).invitee_name ? " · " : ""}
+                        <a href={`mailto:${(modal as Meeting).invitee_email}`} className="text-primary hover:underline">{(modal as Meeting).invitee_email}</a>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+                {(modal as Meeting).status === "canceled" && (
+                  <div className="text-red-700">{(modal as Meeting).cancel_reason || "Canceled"}</div>
+                )}
+                {(modal as Meeting).lead_id && (
+                  <a href="/leads" className="text-primary hover:underline">Open in Leads</a>
+                )}
+                <div className="text-xs text-gray-500">Time and invitee are managed in Calendly; a reschedule there arrives as a new booking.</div>
+              </div>
+            )}
             <div className="space-y-3">
               <input
                 placeholder="Title"

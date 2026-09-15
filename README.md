@@ -24,6 +24,7 @@
 - **Invoices** — line items or generated from unbilled hours / accepted quotes; branded PDFs with your logo, bank/payment details, and optional currency-equivalent display (e.g. USD total with PKR conversion); emailed to clients with the PDF attached
 - **Payment reconciliation** — payments auto-settle invoices (partial → balance tracking, full → paid), overpayment guards, paid invoices become immutable, automatic overdue detection
 - **CRM & leads** — pipeline tracking, new-lead visibility for the sales role, conversion flow
+- **Calendly bookings** — a signed webhook turns every booking made on your public website into a Meeting (host auto-added as attendee, admins notified) and opens a Lead for unknown contacts; cancellations and reschedules sync back. See [Calendly setup](#calendly-bookings)
 
 **Clients**
 - **Client portal** — real client logins locked to a dedicated API namespace: project progress with milestone timelines, invoices with PDFs, proposals with one-click accept/decline, service agreements with clickwrap e-signing, and issue reporting that lands as bug tasks in your QA intake. Zero access to anything internal — enforced by construction and tests
@@ -149,6 +150,20 @@ Security notes for internet-facing deployments: run a **single backend worker** 
 
 **Email on a VPS:** most cloud providers block outbound SMTP ports (25/465/587) by default — request an unblock via support, or use a relay on an alternate port (Brevo `smtp-relay.brevo.com:2525`, Resend `smtp.resend.com:2587`). See the commented examples in `backend/.env.example`.
 
+## Calendly bookings
+
+Meetings booked through Calendly (for example from a "Book a call" page on your website) show up in **Meetings** with a Calendly badge, the invitee's name and email, the video link as location and their answers in the description. New contacts also get a Lead with source `calendly`. Requires a Calendly plan that includes webhooks (Standard or higher).
+
+1. Create a personal access token in Calendly (Integrations → API & Webhooks).
+2. Register the webhook once, pointing at your API's public URL:
+   ```bash
+   cd backend
+   CALENDLY_API_TOKEN=<token> .venv/bin/python scripts/register_calendly_webhook.py https://app.yourdomain.com
+   ```
+3. Put the signing key it prints into `backend/.env` as `CALENDLY_WEBHOOK_SIGNING_KEY` and restart the API. Until it is set, `POST /api/v1/webhooks/calendly` answers 404.
+
+Hosts are matched to app users by the email on their Calendly account, so use the same address in both. `--list` and `--delete <uri>` manage existing subscriptions.
+
 ## Project structure
 
 - **backend/** — FastAPI app, SQLAlchemy models, 27 Alembic migrations, RBAC, JWT, PDF generation, email service
@@ -157,12 +172,12 @@ Security notes for internet-facing deployments: run a **single backend worker** 
 
 ## Environment
 
-- **Backend** (`backend/.env`, see `backend/.env.example`): `DATABASE_URL`, `JWT_SECRET` (required in production), `CORS_ORIGINS` (explicit origins), `FRONTEND_URL` (links in emails), `UPLOAD_DIR` (attachment storage), `SMTP_*` (email — password resets and notifications are inert without it), `VAULT_KEY` (credentials-vault encryption key — set once, never rotate after secrets exist), `COMPANY_DETAILS` (PDF footer), `ADMIN_EMAIL`/`ADMIN_PASSWORD` (seed only), `SUPER_ADMIN_EMAIL` (optional, off by default)
+- **Backend** (`backend/.env`, see `backend/.env.example`): `DATABASE_URL`, `JWT_SECRET` (required in production), `CORS_ORIGINS` (explicit origins), `FRONTEND_URL` (links in emails), `UPLOAD_DIR` (attachment storage), `SMTP_*` (email — password resets and notifications are inert without it), `VAULT_KEY` (credentials-vault encryption key — set once, never rotate after secrets exist), `COMPANY_DETAILS` (PDF footer), `ADMIN_EMAIL`/`ADMIN_PASSWORD` (seed only), `SUPER_ADMIN_EMAIL` (optional, off by default), `CALENDLY_WEBHOOK_SIGNING_KEY` (optional, enables the Calendly webhook)
 - **Frontend** (`frontend/.env`): `VITE_API_URL` (API base URL, **baked in at build time**), optional `VITE_APP_NAME` / `VITE_APP_LOGO` branding overrides
 
 ## API base path
 
-All API routes are under `/api/v1`: auth (incl. password reset), users, roles, teams, clients, leads, quotes, agreements, letters, projects, milestones, tasks, boards, meetings, finance (invoices with line items, payments, expenses), time entries, attachments, analytics, announcements, notifications, notes, messages, team activity, share links, and the client-scoped `/portal/*` namespace — plus the unauthenticated `GET /api/v1/public/status/{token}` for share-link progress pages. Interactive docs at `/docs`.
+All API routes are under `/api/v1`: auth (incl. password reset), users, roles, teams, clients, leads, quotes, agreements, letters, projects, milestones, tasks, boards, meetings, finance (invoices with line items, payments, expenses), time entries, attachments, analytics, announcements, notifications, notes, messages, team activity, share links, and the client-scoped `/portal/*` namespace — plus the unauthenticated `GET /api/v1/public/status/{token}` for share-link progress pages and the signature-verified `POST /api/v1/webhooks/calendly`. Interactive docs at `/docs`.
 
 ## Contributing
 
