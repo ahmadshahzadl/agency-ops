@@ -23,8 +23,12 @@ from app.models.letter import Letter
 from app.models.credential import ProjectCredential
 from app.models.booking import BookingPage
 from app.models.integration import UserIntegration
+from app.models.content import BlogPost, CaseStudy, ContentMedia
 
 __all__ = [
+    "BlogPost",
+    "CaseStudy",
+    "ContentMedia",
     "BookingPage",
     "UserIntegration",
     "Agreement",

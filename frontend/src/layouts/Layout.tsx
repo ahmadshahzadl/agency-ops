@@ -26,6 +26,7 @@ const navItems: { to: string; label: string; permission?: string }[] = [
   { to: "/timesheet", label: "Timesheet", permission: "time:read" },
   { to: "/meetings", label: "Meetings", permission: "meetings:read" },
   { to: "/booking", label: "Booking pages", permission: "admin:all" },
+  { to: "/content", label: "Website content", permission: "content:manage" },
   { to: "/messages", label: "Messages" },
   { to: "/invoices", label: "Invoices", permission: "finance:read" },
   { to: "/expenses", label: "Expenses", permission: "expenses:read" },
@@ -99,6 +100,11 @@ const NavIcon = ({ path, className = "w-5 h-5 shrink-0" }: { path: string; class
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3M3 12a9 9 0 1118 0 9 9 0 01-18 0zM8 3v2m8-2v2" />
       </svg>
     ),
+    "/content": (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l6 6v8a2 2 0 01-2 2zM15 4v6h6M8 13h8M8 17h5" />
+      </svg>
+    ),
     "/messages": (
       <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -168,6 +174,7 @@ const PATH_TO_HEADER_TITLE: Record<string, string> = {
   "/timesheet": "Timesheet",
   "/meetings": "Meetings",
   "/booking": "Booking pages",
+  "/content": "Website content",
   "/messages": "Messages",
   "/invoices": "Invoices",
   "/expenses": "Expenses",

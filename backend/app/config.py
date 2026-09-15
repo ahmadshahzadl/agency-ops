@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     # cancel/reschedule link, e.g. https://fuorix.com -> https://fuorix.com/book/manage/<token>
     booking_public_url: str = ""
 
+    # Shared secret the website's /api/revalidate endpoint expects (SITE_REVALIDATE_SECRET on
+    # both sides). Publishing content in the app then refreshes the affected pages instantly.
+    site_revalidate_secret: str = ""
+
     # Background thread that emails invitees 24h / 1h before inbound bookings.
     booking_reminders_enabled: bool = True
 

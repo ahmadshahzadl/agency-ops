@@ -24,6 +24,7 @@
 - **Invoices** — line items or generated from unbilled hours / accepted quotes; branded PDFs with your logo, bank/payment details, and optional currency-equivalent display (e.g. USD total with PKR conversion); emailed to clients with the PDF attached
 - **Payment reconciliation** — payments auto-settle invoices (partial → balance tracking, full → paid), overpayment guards, paid invoices become immutable, automatic overdue detection
 - **CRM & leads** — pipeline tracking, new-lead visibility for the sales role, conversion flow
+- **Website content (CMS)** — blog posts (Markdown with image uploads, cover, category, SEO fields, related posts, draft/publish) and case studies (tagline, challenge/solution, highlights, results, stack, featured flag) edited under **Content**; the website reads them through `/api/v1/public/content/*` and is refreshed on publish via its revalidate hook. See [Website content](#website-content)
 - **Online booking** — publish a "Book a call" page on your own website with no third-party branding: **Booking pages** define duration, buffers, weekly hours (in the host's timezone), notice/horizon limits and intake questions; free slots are computed from the host's real calendar of meetings. A booking becomes a Meeting (host attached, admins notified), opens a Lead for unknown contacts, and emails a calendar invite (.ics) with a self-service reschedule/cancel link. See [Online booking](#online-booking)
 - **Calendly bookings** (optional alternative) — a signed webhook turns Calendly bookings into Meetings and Leads. See [Calendly setup](#calendly-bookings)
 
@@ -151,6 +152,15 @@ Board access is per-board: managers/admins add members, and only members see the
 Security notes for internet-facing deployments: run a **single backend worker** (in-memory WebSocket state), terminate TLS at a reverse proxy or tunnel, and don't log query strings (WebSocket auth tokens travel there).
 
 **Email on a VPS:** most cloud providers block outbound SMTP ports (25/465/587) by default — request an unblock via support, or use a relay on an alternate port (Brevo `smtp-relay.brevo.com:2525`, Resend `smtp.resend.com:2587`). See the commented examples in `backend/.env.example`.
+
+## Website content
+
+Blog posts and case studies for fuorix.com live in the app (**Content** in the sidebar, permission `content:manage`, seeded to admin and manager).
+
+- **Posts** are Markdown (`##` headings, lists, links, bold, images). Upload images with the *Insert image* button; they are stored under `UPLOAD_DIR/cms` and served publicly at `/api/v1/public/content/media/<id>.<ext>` (the website proxies them at `/cms/media/...`). Set a cover image, category, excerpt, optional SEO title/description and related slugs, then **Publish**. Drafts are never exposed.
+- **Case studies** mirror the website's portfolio pages: tagline, overview, challenge, solution, highlights, results (label/value), stack, tags, related slugs, image/logo, and a *featured* flag that puts them on the home page.
+- **Refresh:** set `SITE_REVALIDATE_SECRET` (same value on the website) and `BOOKING_PUBLIC_URL`; every publish/update/delete then rebuilds the affected pages within seconds. Without it the site refreshes on its own schedule (10 minutes).
+- **First run:** `python scripts/import_site_content.py` loads the original 19 posts and 7 case studies (exported from the website repo) as published, so switching the site to the CMS changes nothing visible.
 
 ## Online booking
 
