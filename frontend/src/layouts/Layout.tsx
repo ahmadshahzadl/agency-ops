@@ -25,6 +25,7 @@ const navItems: { to: string; label: string; permission?: string }[] = [
   { to: "/boards", label: "Boards", permission: "tasks:read" },
   { to: "/timesheet", label: "Timesheet", permission: "time:read" },
   { to: "/meetings", label: "Meetings", permission: "meetings:read" },
+  { to: "/booking", label: "Booking pages", permission: "admin:all" },
   { to: "/messages", label: "Messages" },
   { to: "/invoices", label: "Invoices", permission: "finance:read" },
   { to: "/expenses", label: "Expenses", permission: "expenses:read" },
@@ -91,6 +92,11 @@ const NavIcon = ({ path, className = "w-5 h-5 shrink-0" }: { path: string; class
     "/meetings": (
       <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    ),
+    "/booking": (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3M3 12a9 9 0 1118 0 9 9 0 01-18 0zM8 3v2m8-2v2" />
       </svg>
     ),
     "/messages": (
@@ -161,6 +167,7 @@ const PATH_TO_HEADER_TITLE: Record<string, string> = {
   "/boards": "Boards",
   "/timesheet": "Timesheet",
   "/meetings": "Meetings",
+  "/booking": "Booking pages",
   "/messages": "Messages",
   "/invoices": "Invoices",
   "/expenses": "Expenses",

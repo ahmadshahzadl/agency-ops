@@ -21,8 +21,10 @@ from app.models.milestone import Milestone
 from app.models.agreement import Agreement
 from app.models.letter import Letter
 from app.models.credential import ProjectCredential
+from app.models.booking import BookingPage
 
 __all__ = [
+    "BookingPage",
     "Agreement",
     "Letter",
     "ProjectCredential",

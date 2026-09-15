@@ -279,7 +279,9 @@ export default function MeetingsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {m.source === "calendly" ? (
+                      {m.source === "website" ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Website</span>
+                      ) : m.source === "calendly" ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">Calendly</span>
                       ) : (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Manual</span>
@@ -319,9 +321,9 @@ export default function MeetingsPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-10" onClick={() => setModal(null)}>
           <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{modal === "new" ? "New meeting" : "Edit meeting"}</h2>
-            {modal !== "new" && (modal as Meeting).source === "calendly" && (
+            {modal !== "new" && ((modal as Meeting).source === "calendly" || (modal as Meeting).source === "website") && (
               <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/60 p-3 text-sm text-gray-700 space-y-1">
-                <div className="font-medium text-blue-800">Booked via Calendly</div>
+                <div className="font-medium text-blue-800">{(modal as Meeting).source === "website" ? "Booked on the website" : "Booked via Calendly"}</div>
                 {(modal as Meeting).invitee_name || (modal as Meeting).invitee_email ? (
                   <div>
                     {(modal as Meeting).invitee_name}
@@ -339,7 +341,21 @@ export default function MeetingsPage() {
                 {(modal as Meeting).lead_id && (
                   <a href="/leads" className="text-primary hover:underline">Open in Leads</a>
                 )}
-                <div className="text-xs text-gray-500">Time and invitee are managed in Calendly; a reschedule there arrives as a new booking.</div>
+                {(modal as Meeting).invitee_timezone && (
+                  <div className="text-xs text-gray-500">Invitee timezone: {(modal as Meeting).invitee_timezone}</div>
+                )}
+                {(modal as Meeting).answers && Object.keys((modal as Meeting).answers ?? {}).length > 0 && (
+                  <dl className="mt-1 space-y-0.5">
+                    {Object.entries((modal as Meeting).answers ?? {}).map(([k, v]) => (
+                      <div key={k} className="text-xs"><span className="text-gray-500">{k}:</span> <span className="text-gray-800 whitespace-pre-wrap">{String(v)}</span></div>
+                    ))}
+                  </dl>
+                )}
+                <div className="text-xs text-gray-500">
+                  {(modal as Meeting).source === "website"
+                    ? "The invitee can cancel or reschedule from the link in their confirmation email; changes sync here."
+                    : "Time and invitee are managed in Calendly; a reschedule there arrives as a new booking."}
+                </div>
               </div>
             )}
             <div className="space-y-3">

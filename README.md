@@ -24,7 +24,8 @@
 - **Invoices** — line items or generated from unbilled hours / accepted quotes; branded PDFs with your logo, bank/payment details, and optional currency-equivalent display (e.g. USD total with PKR conversion); emailed to clients with the PDF attached
 - **Payment reconciliation** — payments auto-settle invoices (partial → balance tracking, full → paid), overpayment guards, paid invoices become immutable, automatic overdue detection
 - **CRM & leads** — pipeline tracking, new-lead visibility for the sales role, conversion flow
-- **Calendly bookings** — a signed webhook turns every booking made on your public website into a Meeting (host auto-added as attendee, admins notified) and opens a Lead for unknown contacts; cancellations and reschedules sync back. See [Calendly setup](#calendly-bookings)
+- **Online booking** — publish a "Book a call" page on your own website with no third-party branding: **Booking pages** define duration, buffers, weekly hours (in the host's timezone), notice/horizon limits and intake questions; free slots are computed from the host's real calendar of meetings. A booking becomes a Meeting (host attached, admins notified), opens a Lead for unknown contacts, and emails a calendar invite (.ics) with a self-service reschedule/cancel link. See [Online booking](#online-booking)
+- **Calendly bookings** (optional alternative) — a signed webhook turns Calendly bookings into Meetings and Leads. See [Calendly setup](#calendly-bookings)
 
 **Clients**
 - **Client portal** — real client logins locked to a dedicated API namespace: project progress with milestone timelines, invoices with PDFs, proposals with one-click accept/decline, service agreements with clickwrap e-signing, and issue reporting that lands as bug tasks in your QA intake. Zero access to anything internal — enforced by construction and tests
@@ -150,6 +151,13 @@ Security notes for internet-facing deployments: run a **single backend worker** 
 
 **Email on a VPS:** most cloud providers block outbound SMTP ports (25/465/587) by default — request an unblock via support, or use a relay on an alternate port (Brevo `smtp-relay.brevo.com:2525`, Resend `smtp.resend.com:2587`). See the commented examples in `backend/.env.example`.
 
+## Online booking
+
+1. In the app, **Booking pages → New booking page**: name, URL slug, host, duration, buffers, weekly hours + timezone, intake questions (a question mentioning "company" names the lead). Set it Live. **Preview slots** shows exactly what visitors will see.
+2. Public API (no auth): `GET /api/v1/public/booking/{slug}`, `GET .../{slug}/slots?start=&end=`, `POST .../{slug}/book`, and `GET|POST .../manage/{token}[/cancel|/reschedule]`. Bookings are rate-limited per IP and protected by a honeypot field; the booking-page row is locked while a slot is confirmed so two visitors cannot take the same time.
+3. Your website calls those endpoints (the Fuorix site does it through a server-side proxy at `/api/booking/*` so the portal never has to be exposed to browsers). Set `BOOKING_PUBLIC_URL` in `backend/.env` to the website's base URL so the invitee's manage link in emails points at `<site>/book/manage/<token>`.
+4. Invites go out through the app's SMTP settings as `.ics` attachments (REQUEST on booking/reschedule, CANCEL on cancellation), so they land in Google/Outlook/Apple calendars.
+
 ## Calendly bookings
 
 Meetings booked through Calendly (for example from a "Book a call" page on your website) show up in **Meetings** with a Calendly badge, the invitee's name and email, the video link as location and their answers in the description. New contacts also get a Lead with source `calendly`. Requires a Calendly plan that includes webhooks (Standard or higher).
@@ -172,12 +180,12 @@ Hosts are matched to app users by the email on their Calendly account, so use th
 
 ## Environment
 
-- **Backend** (`backend/.env`, see `backend/.env.example`): `DATABASE_URL`, `JWT_SECRET` (required in production), `CORS_ORIGINS` (explicit origins), `FRONTEND_URL` (links in emails), `UPLOAD_DIR` (attachment storage), `SMTP_*` (email — password resets and notifications are inert without it), `VAULT_KEY` (credentials-vault encryption key — set once, never rotate after secrets exist), `COMPANY_DETAILS` (PDF footer), `ADMIN_EMAIL`/`ADMIN_PASSWORD` (seed only), `SUPER_ADMIN_EMAIL` (optional, off by default), `CALENDLY_WEBHOOK_SIGNING_KEY` (optional, enables the Calendly webhook)
+- **Backend** (`backend/.env`, see `backend/.env.example`): `DATABASE_URL`, `JWT_SECRET` (required in production), `CORS_ORIGINS` (explicit origins), `FRONTEND_URL` (links in emails), `UPLOAD_DIR` (attachment storage), `SMTP_*` (email — password resets and notifications are inert without it), `VAULT_KEY` (credentials-vault encryption key — set once, never rotate after secrets exist), `COMPANY_DETAILS` (PDF footer), `ADMIN_EMAIL`/`ADMIN_PASSWORD` (seed only), `SUPER_ADMIN_EMAIL` (optional, off by default), `BOOKING_PUBLIC_URL` (website base URL for booking-management links), `CALENDLY_WEBHOOK_SIGNING_KEY` (optional, enables the Calendly webhook)
 - **Frontend** (`frontend/.env`): `VITE_API_URL` (API base URL, **baked in at build time**), optional `VITE_APP_NAME` / `VITE_APP_LOGO` branding overrides
 
 ## API base path
 
-All API routes are under `/api/v1`: auth (incl. password reset), users, roles, teams, clients, leads, quotes, agreements, letters, projects, milestones, tasks, boards, meetings, finance (invoices with line items, payments, expenses), time entries, attachments, analytics, announcements, notifications, notes, messages, team activity, share links, and the client-scoped `/portal/*` namespace — plus the unauthenticated `GET /api/v1/public/status/{token}` for share-link progress pages and the signature-verified `POST /api/v1/webhooks/calendly`. Interactive docs at `/docs`.
+All API routes are under `/api/v1`: auth (incl. password reset), users, roles, teams, clients, leads, quotes, agreements, letters, projects, milestones, tasks, boards, meetings, finance (invoices with line items, payments, expenses), time entries, attachments, analytics, announcements, notifications, notes, messages, team activity, share links, and the client-scoped `/portal/*` namespace — plus the unauthenticated `GET /api/v1/public/status/{token}` for share-link progress pages the public booking namespace `/api/v1/public/booking/*`, and the signature-verified `POST /api/v1/webhooks/calendly`. Interactive docs at `/docs`.
 
 ## Contributing
 

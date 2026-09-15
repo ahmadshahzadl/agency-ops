@@ -5,6 +5,7 @@ import Layout from "@/layouts/Layout";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Leads from "@/pages/Leads";
+import BookingPages from "@/pages/BookingPages";
 import Clients from "@/pages/Clients";
 import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
@@ -102,6 +103,7 @@ function AppRoutes() {
         <Route path="boards" element={<Boards />} />
         <Route path="timesheet" element={<Timesheet />} />
         <Route path="meetings" element={<Meetings />} />
+        <Route path="booking" element={<BookingPages />} />
         <Route path="invoices" element={<Invoices />} />
         <Route path="expenses" element={<Expenses />} />
         <Route path="analytics" element={<Analytics />} />

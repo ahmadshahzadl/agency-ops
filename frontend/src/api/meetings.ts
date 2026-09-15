@@ -15,6 +15,9 @@ export interface Meeting {
   invitee_email: string | null;
   cancel_reason: string | null;
   lead_id: string | null;
+  booking_page_id?: string | null;
+  invitee_timezone?: string | null;
+  answers?: Record<string, unknown> | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

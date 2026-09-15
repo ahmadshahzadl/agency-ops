@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -25,6 +25,13 @@ class Meeting(Base):
     invitee_email = Column(String(255))
     cancel_reason = Column(Text)
     lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL"))
+    # Native website bookings (source="website"): which page it came from, the invitee's
+    # self-service token for cancel/reschedule links, their timezone and structured answers.
+    booking_page_id = Column(UUID(as_uuid=True), ForeignKey("booking_pages.id", ondelete="SET NULL"))
+    manage_token = Column(String(64), unique=True, index=True)
+    invitee_timezone = Column(String(64))
+    answers = Column(JSONB)
+    ics_sequence = Column(Integer, nullable=False, default=0, server_default="0")
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -32,6 +39,7 @@ class Meeting(Base):
     project = relationship("Project", back_populates="meetings")
     created_by_user = relationship("User", back_populates="meetings_created", foreign_keys=[created_by])
     lead = relationship("Lead", foreign_keys=[lead_id])
+    booking_page = relationship("BookingPage", foreign_keys=[booking_page_id])
     attendee_links = relationship("MeetingAttendee", back_populates="meeting", cascade="all, delete-orphan")
 
 

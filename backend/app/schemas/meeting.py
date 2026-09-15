@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 from datetime import datetime
 
@@ -35,6 +35,9 @@ class MeetingResponse(MeetingBase):
     invitee_email: Optional[str] = None
     cancel_reason: Optional[str] = None
     lead_id: Optional[UUID] = None
+    booking_page_id: Optional[UUID] = None
+    invitee_timezone: Optional[str] = None
+    answers: Optional[dict[str, Any]] = None
     created_by: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime

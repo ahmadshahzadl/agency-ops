@@ -51,3 +51,30 @@ class FailureRateLimiter:
 # 10 failed attempts per email within 15 minutes, then locked for the remainder
 # of the window. Successful login resets the counter.
 login_limiter = FailureRateLimiter(max_failures=10, window_seconds=900)
+
+
+class RequestRateLimiter:
+    """Sliding-window request counter per key (e.g. client IP) for public, unauthenticated
+    endpoints. Unlike FailureRateLimiter it counts every call, not just failures."""
+
+    def __init__(self, max_requests: int = 5, window_seconds: int = 3600):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = Lock()
+
+    def allow(self, key: str) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            q = self._hits[key]
+            cutoff = now - self.window_seconds
+            while q and q[0] < cutoff:
+                q.popleft()
+            if len(q) >= self.max_requests:
+                return False
+            q.append(now)
+            return True
+
+    def reset(self, key: str) -> None:
+        with self._lock:
+            self._hits.pop(key, None)

@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # Super admin (god mode): one email with full access and no activity/audit logs. Empty = disabled.
     super_admin_email: str = ""
 
+    # Public website base URL (no trailing slash) used in booking emails for the invitee's
+    # cancel/reschedule link, e.g. https://fuorix.com -> https://fuorix.com/book/manage/<token>
+    booking_public_url: str = ""
+
     # Calendly webhook signing key (shown once when the webhook subscription is created, see
     # scripts/register_calendly_webhook.py). Empty = POST /api/v1/webhooks/calendly is disabled (404).
     calendly_webhook_signing_key: str = ""

@@ -3,7 +3,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications, notes, messages, boards, share, attachments, time_entries, quotes, milestones, portal, agreements, letters, credentials, webhooks
+from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications, notes, messages, boards, share, attachments, time_entries, quotes, milestones, portal, agreements, letters, credentials, webhooks, booking_public, booking_admin
 from app.websocket import activity_manager
 from app.websocket_messages import message_ws_manager
 from app.services.activity_service import (
@@ -139,6 +139,8 @@ app.include_router(credentials.router, prefix="/api/v1")
 app.include_router(milestones.router, prefix="/api/v1")
 app.include_router(portal.router, prefix="/api/v1")
 app.include_router(webhooks.router, prefix="/api/v1")
+app.include_router(booking_public.router, prefix="/api/v1")
+app.include_router(booking_admin.router, prefix="/api/v1")
 
 
 @app.get("/health")
