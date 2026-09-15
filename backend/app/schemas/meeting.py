@@ -38,6 +38,7 @@ class MeetingResponse(MeetingBase):
     booking_page_id: Optional[UUID] = None
     invitee_timezone: Optional[str] = None
     answers: Optional[dict[str, Any]] = None
+    google_event_id: Optional[str] = None
     created_by: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime

@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     # cancel/reschedule link, e.g. https://fuorix.com -> https://fuorix.com/book/manage/<token>
     booking_public_url: str = ""
 
+    # Google Calendar + Meet for booking hosts (OAuth client from Google Cloud Console).
+    # Redirect URI registered there must be <FRONTEND_URL>/api/v1/integrations/google/callback
+    # unless GOOGLE_REDIRECT_URI overrides it. Empty client id = feature hidden.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = ""
+
     # Calendly webhook signing key (shown once when the webhook subscription is created, see
     # scripts/register_calendly_webhook.py). Empty = POST /api/v1/webhooks/calendly is disabled (404).
     calendly_webhook_signing_key: str = ""

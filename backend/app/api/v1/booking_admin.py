@@ -11,12 +11,15 @@ from app.models import User as UserModel
 from app.models.booking import BookingPage
 from app.schemas.booking import BookingPageCreate, BookingPageResponse, BookingPageUpdate
 from app.services import booking_service
+from app.services import google_calendar_service as gcal
 
 router = APIRouter(prefix="/booking-pages", tags=["booking-pages"])
 
 
-def _resp(p: BookingPage) -> BookingPageResponse:
+def _resp(p: BookingPage, db: Session | None = None) -> BookingPageResponse:
+    connected = bool(db is not None and p.host_user_id and gcal.get_integration(db, p.host_user_id))
     return BookingPageResponse(
+        host_google_connected=connected,
         id=p.id,
         slug=p.slug,
         name=p.name,
@@ -50,7 +53,7 @@ def _check_host(db: Session, host_user_id: UUID | None) -> None:
 
 @router.get("", response_model=list[BookingPageResponse])
 def list_pages(db: Session = Depends(get_db), user=Depends(require_permission("admin:all"))):
-    return [_resp(p) for p in db.query(BookingPage).order_by(BookingPage.created_at).all()]
+    return [_resp(p, db) for p in db.query(BookingPage).order_by(BookingPage.created_at).all()]
 
 
 @router.post("", response_model=BookingPageResponse, status_code=status.HTTP_201_CREATED)
@@ -64,7 +67,7 @@ def create_page(data: BookingPageCreate, db: Session = Depends(get_db), user=Dep
     db.add(page)
     db.commit()
     db.refresh(page)
-    return _resp(page)
+    return _resp(page, db)
 
 
 @router.get("/{page_id}", response_model=BookingPageResponse)
@@ -72,7 +75,7 @@ def get_page(page_id: UUID, db: Session = Depends(get_db), user=Depends(require_
     page = db.query(BookingPage).filter(BookingPage.id == page_id).first()
     if not page:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-    return _resp(page)
+    return _resp(page, db)
 
 
 @router.patch("/{page_id}", response_model=BookingPageResponse)
@@ -92,7 +95,7 @@ def update_page(page_id: UUID, data: BookingPageUpdate, db: Session = Depends(ge
         setattr(page, k, v)
     db.commit()
     db.refresh(page)
-    return _resp(page)
+    return _resp(page, db)
 
 
 @router.delete("/{page_id}", status_code=status.HTTP_204_NO_CONTENT)

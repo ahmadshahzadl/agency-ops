@@ -120,6 +120,7 @@ class BookingPageUpdate(BaseModel):
 class BookingPageResponse(BookingPageBase):
     id: UUID
     host_name: Optional[str] = None
+    host_google_connected: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

@@ -3,6 +3,7 @@
 All times are handled as timezone-aware datetimes. Slots are generated in the booking page's
 timezone (so daylight-saving shifts move with the host's wall clock) and returned in UTC.
 """
+import logging
 import secrets
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
@@ -24,6 +25,9 @@ from app.models import (
 )
 from app.models.booking import BookingPage
 from app.services import email_service
+from app.services import google_calendar_service as gcal
+
+logger = logging.getLogger(__name__)
 
 DAY_KEYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 MAX_RANGE_DAYS = 62
@@ -87,7 +91,20 @@ def host_busy_intervals(
     after = timedelta(minutes=page.buffer_after_minutes or 0)
     # A booked meeting blocks [start - buffer_before, end + buffer_after] for *new* meetings:
     # the new one needs its own before-buffer clear and the existing one its after-buffer.
-    return [(_as_utc(s) - before, _as_utc(e) + after) for _, s, e in qry.all()]
+    busy = [(_as_utc(s) - before, _as_utc(e) + after) for _, s, e in qry.all()]
+    # Host's Google Calendar (personal appointments, other clients' calls) also blocks slots.
+    integ = gcal.get_integration(db, page.host_user_id)
+    if integ is not None:
+        try:
+            for s, e in gcal.busy_intervals(db, integ, _as_utc(range_start), _as_utc(range_end)):
+                busy.append((s - before, e + after))
+        except gcal.GoogleError as e:
+            # Fail open: offer the portal's own view rather than an empty page. Logged + surfaced
+            # on the integration so the host notices.
+            logger.warning("google free/busy failed for host %s: %s", page.host_user_id, e)
+            integ.last_error = f"free/busy: {str(e)[:300]}"
+            db.flush()
+    return busy
 
 
 def compute_slots(
@@ -267,10 +284,66 @@ def create_booking(
         db.add(MeetingAttendee(meeting_id=meeting.id, user_id=host.id))
     db.flush()
 
+    google_ok = _google_create(db, page, meeting)
     when = _fmt_dt(start, page.timezone)
     _notify(db, [host, *_admins(db)], f"New booking: {meeting.title}", f"{name} booked {page.name} for {when}.", f"/meetings/{meeting.id}")
-    send_confirmation(page, meeting, host)
+    send_confirmation(page, meeting, host, attach_ics=not google_ok)
     return meeting
+
+
+def _google_create(db: Session, page: BookingPage, meeting: MeetingModel) -> bool:
+    """Create the Google Calendar event (+ Meet link) on the host's calendar. False if not connected/failed."""
+    integ = gcal.get_integration(db, page.host_user_id)
+    if integ is None:
+        return False
+    try:
+        event_id, link = gcal.create_event(db, integ, meeting, page)
+    except gcal.GoogleError as e:
+        logger.warning("google event create failed for meeting %s: %s", meeting.id, e)
+        integ.last_error = f"create event: {str(e)[:300]}"
+        db.flush()
+        return False
+    meeting.google_event_id = event_id
+    meeting.google_calendar_user_id = integ.user_id
+    if link:
+        meeting.location = link[:255]
+    integ.last_error = None
+    db.flush()
+    return True
+
+
+def _google_update(db: Session, page: BookingPage | None, meeting: MeetingModel) -> bool:
+    if not meeting.google_event_id:
+        return False
+    integ = gcal.get_integration(db, meeting.google_calendar_user_id or (page.host_user_id if page else None))
+    if integ is None:
+        return False
+    try:
+        link = gcal.update_event(db, integ, meeting, page)
+    except gcal.GoogleError as e:
+        logger.warning("google event update failed for meeting %s: %s", meeting.id, e)
+        integ.last_error = f"update event: {str(e)[:300]}"
+        db.flush()
+        return False
+    if link:
+        meeting.location = link[:255]
+    return True
+
+
+def _google_delete(db: Session, page: BookingPage | None, meeting: MeetingModel) -> bool:
+    if not meeting.google_event_id:
+        return False
+    integ = gcal.get_integration(db, meeting.google_calendar_user_id or (page.host_user_id if page else None))
+    if integ is None:
+        return False
+    try:
+        gcal.delete_event(db, integ, meeting)
+    except gcal.GoogleError as e:
+        logger.warning("google event delete failed for meeting %s: %s", meeting.id, e)
+        integ.last_error = f"delete event: {str(e)[:300]}"
+        db.flush()
+        return False
+    return True
 
 
 def cancel_booking(db: Session, meeting: MeetingModel, reason: str | None, by: str = "invitee") -> MeetingModel:
@@ -285,8 +358,9 @@ def cancel_booking(db: Session, meeting: MeetingModel, reason: str | None, by: s
     db.flush()
     page = _page_of(db, meeting)
     host = page.host if page else None
+    google_ok = _google_delete(db, page, meeting)
     _notify(db, [host, *_admins(db)], f"Booking canceled: {meeting.title}", text, f"/meetings/{meeting.id}")
-    send_cancellation(page, meeting, host)
+    send_cancellation(page, meeting, host, attach_ics=not google_ok)
     return meeting
 
 
@@ -308,6 +382,7 @@ def reschedule_booking(db: Session, meeting: MeetingModel, new_start: datetime, 
     meeting.ics_sequence = (meeting.ics_sequence or 0) + 1
     db.flush()
     host = page.host
+    google_ok = _google_update(db, page, meeting)
     _notify(
         db,
         [host, *_admins(db)],
@@ -315,7 +390,7 @@ def reschedule_booking(db: Session, meeting: MeetingModel, new_start: datetime, 
         f"Moved from {_fmt_dt(old, page.timezone)} to {_fmt_dt(new_start, page.timezone)}.",
         f"/meetings/{meeting.id}",
     )
-    send_confirmation(page, meeting, host, rescheduled=True)
+    send_confirmation(page, meeting, host, rescheduled=True, attach_ics=not google_ok)
     return meeting
 
 
@@ -393,11 +468,12 @@ def manage_url(meeting: MeetingModel) -> str | None:
     return f"{base}/book/manage/{meeting.manage_token}"
 
 
-def send_confirmation(page: BookingPage, meeting: MeetingModel, host: UserModel | None, rescheduled: bool = False) -> None:
+def send_confirmation(page: BookingPage, meeting: MeetingModel, host: UserModel | None, rescheduled: bool = False, attach_ics: bool = True) -> None:
     if not email_service.email_enabled():
         return
-    ics = build_ics(meeting, page, "REQUEST")
-    attachments = [("invite.ics", ics, "text", "calendar")]
+    # When Google Calendar created the event, Google already emailed a proper invitation;
+    # attaching our own .ics would create a duplicate entry in the invitee's calendar.
+    attachments = [("invite.ics", build_ics(meeting, page, "REQUEST"), "text", "calendar")] if attach_ics else []
     invitee_tz = meeting.invitee_timezone or page.timezone
     when_invitee = _fmt_dt(meeting.start_at, invitee_tz)
     manage = manage_url(meeting)
@@ -406,8 +482,8 @@ def send_confirmation(page: BookingPage, meeting: MeetingModel, host: UserModel 
         f"<p>Hi {meeting.invitee_name or ''},</p>"
         f"<p><strong>{page.name}</strong> · {page.duration_minutes} minutes<br>"
         f"<strong>{when_invitee}</strong></p>"
-        + (f"<p>Where: {meeting.location}</p>" if meeting.location else "")
-        + "<p>A calendar invite is attached. Need to change it? Use the link below.</p>"
+        + (f"<p>Where: <a href=\"{meeting.location}\">{meeting.location}</a></p>" if (meeting.location or "").startswith("http") else (f"<p>Where: {meeting.location}</p>" if meeting.location else ""))
+        + ("<p>A calendar invite is attached. Need to change it? Use the link below.</p>" if attach_ics else "<p>A Google Calendar invitation with the Meet link has been sent to you separately. Need to change it? Use the link below.</p>")
     )
     text = (
         f"{title}\n\n{page.name} - {page.duration_minutes} minutes\n{when_invitee}\n"
@@ -433,11 +509,10 @@ def send_confirmation(page: BookingPage, meeting: MeetingModel, host: UserModel 
         email_service.send_email(host.email, htitle, email_service._build_html(htitle, hbody, "Open in app", link), f"{htitle}\n{when_host}\n\n{meeting.description or ''}", attachments)
 
 
-def send_cancellation(page: BookingPage | None, meeting: MeetingModel, host: UserModel | None) -> None:
+def send_cancellation(page: BookingPage | None, meeting: MeetingModel, host: UserModel | None, attach_ics: bool = True) -> None:
     if not email_service.email_enabled():
         return
-    ics = build_ics(meeting, page, "CANCEL")
-    attachments = [("cancel.ics", ics, "text", "calendar")]
+    attachments = [("cancel.ics", build_ics(meeting, page, "CANCEL"), "text", "calendar")] if attach_ics else []
     name = page.name if page else meeting.title
     tz = meeting.invitee_timezone or (page.timezone if page else "UTC")
     when = _fmt_dt(meeting.start_at, tz)

@@ -279,7 +279,14 @@ export default function BookingPagesPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{p.host_name || <span className="text-red-600">No host</span>}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {p.host_name || <span className="text-red-600">No host</span>}
+                    {p.host_name && (
+                      <div className={`text-xs mt-0.5 ${p.host_google_connected ? "text-green-700" : "text-amber-700"}`} title={p.host_google_connected ? "Bookings get a Google Meet link and sync to the host's calendar" : "The host has not connected Google Calendar in Profile: invites go out as .ics without a Meet link"}>
+                        {p.host_google_connected ? "Google Calendar · Meet links" : "No Google Calendar"}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{p.duration_minutes} min</td>
                   <td className="px-4 py-3 text-gray-600">{p.timezone}</td>
                   <td className="px-4 py-3">

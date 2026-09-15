@@ -4,6 +4,7 @@ import { updateProfile } from "@/api/auth";
 import { fetchServerVersion, compareVersions } from "@/api/version";
 import { APP_VERSION } from "@/config";
 import { setTheme, getStoredTheme, type ThemeValue } from "@/lib/theme";
+import { getGoogleStatus, getGoogleConnectUrl, disconnectGoogle, type GoogleStatus } from "@/api/integrations";
 
 const inputClass =
   "w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary/20 focus:border-primary";
@@ -28,6 +29,41 @@ export default function ProfilePage() {
     "idle" | "checking" | "latest" | "available" | "error"
   >("idle");
   const [serverVersion, setServerVersion] = useState<string | null>(null);
+
+  const [google, setGoogle] = useState<GoogleStatus | null>(null);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleNotice, setGoogleNotice] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const loadGoogle = () => getGoogleStatus().then(setGoogle).catch(() => setGoogle(null));
+  useEffect(() => {
+    loadGoogle();
+    const q = new URLSearchParams(window.location.search);
+    const g = q.get("google");
+    if (g === "connected") setGoogleNotice({ type: "ok", text: "Google Calendar connected. New bookings will get a Meet link." });
+    else if (g === "error") setGoogleNotice({ type: "err", text: `Google connection failed: ${q.get("reason") || "unknown error"}` });
+    if (g) window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+  const connectGoogle = async () => {
+    setGoogleBusy(true);
+    setGoogleNotice(null);
+    try {
+      window.location.href = await getGoogleConnectUrl();
+    } catch (e) {
+      setGoogleNotice({ type: "err", text: e instanceof Error ? e.message : "Could not start Google sign-in" });
+      setGoogleBusy(false);
+    }
+  };
+  const removeGoogle = async () => {
+    setGoogleBusy(true);
+    try {
+      await disconnectGoogle();
+      setGoogleNotice({ type: "ok", text: "Google Calendar disconnected." });
+      await loadGoogle();
+    } catch (e) {
+      setGoogleNotice({ type: "err", text: e instanceof Error ? e.message : "Failed" });
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
 
   useEffect(() => {
     setFullName(user?.full_name ?? "");
@@ -240,6 +276,38 @@ export default function ProfilePage() {
             <option value="system">System</option>
           </select>
         </section>
+
+        {/* Google Calendar (booking hosts) */}
+        {google && (google.configured || google.connected) && (
+          <section className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm px-4 py-3 flex flex-col gap-2 shrink-0 min-h-0 overflow-auto">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Google Calendar</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {google.connected
+                    ? <>Connected as <strong className="text-gray-700 dark:text-gray-200">{google.account_email || "Google account"}</strong>. Website bookings you host get a Google Meet link, land on this calendar, and your busy times block slots.</>
+                    : "Connect your Google account so bookings you host get a Meet link and your calendar's busy times block slots."}
+                </p>
+              </div>
+              {google.connected ? (
+                <button type="button" onClick={removeGoogle} disabled={googleBusy} className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50">
+                  Disconnect
+                </button>
+              ) : (
+                <button type="button" onClick={connectGoogle} disabled={googleBusy || !google.configured} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover disabled:opacity-50">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.35 11.1H12v2.9h5.35c-.25 1.4-1.6 4.1-5.35 4.1-3.2 0-5.8-2.65-5.8-5.9s2.6-5.9 5.8-5.9c1.85 0 3.05.8 3.75 1.45l2.55-2.45C16.7 3.75 14.6 2.8 12 2.8 6.95 2.8 2.9 6.9 2.9 12s4.05 9.2 9.1 9.2c5.25 0 8.75-3.7 8.75-8.9 0-.6-.05-1.05-.15-1.5Z" /></svg>
+                  {googleBusy ? "Redirecting…" : "Connect Google Calendar"}
+                </button>
+              )}
+            </div>
+            {google.last_error && google.connected && (
+              <p className="text-xs text-amber-700 dark:text-amber-300">Last sync problem: {google.last_error}. If it persists, disconnect and connect again.</p>
+            )}
+            {googleNotice && (
+              <p className={`text-xs ${googleNotice.type === "ok" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>{googleNotice.text}</p>
+            )}
+          </section>
+        )}
 
         {/* Updates — half width, compact */}
         <section className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm px-4 py-3 flex flex-col gap-2 shrink-0 min-h-0 overflow-auto">

@@ -22,9 +22,11 @@ from app.models.agreement import Agreement
 from app.models.letter import Letter
 from app.models.credential import ProjectCredential
 from app.models.booking import BookingPage
+from app.models.integration import UserIntegration
 
 __all__ = [
     "BookingPage",
+    "UserIntegration",
     "Agreement",
     "Letter",
     "ProjectCredential",

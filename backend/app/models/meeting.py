@@ -32,6 +32,9 @@ class Meeting(Base):
     invitee_timezone = Column(String(64))
     answers = Column(JSONB)
     ics_sequence = Column(Integer, nullable=False, default=0, server_default="0")
+    # Google Calendar event created for this meeting (host's calendar), when the host is connected.
+    google_event_id = Column(String(255))
+    google_calendar_user_id = Column(UUID(as_uuid=True))
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

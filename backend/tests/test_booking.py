@@ -67,15 +67,22 @@ def page(client, auth_headers):
 def _find_meeting(client, auth_headers, pred):
     """The internal meetings list is paginated (50/page); walk it until the booking shows up."""
     skip = 0
+    seen = 0
+    sample: list = []
     while skip < 5000:
-        batch = client.get("/api/v1/meetings", headers=auth_headers, params={"skip": skip, "limit": 100}).json()
+        resp = client.get("/api/v1/meetings", headers=auth_headers, params={"skip": skip, "limit": 100})
+        assert resp.status_code == 200, f"meetings list failed: {resp.status_code} {resp.text[:200]}"
+        batch = resp.json()
+        seen += len(batch)
+        if not sample:
+            sample = [(m.get("title"), m.get("invitee_email"), m.get("source"), m.get("start_at")) for m in batch[:4]]
         for m in batch:
             if pred(m):
                 return m
         if len(batch) < 100:
             break
         skip += 100
-    raise AssertionError("meeting not found in internal list")
+    raise AssertionError(f"meeting not found in internal list ({seen} meetings scanned; newest: {sample})")
 
 
 def _iso(s: str) -> datetime:

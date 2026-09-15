@@ -80,6 +80,7 @@ def _meeting_to_response(m: MeetingModel) -> MeetingResponse:
         booking_page_id=m.booking_page_id,
         invitee_timezone=m.invitee_timezone,
         answers=m.answers,
+        google_event_id=m.google_event_id,
         created_by=m.created_by,
         created_at=m.created_at,
         updated_at=m.updated_at,
@@ -129,7 +130,8 @@ def list_meetings(
             )
     if project_id:
         qry = qry.filter(MeetingModel.project_id == project_id)
-    qry = qry.order_by(MeetingModel.start_at.desc())
+    # Tiebreaker keeps pagination stable when many meetings share a start time.
+    qry = qry.order_by(MeetingModel.start_at.desc(), MeetingModel.id.desc())
     meetings = qry.offset(skip).limit(limit).all()
     return [_meeting_to_response(m) for m in meetings]
 
