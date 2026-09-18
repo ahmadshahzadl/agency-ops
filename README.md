@@ -1,5 +1,7 @@
 # Fuorix
 
+> Built and maintained by **[Fuorix](https://fuorix.com)** — a remote-first software studio (Lahore HQ, Gulf Standard Time) that builds custom ERPs, CRMs, dashboards and web apps for SMBs in the UAE, UK and Pakistan. This is the portal we run our own agency on. Need something like it built for your business? [Book a free call](https://fuorix.com/book).
+
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Backend: FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688)](https://fastapi.tiangolo.com/)
 [![Frontend: React](https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-61DAFB)](https://react.dev/)
