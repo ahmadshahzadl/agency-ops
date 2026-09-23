@@ -153,7 +153,23 @@ Board access is per-board: managers/admins add members, and only members see the
 
 Security notes for internet-facing deployments: run a **single backend worker** (in-memory WebSocket state), terminate TLS at a reverse proxy or tunnel, and don't log query strings (WebSocket auth tokens travel there).
 
-**Email on a VPS:** most cloud providers block outbound SMTP ports (25/465/587) by default — request an unblock via support, or use a relay on an alternate port (Brevo `smtp-relay.brevo.com:2525`, Resend `smtp.resend.com:2587`). See the commented examples in `backend/.env.example`.
+**Email on a VPS:** most cloud providers block outbound SMTP ports (25/465/587) by default, so use a relay on an alternate port. The recommended setup is **Resend**, because it lets you send as your own domain and is what the Fuorix website uses, so clients see one consistent sender:
+
+1. Verify your domain at [resend.com/domains](https://resend.com/domains) and add the DKIM and SPF records it gives you to your DNS.
+2. Create an API key, then in `backend/.env`:
+   ```
+   SMTP_HOST=smtp.resend.com
+   SMTP_PORT=2587
+   SMTP_USER=resend
+   SMTP_PASSWORD=<your Resend API key>
+   SMTP_FROM=Fuorix <noreply@yourdomain.com>
+   EMAIL_LOGO_URL=https://yourdomain.com/logo.png
+   ```
+3. Restart the API and send yourself a test (a password reset is the quickest).
+
+Never send from a `gmail.com` or `outlook.com` address through a relay: SPF and DKIM cannot align with a domain you do not control, and the mail lands in spam or is rejected outright. Brevo (`smtp-relay.brevo.com:2525`) works the same way if you prefer it — verify your domain there instead. See the commented examples in `backend/.env.example`.
+
+**How emails look:** every outgoing message (letters, invoices, proposals, agreements, booking confirmations, password resets, notifications) is rendered by `app/services/email_template.py` — one branded, table-based HTML shell that survives Outlook and Gmail. Set `EMAIL_LOGO_URL` to a **PNG** of your logo; email clients will not render SVG. Leave it empty and you get a clean text-only header built from `APP_NAME`.
 
 ## Website content
 

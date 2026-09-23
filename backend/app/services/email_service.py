@@ -7,6 +7,7 @@ import threading
 import time
 from email.message import EmailMessage
 from app.config import get_settings
+from app.services import email_template
 
 logger = logging.getLogger("fuorix.email")
 
@@ -17,30 +18,17 @@ def email_enabled() -> bool:
     return bool(settings.smtp_host)
 
 
-def _build_html(title: str, body_html: str, cta_label: str | None = None, cta_url: str | None = None) -> str:
-    button = ""
-    if cta_label and cta_url:
-        button = (
-            f'<p style="margin:28px 0;"><a href="{cta_url}" '
-            f'style="background:#01184e;color:#ffffff;text-decoration:none;padding:12px 24px;'
-            f'border-radius:10px;font-weight:600;display:inline-block;">{cta_label}</a></p>'
-        )
-    return f"""\
-<div style="font-family:Segoe UI,Arial,sans-serif;background:#f4f5f7;padding:32px 16px;">
-  <div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;">
-    <div style="background:#01184e;padding:20px 28px;">
-      <span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:0.5px;">{settings.app_name.replace(' API', '')}</span>
-    </div>
-    <div style="padding:28px;color:#1f2937;font-size:15px;line-height:1.6;">
-      <h2 style="margin:0 0 12px;font-size:19px;color:#111827;">{title}</h2>
-      {body_html}
-      {button}
-    </div>
-    <div style="padding:16px 28px;border-top:1px solid #f0f0f0;color:#9ca3af;font-size:12px;">
-      This is an automated message — replies are not monitored.
-    </div>
-  </div>
-</div>"""
+def _build_html(
+    title: str,
+    body_html: str,
+    cta_label: str | None = None,
+    cta_url: str | None = None,
+    preheader: str | None = None,
+    note: str | None = None,
+) -> str:
+    """Wrap ``body_html`` in the branded shell. Signature kept so every existing caller
+    (letters, invoices, quotes, agreements, bookings, password reset) is upgraded at once."""
+    return email_template.render(title, body_html, cta_label, cta_url, preheader, note)
 
 
 def _send(to: str, subject: str, html: str, text: str, attachments: list[tuple] | None = None) -> None:

@@ -38,8 +38,13 @@ class Settings(BaseSettings):
     # Base URL of the web frontend, used for links in emails (reset password, notifications)
     frontend_url: str = "http://localhost:5173"
 
-    # Shown in the footer of generated invoice/quote PDFs (address, tax id, ...)
+    # Shown in the footer of generated invoice/quote PDFs and emails (address, tax id, ...)
     company_details: str = ""
+
+    # Absolute https URL of a PNG logo shown in the header of every outgoing email. Email
+    # clients will not render SVG, and the URL must be publicly reachable by the recipient.
+    # Empty = a clean text-only header built from APP_NAME.
+    email_logo_url: str = ""
 
     # Used only by scripts/seed_db.py for the initial admin user
     admin_email: str = "admin@example.com"
