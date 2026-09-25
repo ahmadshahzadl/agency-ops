@@ -278,13 +278,17 @@ def get_task(
 
 
 # Fields members (assignees) may update on their own tasks; managers/admins can update any field.
-ASSIGNEE_EDITABLE_FIELDS = {
-    "status", "description", "priority", "due_date",
+# Fields a non-manager may change on a task they work on: the assignee, anyone who shares the
+# task's board, or a QA reviewer. Reassigning, moving between projects and milestones stay with
+# managers and admins. Status changes are still gated by the transition tables above.
+MEMBER_EDITABLE_FIELDS = {
+    "title", "status", "description", "priority", "due_date",
     "item_type", "severity", "steps_to_reproduce", "environment",
     "board_id", "column_order",
 }
-# Fields a QA reviewer (non-assignee) may touch when acting on a task in review.
-QA_ACTION_FIELDS = {"status", "qa_notes", "column_order"}
+ASSIGNEE_EDITABLE_FIELDS = MEMBER_EDITABLE_FIELDS  # backwards-compatible alias
+# QA reviewers may also write the QA notes that go with a verdict.
+QA_EDITABLE_FIELDS = MEMBER_EDITABLE_FIELDS | {"qa_notes"}
 
 
 def _apply_status_transition(task: TaskModel, updates: dict, user, permissions: set[str]) -> str | None:
@@ -335,18 +339,15 @@ def update_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     updates = data.model_dump(exclude_unset=True)
     is_manager_or_admin = "admin:all" in permissions or manager_scope is not None
-    # A QA reviewer (non-assignee) may act on a task in review: approve/fail with notes.
-    is_qa_action = (
-        "tasks:qa_approve" in permissions
-        and task.status == "review"
-        and set(updates) <= QA_ACTION_FIELDS
-    )
-    if not is_manager_or_admin and not is_qa_action:
-        if task.assignee_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the assignee can update this task")
+    if not is_manager_or_admin:
+        is_qa = "tasks:qa_approve" in permissions
+        is_board_member = task.board_id is not None and task.board_id in board_ids
+        if not (is_qa or is_board_member or task.assignee_id == user.id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the assignee, board members or QA can update this task")
+        editable = QA_EDITABLE_FIELDS if is_qa else MEMBER_EDITABLE_FIELDS
         for k in updates:
-            if k not in ASSIGNEE_EDITABLE_FIELDS:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Members may only update: {', '.join(sorted(ASSIGNEE_EDITABLE_FIELDS))}")
+            if k not in editable:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Members may only update: {', '.join(sorted(editable))}")
     # Manager (non-admin) can reassign only to self or someone in their team
     if is_manager_or_admin and "admin:all" not in permissions and "assignee_id" in updates:
         new_assignee = updates["assignee_id"]

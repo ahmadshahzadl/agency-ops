@@ -11,6 +11,7 @@ import { listAssignableUsers, type UserList } from "@/api/users";
 import { listMilestones, type Milestone } from "@/api/milestones";
 import { createShareLink, listShareLinks, revokeShareLink, shareUrlFor, type ShareLink } from "@/api/share";
 import { AttachmentsSection } from "@/components/AttachmentsSection";
+import { NotesSection } from "@/components/NotesSection";
 
 const COLUMNS = [
   { key: "todo", label: "To do", accent: "border-gray-300" },
@@ -116,6 +117,9 @@ export default function Boards() {
   const [error, setError] = useState<string | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ title: "", description: "", priority: "medium", due_date: "", item_type: "task", severity: "", steps_to_reproduce: "", environment: "", milestone_id: "" });
+  const [saving, setSaving] = useState(false);
   const [qaFailTask, setQaFailTask] = useState<Task | null>(null);
   const [qaNotes, setQaNotes] = useState("");
   const [showNewBoard, setShowNewBoard] = useState(false);
@@ -217,6 +221,62 @@ export default function Boards() {
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm";
 
+  // Mirrors the backend rule: managers/admins, QA, the assignee and anyone on the task's board may edit.
+  const canEditTask = (t: Task) =>
+    canManage || !!isQA || t.assignee_id === user?.id || !!board?.members.some((m) => m.user_id === user?.id);
+
+  const openDetail = (t: Task) => {
+    setDetailTask(t);
+    setEditing(false);
+  };
+
+  const startEdit = (t: Task) => {
+    setEditForm({
+      title: t.title,
+      description: t.description ?? "",
+      priority: t.priority || "medium",
+      due_date: t.due_date ?? "",
+      item_type: t.item_type || "task",
+      severity: t.severity ?? "",
+      steps_to_reproduce: t.steps_to_reproduce ?? "",
+      environment: t.environment ?? "",
+      milestone_id: t.milestone_id ?? "",
+    });
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    if (!detailTask || !editForm.title.trim()) return;
+    // Send only what changed, so members never trip the field allowlist on untouched manager-only fields.
+    const next: Partial<Task> = {
+      title: editForm.title.trim(),
+      description: editForm.description || null,
+      priority: editForm.priority,
+      due_date: editForm.due_date || null,
+      item_type: editForm.item_type,
+      severity: editForm.item_type === "bug" && editForm.severity ? editForm.severity : null,
+      steps_to_reproduce: editForm.steps_to_reproduce || null,
+      environment: editForm.environment || null,
+    };
+    if (canManage) next.milestone_id = editForm.milestone_id || null;
+    const changed: Partial<Task> = {};
+    for (const [k, v] of Object.entries(next) as [keyof Task, Task[keyof Task]][]) {
+      if ((detailTask[k] ?? null) !== (v ?? null)) (changed as Record<string, unknown>)[k] = v;
+    }
+    if (Object.keys(changed).length === 0) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      const updated = await updateTask(detailTask.id, changed);
+      setDetailTask(updated);
+      setTasks((ts) => ts.map((t) => (t.id === updated.id ? updated : t)));
+      setEditing(false);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "Could not save changes");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col gap-4">
       {error && (
@@ -298,7 +358,7 @@ export default function Boards() {
                 tasks={byColumn[c.key] ?? []}
                 users={users}
                 highlight={activeTask ? (validTargets.includes(c.key) ? "valid" : c.key === activeTask.status ? null : "invalid") : null}
-                onCardClick={(t) => setDetailTask(t)}
+                onCardClick={openDetail}
               />
             ))}
           </div>
@@ -310,9 +370,68 @@ export default function Boards() {
       {detailTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDetailTask(null)}>
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-4 sm:p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {editing ? (
+              <>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit {editForm.item_type === "bug" ? "bug" : "task"}</h3>
+                <div className="mt-3 space-y-3">
+                  <input autoFocus className={inputClass} placeholder="Title" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+                  <textarea rows={4} className={inputClass} placeholder="Description" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <select className={inputClass} value={editForm.item_type} onChange={(e) => setEditForm({ ...editForm, item_type: e.target.value, severity: e.target.value === "bug" ? editForm.severity || "medium" : "" })}>
+                      <option value="task">Task</option>
+                      <option value="bug">Bug</option>
+                    </select>
+                    <select className={inputClass} value={editForm.priority} onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}>
+                      <option value="low">Low priority</option>
+                      <option value="medium">Medium priority</option>
+                      <option value="high">High priority</option>
+                    </select>
+                  </div>
+                  {editForm.item_type === "bug" && (
+                    <>
+                      <select className={inputClass} value={editForm.severity} onChange={(e) => setEditForm({ ...editForm, severity: e.target.value })}>
+                        <option value="low">Severity: low</option>
+                        <option value="medium">Severity: medium</option>
+                        <option value="high">Severity: high</option>
+                        <option value="critical">Severity: critical</option>
+                      </select>
+                      <textarea rows={3} className={inputClass} placeholder="Steps to reproduce" value={editForm.steps_to_reproduce} onChange={(e) => setEditForm({ ...editForm, steps_to_reproduce: e.target.value })} />
+                      <input className={inputClass} placeholder="Environment (e.g. prod, Chrome 130, iOS)" value={editForm.environment} onChange={(e) => setEditForm({ ...editForm, environment: e.target.value })} />
+                    </>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label className="text-xs text-gray-500">
+                      Due date
+                      <input type="date" className={`${inputClass} mt-1`} value={editForm.due_date} onChange={(e) => setEditForm({ ...editForm, due_date: e.target.value })} />
+                    </label>
+                    {canManage && milestones.length > 0 && (
+                      <label className="text-xs text-gray-500">
+                        Milestone
+                        <select className={`${inputClass} mt-1`} value={editForm.milestone_id} onChange={(e) => setEditForm({ ...editForm, milestone_id: e.target.value })}>
+                          <option value="">No milestone</option>
+                          {milestones.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button onClick={() => setEditing(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">Cancel</button>
+                  <button disabled={saving || !editForm.title.trim()} onClick={saveEdit} className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white hover:bg-primary-hover disabled:opacity-50">
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </>
+            ) : (
+            <>
             <div className="flex items-start justify-between gap-3">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{detailTask.title}</h3>
-              <span className="px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{COLUMNS.find((c) => c.key === detailTask.status)?.label ?? detailTask.status}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {canEditTask(detailTask) && (
+                  <button onClick={() => startEdit(detailTask)} className="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20">Edit</button>
+                )}
+                <span className="px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{COLUMNS.find((c) => c.key === detailTask.status)?.label ?? detailTask.status}</span>
+              </div>
             </div>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {detailTask.item_type === "bug" && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200">BUG</span>}
@@ -371,6 +490,7 @@ export default function Boards() {
               {detailTask.milestone_id && <span>· ⚑ {milestones.find((m) => m.id === detailTask.milestone_id)?.name ?? "milestone"}</span>}
             </div>
             <AttachmentsSection entityType="task" entityId={detailTask.id} />
+            <NotesSection entityType="task" entityId={detailTask.id} title="Comments" defaultPrivate={false} />
             {/* Action buttons for the allowed transitions */}
             <div className="mt-5 flex flex-wrap gap-2">
               {allowedTargets(detailTask.status, isAdmin, !!isQA).map((target) => {
@@ -413,6 +533,8 @@ export default function Boards() {
               )}
               <button onClick={() => setDetailTask(null)} className="ml-auto px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200">Close</button>
             </div>
+            </>
+            )}
           </div>
         </div>
       )}

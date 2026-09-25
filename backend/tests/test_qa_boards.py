@@ -228,3 +228,46 @@ def test_board_member_can_create_task_on_board(client, auth_headers, employee_he
                         json={"client_id": cid, "name": f"NoAccess {_uuid.uuid4().hex[:6]}", "status": "active"}).json()
     r = client.post("/api/v1/tasks", headers=employee_headers, json={"title": "sneak", "project_id": other["id"]})
     assert r.status_code == 403
+
+
+# --- Shared boards: members and QA work each other's cards ---
+
+def test_board_member_can_move_and_edit_a_teammates_card(client, auth_headers, employee_headers, qa_headers):
+    """Anyone on the board can drag a card along the dev pipeline and edit its details,
+    not only the assignee. QA is on the board here as the 'other member'."""
+    project_id = _setup_project(client, auth_headers)
+    board = _make_board(client, auth_headers, project_id, ["employee@test.com", "qa@test.com"])
+    task = _make_task(client, auth_headers, project_id, board["id"], "employee@test.com")
+
+    # QA (not the assignee) starts the card and edits its title/description
+    r = client.patch(f"/api/v1/tasks/{task['id']}", headers=qa_headers, json={"status": "in_progress"})
+    assert r.status_code == 200, r.text
+    r = client.patch(f"/api/v1/tasks/{task['id']}", headers=qa_headers, json={"title": "Renamed", "description": "More detail", "priority": "high"})
+    assert r.status_code == 200, r.text
+    assert r.json()["title"] == "Renamed" and r.json()["priority"] == "high"
+
+    # ...but may not reassign it (manager-only field)
+    other = _user_id(client, auth_headers, "qa@test.com")
+    r = client.patch(f"/api/v1/tasks/{task['id']}", headers=qa_headers, json={"assignee_id": other})
+    assert r.status_code == 403
+
+    # The gate still holds: a plain member cannot approve a task in review
+    client.patch(f"/api/v1/tasks/{task['id']}", headers=employee_headers, json={"status": "review"})
+    r = client.patch(f"/api/v1/tasks/{task['id']}", headers=employee_headers, json={"status": "done"})
+    assert r.status_code == 403
+    # QA can send it back to in_progress without failing it, or approve it
+    r = client.patch(f"/api/v1/tasks/{task['id']}", headers=qa_headers, json={"status": "in_progress"})
+    assert r.status_code == 200, r.text
+
+
+def test_outsider_cannot_edit_task(client, auth_headers, employee_headers):
+    """Not the assignee, not on the board, no manager scope: no edit."""
+    project_id = _setup_project(client, auth_headers)
+    board = _make_board(client, auth_headers, project_id, ["employee@test.com"])
+    task = _make_task(client, auth_headers, project_id, board["id"])  # unassigned, employee is a board member
+    r = client.patch(f"/api/v1/tasks/{task['id']}", headers=employee_headers, json={"status": "in_progress"})
+    assert r.status_code == 200, r.text
+
+    lone = _make_task(client, auth_headers, project_id)  # no board, no assignee -> employee cannot even see it
+    r = client.patch(f"/api/v1/tasks/{lone['id']}", headers=employee_headers, json={"status": "in_progress"})
+    assert r.status_code == 404

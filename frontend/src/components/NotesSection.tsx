@@ -14,15 +14,19 @@ interface NotesSectionProps {
   entityType: NoteEntityType;
   entityId: string | undefined;
   className?: string;
+  /** Heading text; "Notes" by default, "Comments" on the kanban board. */
+  title?: string;
+  /** Default visibility of a new entry. Boards default to shared so teammates see comments. */
+  defaultPrivate?: boolean;
 }
 
-export function NotesSection({ entityType, entityId, className = "" }: NotesSectionProps) {
+export function NotesSection({ entityType, entityId, className = "", title = "Notes", defaultPrivate = true }: NotesSectionProps) {
   const { user, hasPermission } = useAuth();
   const { showConfirm, showAlert } = useModal();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState("");
-  const [isPrivate, setIsPrivate] = useState(true);
+  const [isPrivate, setIsPrivate] = useState(defaultPrivate);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [editPrivate, setEditPrivate] = useState(true);
@@ -109,7 +113,7 @@ export function NotesSection({ entityType, entityId, className = "" }: NotesSect
 
   return (
     <div className={`border-t border-gray-200 pt-4 mt-4 ${className}`}>
-      <h3 className="text-sm font-semibold text-gray-700 mb-2">Notes</h3>
+      <h3 className="text-sm font-semibold text-gray-700 mb-2">{title}</h3>
       {loading ? (
         <p className="text-sm text-gray-500">Loading notes…</p>
       ) : (
@@ -194,7 +198,7 @@ export function NotesSection({ entityType, entityId, className = "" }: NotesSect
       {canWrite && (
         <div className="space-y-2">
           <textarea
-            placeholder="Add a note…"
+            placeholder={`Add a ${title.toLowerCase().replace(/s$/, "")}…`}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:text-white text-sm min-h-[70px]"
