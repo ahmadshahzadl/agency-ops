@@ -1,15 +1,20 @@
-"""Apply the September 2026 blog content plan (scripts/blog_plan_2026_09.py) to the CMS.
+"""Apply a blog content plan (scripts/blog_plan_*.py) to the CMS.
 
 Usage (on the droplet, as the portal user):
     cd /opt/fuorix/app/backend
-    .venv/bin/python scripts/apply_blog_plan.py --dry-run   # show what would change
-    .venv/bin/python scripts/apply_blog_plan.py             # apply
+    .venv/bin/python scripts/apply_blog_plan.py --dry-run                        # September overhaul, preview
+    .venv/bin/python scripts/apply_blog_plan.py                                  # apply it
+    .venv/bin/python scripts/apply_blog_plan.py --plan blog_plan_2026_09_news    # a different plan module
+
+A plan module is pure data exposing MARK, UNPUBLISH, UPDATE, REPLACE and CREATE. CREATE entries may
+carry "status": "draft" to load a post without publishing it.
 
 Idempotent: retitle intros are prepended once (marked with an HTML comment), new posts are
 created only if their slug does not exist, unpublished posts are set to draft (never deleted).
 After applying, the script asks fuorix.com to revalidate the blog pages if SITE_REVALIDATE_SECRET
 is configured; otherwise pages refresh on their own within ten minutes.
 """
+import importlib
 import os
 import sys
 import time
@@ -21,7 +26,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.database import SessionLocal  # noqa: E402
 from app.models.content import BlogPost  # noqa: E402
 from app.services.content_service import revalidate_site  # noqa: E402
-from scripts.blog_plan_2026_09 import CREATE, MARK, REPLACE, UNPUBLISH, UPDATE  # noqa: E402
+
+
+def _load_plan(name: str):
+    mod = importlib.import_module(f"scripts.{name}")
+    return mod.MARK, mod.UNPUBLISH, mod.UPDATE, mod.REPLACE, mod.CREATE
 
 
 def _dt(s: str | None) -> datetime:
@@ -30,7 +39,9 @@ def _dt(s: str | None) -> datetime:
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
-def main(dry_run: bool) -> None:
+def main(dry_run: bool, plan: str) -> None:
+    MARK, UNPUBLISH, UPDATE, REPLACE, CREATE = _load_plan(plan)
+    print(f"Plan: scripts/{plan}.py")
     db = SessionLocal()
     touched: list[str] = []
     log: list[str] = []
@@ -101,8 +112,8 @@ def main(dry_run: bool) -> None:
                 body_md=f"{MARK}\n\n{c['body_md'].strip()}\n",
                 cover_url=c.get("cover_url"),
                 cover_alt=c.get("cover_alt"),
-                status="published",
-                published_at=_dt(c.get("published_at")),
+                status=c.get("status", "published"),
+                published_at=_dt(c.get("published_at")) if c.get("status", "published") == "published" else None,
                 related_slugs=c.get("related_slugs") or [],
                 seo_title=c.get("seo_title"),
                 seo_description=c.get("seo_description"),
@@ -131,4 +142,6 @@ def main(dry_run: bool) -> None:
 
 
 if __name__ == "__main__":
-    main(dry_run="--dry-run" in sys.argv)
+    args = sys.argv[1:]
+    plan_name = args[args.index("--plan") + 1] if "--plan" in args else "blog_plan_2026_09"
+    main(dry_run="--dry-run" in args, plan=plan_name)
