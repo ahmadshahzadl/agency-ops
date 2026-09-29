@@ -100,6 +100,7 @@ class CaseStudyBase(BaseModel):
     image_url: Optional[str] = Field(None, max_length=500)
     logo_url: Optional[str] = Field(None, max_length=500)
     gradient: Optional[str] = Field(None, max_length=300)
+    live_url: Optional[str] = Field(None, max_length=500)
     featured: bool = False
     sort_order: int = 0
     seo_title: Optional[str] = Field(None, max_length=255)
@@ -133,6 +134,7 @@ class CaseStudyUpdate(BaseModel):
     image_url: Optional[str] = Field(None, max_length=500)
     logo_url: Optional[str] = Field(None, max_length=500)
     gradient: Optional[str] = Field(None, max_length=300)
+    live_url: Optional[str] = Field(None, max_length=500)
     featured: Optional[bool] = None
     sort_order: Optional[int] = None
     seo_title: Optional[str] = Field(None, max_length=255)
@@ -193,6 +195,7 @@ class PublicCaseStudy(BaseModel):
     image_url: Optional[str] = None
     logo_url: Optional[str] = None
     gradient: Optional[str] = None
+    live_url: Optional[str] = Field(None, max_length=500)
     featured: bool = False
     sort_order: int = 0
     published_at: Optional[datetime] = None

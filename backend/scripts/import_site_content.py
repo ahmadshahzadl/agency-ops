@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal  # noqa: E402
 from app.models.content import BlogPost, CaseStudy  # noqa: E402
+from app.services.content_service import revalidate_site  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "seed_content", "site_content.json")
@@ -67,7 +68,7 @@ def main(overwrite: bool) -> None:
                 made += 1
             else:
                 updated += 1
-            for k in ("title", "tagline", "category", "tags", "year", "overview", "challenge", "solution", "highlights", "results", "stack", "related_slugs", "image_url", "logo_url", "gradient", "sort_order", "featured"):
+            for k in ("title", "tagline", "category", "tags", "year", "overview", "challenge", "solution", "highlights", "results", "stack", "related_slugs", "image_url", "logo_url", "gradient", "live_url", "sort_order", "featured", "seo_title", "seo_description"):
                 if k in c:
                     setattr(row, k, c[k])
             row.status = "published"
@@ -76,6 +77,10 @@ def main(overwrite: bool) -> None:
     finally:
         db.close()
     print(f"created {made}, updated {updated}, skipped {skipped}")
+    if made or updated:
+        import time
+        revalidate_site(["/portfolio", "/", "/sitemap.xml", "/industries"] + [f"/portfolio/{c['slug']}" for c in data.get("case_studies", [])], ["case-studies", "blog"])
+        time.sleep(5)
 
 
 if __name__ == "__main__":

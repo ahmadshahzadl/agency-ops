@@ -50,6 +50,7 @@ export interface CaseStudy {
   image_url: string | null;
   logo_url: string | null;
   gradient: string | null;
+  live_url: string | null;
   featured: boolean;
   sort_order: number;
   seo_title: string | null;

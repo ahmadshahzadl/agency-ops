@@ -33,7 +33,7 @@ const emptyPost = (): Partial<BlogPostInput> => ({
   slug: "", title: "", excerpt: "", category: "", body_md: "", cover_url: "", cover_alt: "", related_slugs: [], seo_title: "", seo_description: "", author_name: "Fuorix", status: "draft", published_at: null,
 });
 const emptyCase = (): Partial<CaseStudyInput> => ({
-  slug: "", title: "", tagline: "", category: "", tags: [], year: String(new Date().getFullYear()), overview: "", challenge: "", solution: "", highlights: [], results: [], stack: [], related_slugs: [], image_url: "", logo_url: "", gradient: "", featured: false, sort_order: 0, seo_title: "", seo_description: "", status: "draft", published_at: null,
+  slug: "", title: "", tagline: "", category: "", tags: [], year: String(new Date().getFullYear()), overview: "", challenge: "", solution: "", highlights: [], results: [], stack: [], related_slugs: [], image_url: "", logo_url: "", gradient: "", live_url: "", featured: false, sort_order: 0, seo_title: "", seo_description: "", status: "draft", published_at: null,
 });
 
 export default function ContentPage() {
@@ -100,7 +100,7 @@ export default function ContentPage() {
   // ---------- case studies ----------
   const openNewCase = () => { setCs(emptyCase()); setSlugTouched(false); setCaseModal("new"); };
   const openCase = (c: CaseStudy) => {
-    setCs({ slug: c.slug, title: c.title, tagline: c.tagline ?? "", category: c.category ?? "", tags: c.tags, year: c.year ?? "", overview: c.overview ?? "", challenge: c.challenge ?? "", solution: c.solution ?? "", highlights: c.highlights, results: c.results, stack: c.stack, related_slugs: c.related_slugs, image_url: c.image_url ?? "", logo_url: c.logo_url ?? "", gradient: c.gradient ?? "", featured: c.featured, sort_order: c.sort_order, seo_title: c.seo_title ?? "", seo_description: c.seo_description ?? "", status: c.status, published_at: c.published_at });
+    setCs({ slug: c.slug, title: c.title, tagline: c.tagline ?? "", category: c.category ?? "", tags: c.tags, year: c.year ?? "", overview: c.overview ?? "", challenge: c.challenge ?? "", solution: c.solution ?? "", highlights: c.highlights, results: c.results, stack: c.stack, related_slugs: c.related_slugs, image_url: c.image_url ?? "", logo_url: c.logo_url ?? "", gradient: c.gradient ?? "", live_url: c.live_url ?? "", featured: c.featured, sort_order: c.sort_order, seo_title: c.seo_title ?? "", seo_description: c.seo_description ?? "", status: c.status, published_at: c.published_at });
     setSlugTouched(true); setCaseModal(c);
   };
   const saveCase = async (statusOverride?: "draft" | "published") => {
@@ -113,7 +113,7 @@ export default function ContentPage() {
         status: statusOverride ?? (cs.status as "draft" | "published"),
         results: (cs.results ?? []).filter((r) => r.label.trim() && r.value.trim()),
         tagline: cs.tagline || null, category: cs.category || null, year: cs.year || null, overview: cs.overview || null, challenge: cs.challenge || null, solution: cs.solution || null,
-        image_url: cs.image_url || null, logo_url: cs.logo_url || null, gradient: cs.gradient || null, seo_title: cs.seo_title || null, seo_description: cs.seo_description || null,
+        image_url: cs.image_url || null, logo_url: cs.logo_url || null, gradient: cs.gradient || null, live_url: cs.live_url || null, seo_title: cs.seo_title || null, seo_description: cs.seo_description || null,
         published_at: cs.published_at || null,
       };
       const saved = caseModal === "new" ? await createCaseStudy(payload) : await updateCaseStudy((caseModal as CaseStudy).id, payload);
@@ -387,6 +387,7 @@ export default function ContentPage() {
                 <label className={labelClass}>Logo (shown when there is no screenshot)</label>
                 <div className="flex gap-2"><input className={inputClass} value={cs.logo_url ?? ""} onChange={(e) => setCs((f) => ({ ...f, logo_url: e.target.value }))} placeholder="/logos/… or /cms/media/…" /><button type="button" onClick={() => pickFile("cs-logo")} className="px-3 py-2 rounded-lg border border-gray-300 text-xs text-gray-700 hover:bg-gray-50 whitespace-nowrap">Upload</button></div>
                 <input className={`${inputClass} mt-2`} value={cs.gradient ?? ""} onChange={(e) => setCs((f) => ({ ...f, gradient: e.target.value }))} placeholder="Background gradient CSS, e.g. linear-gradient(135deg, #001639, #3d6a9e)" />
+                <input className={`${inputClass} mt-2`} value={cs.live_url ?? ""} onChange={(e) => setCs((f) => ({ ...f, live_url: e.target.value }))} placeholder="Live site URL, e.g. https://siteday.app (adds a Visit button)" />
               </div>
               <div><label className={labelClass}>Related case study slugs (one per line)</label><textarea className={inputClass} rows={2} value={(cs.related_slugs ?? []).join("\n")} onChange={(e) => setCs((f) => ({ ...f, related_slugs: lines(e.target.value) }))} /></div>
               <div className="space-y-2">

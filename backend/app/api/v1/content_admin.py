@@ -34,7 +34,7 @@ def _case_out(c: CaseStudy) -> CaseStudyOut:
         id=c.id, slug=c.slug, title=c.title, tagline=c.tagline, category=c.category, tags=c.tags or [], year=c.year,
         overview=c.overview, challenge=c.challenge, solution=c.solution, highlights=c.highlights or [],
         results=c.results or [], stack=c.stack or [], related_slugs=c.related_slugs or [], image_url=c.image_url,
-        logo_url=c.logo_url, gradient=c.gradient, featured=c.featured, sort_order=c.sort_order, seo_title=c.seo_title,
+        logo_url=c.logo_url, gradient=c.gradient, live_url=c.live_url, featured=c.featured, sort_order=c.sort_order, seo_title=c.seo_title,
         seo_description=c.seo_description, status=c.status, published_at=c.published_at, created_at=c.created_at, updated_at=c.updated_at,
     )
 

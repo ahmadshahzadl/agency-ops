@@ -64,6 +64,7 @@ class CaseStudy(Base):
     image_url = Column(String(500))
     logo_url = Column(String(500))
     gradient = Column(String(300))
+    live_url = Column(String(500))  # public URL of the shipped product, if any
     status = Column(String(16), nullable=False, default="draft")
     published_at = Column(DateTime(timezone=True))
     featured = Column(Boolean, nullable=False, default=False)
