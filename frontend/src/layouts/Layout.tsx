@@ -30,6 +30,7 @@ const navItems: { to: string; label: string; permission?: string }[] = [
   { to: "/messages", label: "Messages" },
   { to: "/invoices", label: "Invoices", permission: "finance:read" },
   { to: "/expenses", label: "Expenses", permission: "expenses:read" },
+  { to: "/payroll", label: "Payroll", permission: "expenses:read" },
   { to: "/analytics", label: "Reports", permission: "analytics:read" },
   { to: "/team-activity", label: "Team activity", permission: "team_activity:read" },
   { to: "/announcements", label: "Announcements", permission: "announcements:read" },
@@ -120,6 +121,11 @@ const NavIcon = ({ path, className = "w-5 h-5 shrink-0" }: { path: string; class
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ),
+    "/payroll": (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7zM19 8v6m3-3h-6" />
+      </svg>
+    ),
     "/analytics": (
       <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -158,7 +164,7 @@ const NavIcon = ({ path, className = "w-5 h-5 shrink-0" }: { path: string; class
   );
 };
 
-const SALES_HIDDEN_NAV = ["/invoices", "/expenses", "/analytics"];
+const SALES_HIDDEN_NAV = ["/invoices", "/expenses", "/payroll", "/analytics"];
 const SALES_ONLY_HIDDEN_NAV = ["/clients", "/team-activity"];
 
 const PATH_TO_HEADER_TITLE: Record<string, string> = {
@@ -178,6 +184,7 @@ const PATH_TO_HEADER_TITLE: Record<string, string> = {
   "/messages": "Messages",
   "/invoices": "Invoices",
   "/expenses": "Expenses",
+  "/payroll": "Payroll",
   "/analytics": "Reports",
   "/team-activity": "Team activity",
   "/announcements": "Announcements",

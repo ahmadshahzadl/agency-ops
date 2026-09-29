@@ -116,6 +116,7 @@ class ExpenseUpdate(BaseModel):
 
 class ExpenseResponse(ExpenseBase):
     id: UUID
+    recurring_expense_id: Optional[UUID] = None
     payee_name: Optional[str] = None
     invoice_number: Optional[str] = None
     created_by: Optional[UUID] = None

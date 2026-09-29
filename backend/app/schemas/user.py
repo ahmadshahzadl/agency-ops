@@ -1,3 +1,4 @@
+from datetime import date
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from uuid import UUID
@@ -20,6 +21,9 @@ class UserUpdateAdmin(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
     job_title: Optional[str] = None
+    employment_type: Optional[str] = None  # full_time | part_time | contractor | intern
+    joined_on: Optional[date] = None
+    left_on: Optional[date] = None
     is_active: Optional[bool] = None
     manager_id: Optional[UUID] = None
     client_id: Optional[UUID] = None
@@ -33,6 +37,9 @@ class UserListResponse(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
     job_title: Optional[str] = None
+    employment_type: Optional[str] = None
+    joined_on: Optional[date] = None
+    left_on: Optional[date] = None
     is_active: bool
     manager_id: Optional[UUID] = None
     client_id: Optional[UUID] = None  # set to create a client-portal user

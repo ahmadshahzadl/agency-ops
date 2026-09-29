@@ -45,6 +45,9 @@ def _user_to_response(user: UserModel) -> UserListResponse:
         full_name=user.full_name,
         phone=getattr(user, "phone", None),
         job_title=getattr(user, "job_title", None),
+        employment_type=getattr(user, "employment_type", None),
+        joined_on=getattr(user, "joined_on", None),
+        left_on=getattr(user, "left_on", None),
         is_active=user.is_active,
         manager_id=getattr(user, "manager_id", None),
         client_id=getattr(user, "client_id", None),
@@ -128,6 +131,12 @@ def update_user(
         user.phone = data.phone
     if data.job_title is not None:
         user.job_title = data.job_title
+    if data.employment_type is not None:
+        user.employment_type = data.employment_type
+    if data.joined_on is not None:
+        user.joined_on = data.joined_on
+    if data.left_on is not None:
+        user.left_on = data.left_on
     if data.is_active is not None:
         user.is_active = data.is_active
     if data.manager_id is not None:

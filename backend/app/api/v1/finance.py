@@ -444,6 +444,7 @@ def list_expenses(
             qry = qry.join(ProjectModel).join(ClientModel).filter(ClientModel.team_id.in_(team_ids))
     if project_id:
         qry = qry.filter(ExpenseModel.project_id == project_id)
+    qry = qry.order_by(ExpenseModel.expense_date.desc().nullslast(), ExpenseModel.created_at.desc())
     return [_decorate_expense(e) for e in qry.offset(skip).limit(limit).all()]
 
 

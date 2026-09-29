@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Column, String, Numeric, Integer, Date, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Numeric, Integer, Date, DateTime, ForeignKey, Boolean, Text
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -75,9 +75,46 @@ class Expense(Base):
     related_invoice_id = Column(UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="SET NULL"))
     payee_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     commission_percent = Column(Numeric(5, 2))
+    # Set when this expense was recorded as one occurrence of a recurring bill or salary
+    recurring_expense_id = Column(UUID(as_uuid=True), ForeignKey("recurring_expenses.id", ondelete="SET NULL"))
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     project = relationship("Project", backref="expenses")
     payee = relationship("User", foreign_keys=[payee_user_id])
     related_invoice = relationship("Invoice", foreign_keys=[related_invoice_id])
+    recurring = relationship("RecurringExpense", back_populates="occurrences", foreign_keys=[recurring_expense_id])
+
+
+RECURRING_FREQUENCIES = ("weekly", "monthly", "quarterly", "yearly")
+
+
+class RecurringExpense(Base):
+    """A bill that comes back on a schedule: rent, a subscription, a salary. Each time it is paid an
+    ordinary Expense row is written and next_due_date moves forward one period. The reminder loop
+    notifies finance users a few days ahead (remind_days_before) and once when it goes overdue."""
+    __tablename__ = "recurring_expenses"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    description = Column(String(255), nullable=False)
+    category = Column(String(32), nullable=False, default="other", server_default="other")
+    amount = Column(Numeric(14, 2), nullable=False)
+    currency = Column(String(3), nullable=False, default="PKR")
+    frequency = Column(String(16), nullable=False, default="monthly", server_default="monthly")
+    # Day of month the bill falls due (clamped to shorter months). Weekly bills ignore it.
+    due_day = Column(Integer, nullable=False, default=1, server_default="1")
+    next_due_date = Column(Date, nullable=False)
+    last_paid_on = Column(Date)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"))
+    payee_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))  # salaries
+    notes = Column(Text)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    remind_days_before = Column(JSONB, nullable=False, default=lambda: [2, 1, 0])
+    reminders_sent = Column(JSONB, nullable=False, default=list)  # ["2026-10-01:2", "2026-10-01:overdue"]
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("Project")
+    payee = relationship("User", foreign_keys=[payee_user_id])
+    occurrences = relationship("Expense", back_populates="recurring", foreign_keys="Expense.recurring_expense_id")

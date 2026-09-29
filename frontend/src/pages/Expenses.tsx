@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { RecurringExpensesPanel } from "@/components/RecurringExpenses";
 import { listExpenses, createExpense, updateExpense, deleteExpense, listInvoices, type Expense, type Invoice } from "@/api/finance";
 import { listAssignableUsers, type UserList } from "@/api/users";
 import { listProjects, type Project } from "@/api/projects";
@@ -11,6 +13,9 @@ import { BulkActionsBar } from "@/components/BulkActionsBar";
 export default function ExpensesPage() {
   const { showConfirm, showAlert } = useModal();
   const { hasPermission } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") === "recurring" ? "recurring" : "expenses";
+  const setTab = (t: "expenses" | "recurring") => setSearchParams(t === "recurring" ? { tab: "recurring" } : {});
   const canBulk = hasPermission("admin:all");
   const canWrite = hasPermission("finance:write");
   const [items, setItems] = useState<Expense[]>([]);
@@ -181,8 +186,32 @@ export default function ExpensesPage() {
   const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
+  const tabs = (
+    <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+      {(["expenses", "recurring"] as const).map((t) => (
+        <button
+          key={t}
+          onClick={() => setTab(t)}
+          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+        >
+          {t === "expenses" ? "Expenses" : "Recurring bills"}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (tab === "recurring") {
+    return (
+      <div className="space-y-4">
+        {tabs}
+        <RecurringExpensesPanel projects={projects} canWrite={canWrite} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      {tabs}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <label className="text-sm font-medium text-gray-700">Project</label>
@@ -262,7 +291,10 @@ export default function ExpensesPage() {
                       />
                     </td>
                   )}
-                  <td className="px-4 py-3 font-medium text-gray-900">{e.description}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    {e.description}
+                    {e.recurring_expense_id && <span className="ml-2 align-middle inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary" title="Recorded from a recurring bill">recurring</span>}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{e.project_id ? projectMap[e.project_id] || e.project_id : "—"}</td>
                   <td className="px-4 py-3 text-gray-600">
                     {e.currency} {Number(e.amount).toLocaleString()}

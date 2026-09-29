@@ -6,6 +6,9 @@ export interface UserList {
   full_name: string | null;
   phone?: string | null;
   job_title?: string | null;
+  employment_type?: string | null;
+  joined_on?: string | null;
+  left_on?: string | null;
   is_active: boolean;
   manager_id: string | null;
   client_id?: string | null;

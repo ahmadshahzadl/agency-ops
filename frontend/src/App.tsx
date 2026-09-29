@@ -19,6 +19,7 @@ import Letters from "@/pages/Letters";
 import Meetings from "@/pages/Meetings";
 import Invoices from "@/pages/Invoices";
 import Expenses from "@/pages/Expenses";
+import Payroll from "@/pages/Payroll";
 import Analytics from "@/pages/Analytics";
 import TeamActivity from "@/pages/TeamActivity";
 import Users from "@/pages/Users";
@@ -108,6 +109,7 @@ function AppRoutes() {
         <Route path="content" element={<ContentPage />} />
         <Route path="invoices" element={<Invoices />} />
         <Route path="expenses" element={<Expenses />} />
+        <Route path="payroll" element={<Payroll />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="team-activity" element={<TeamActivity />} />
         <Route path="users" element={<Users />} />

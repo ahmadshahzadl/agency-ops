@@ -38,6 +38,7 @@ export interface Payment {
 
 export interface Expense {
   category?: string;
+  recurring_expense_id?: string | null;
   related_invoice_id?: string | null;
   payee_user_id?: string | null;
   commission_percent?: number | string | null;
@@ -146,4 +147,121 @@ export async function openInvoicePdf(id: string, number: string): Promise<void> 
 
 export async function sendInvoice(id: string): Promise<Invoice> {
   return apiFetch<Invoice>(`/api/v1/invoices/${id}/send`, { method: "POST" });
+}
+
+/* ---------------- recurring bills, subscriptions, salaries ---------------- */
+
+export type RecurringFrequency = "weekly" | "monthly" | "quarterly" | "yearly";
+export type RecurringStatus = "scheduled" | "due_soon" | "due_today" | "overdue" | "paused";
+
+export interface RecurringExpense {
+  id: string;
+  description: string;
+  category: string;
+  amount: number | string;
+  currency: string;
+  frequency: RecurringFrequency;
+  due_day: number;
+  next_due_date: string;
+  last_paid_on: string | null;
+  project_id: string | null;
+  payee_user_id: string | null;
+  notes: string | null;
+  remind_days_before: number[];
+  is_active: boolean;
+  status: RecurringStatus;
+  days_until_due: number;
+  payee_name: string | null;
+  project_name: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export type RecurringExpenseInput = {
+  description: string;
+  category: string;
+  amount: number;
+  currency: string;
+  frequency: RecurringFrequency;
+  due_day: number;
+  next_due_date?: string | null;
+  project_id?: string | null;
+  payee_user_id?: string | null;
+  notes?: string | null;
+  remind_days_before?: number[];
+  is_active?: boolean;
+};
+
+export async function listRecurringExpenses(params?: { include_inactive?: boolean; category?: string; due_within_days?: number }): Promise<RecurringExpense[]> {
+  const sp = new URLSearchParams();
+  if (params?.include_inactive) sp.set("include_inactive", "true");
+  if (params?.category) sp.set("category", params.category);
+  if (params?.due_within_days != null) sp.set("due_within_days", String(params.due_within_days));
+  const qs = sp.toString();
+  return apiFetch<RecurringExpense[]>(`/api/v1/recurring-expenses${qs ? `?${qs}` : ""}`);
+}
+
+export async function createRecurringExpense(data: RecurringExpenseInput): Promise<RecurringExpense> {
+  return apiFetch<RecurringExpense>("/api/v1/recurring-expenses", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function updateRecurringExpense(id: string, data: Partial<RecurringExpenseInput>): Promise<RecurringExpense> {
+  return apiFetch<RecurringExpense>(`/api/v1/recurring-expenses/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export async function deleteRecurringExpense(id: string): Promise<void> {
+  return apiFetch(`/api/v1/recurring-expenses/${id}`, { method: "DELETE" });
+}
+
+export async function payRecurringExpense(id: string, data: { paid_on?: string; amount?: number; note?: string }): Promise<Expense> {
+  return apiFetch<Expense>(`/api/v1/recurring-expenses/${id}/pay`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function skipRecurringExpense(id: string): Promise<RecurringExpense> {
+  return apiFetch<RecurringExpense>(`/api/v1/recurring-expenses/${id}/skip`, { method: "POST", body: "{}" });
+}
+
+export async function recurringExpenseHistory(id: string): Promise<Expense[]> {
+  return apiFetch<Expense[]>(`/api/v1/recurring-expenses/${id}/history`);
+}
+
+export async function runExpenseRemindersNow(): Promise<{ sent: number }> {
+  return apiFetch<{ sent: number }>("/api/v1/recurring-expenses/run-reminders", { method: "POST", body: "{}" });
+}
+
+/* ---------------- payroll ---------------- */
+
+export type EmploymentType = "full_time" | "part_time" | "contractor" | "intern";
+
+export interface PayrollRow {
+  user_id: string;
+  full_name: string | null;
+  email: string;
+  job_title: string | null;
+  employment_type: EmploymentType | null;
+  joined_on: string | null;
+  left_on: string | null;
+  is_active: boolean;
+  salary_id: string | null;
+  amount: number | string | null;
+  currency: string | null;
+  frequency: RecurringFrequency | null;
+  due_day: number | null;
+  next_due_date: string | null;
+  last_paid_on: string | null;
+  salary_active: boolean;
+  status: RecurringStatus | "not_set";
+  days_until_due: number | null;
+  paid_this_period: boolean;
+}
+
+export async function listPayroll(includeInactive = false): Promise<PayrollRow[]> {
+  return apiFetch<PayrollRow[]>(`/api/v1/payroll${includeInactive ? "?include_inactive=true" : ""}`);
+}
+
+export async function updatePayroll(userId: string, data: {
+  amount?: number; currency?: string; due_day?: number; frequency?: RecurringFrequency; salary_active?: boolean;
+  employment_type?: EmploymentType | null; joined_on?: string | null; left_on?: string | null; job_title?: string | null;
+}): Promise<PayrollRow> {
+  return apiFetch<PayrollRow>(`/api/v1/payroll/${userId}`, { method: "PATCH", body: JSON.stringify(data) });
 }
