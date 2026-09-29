@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     # both sides). Publishing content in the app then refreshes the affected pages instantly.
     site_revalidate_secret: str = ""
 
+    # Attendance: the company's local timezone decides which calendar day a check-in belongs to;
+    # checking in after ATTENDANCE_START_TIME (HH:MM) counts as late; working days are ISO weekday
+    # numbers (Monday = 1), used to count absences.
+    company_timezone: str = "Asia/Karachi"
+    attendance_start_time: str = "10:00"
+    attendance_working_days: str = "1,2,3,4,5"
+
     # Background thread that emails invitees 24h / 1h before inbound bookings.
     booking_reminders_enabled: bool = True
 

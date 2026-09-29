@@ -20,6 +20,7 @@ import Meetings from "@/pages/Meetings";
 import Invoices from "@/pages/Invoices";
 import Expenses from "@/pages/Expenses";
 import Payroll from "@/pages/Payroll";
+import Attendance from "@/pages/Attendance";
 import Analytics from "@/pages/Analytics";
 import TeamActivity from "@/pages/TeamActivity";
 import Users from "@/pages/Users";
@@ -110,6 +111,7 @@ function AppRoutes() {
         <Route path="invoices" element={<Invoices />} />
         <Route path="expenses" element={<Expenses />} />
         <Route path="payroll" element={<Payroll />} />
+        <Route path="attendance" element={<Attendance />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="team-activity" element={<TeamActivity />} />
         <Route path="users" element={<Users />} />

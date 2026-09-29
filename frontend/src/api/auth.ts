@@ -6,6 +6,7 @@ export interface User {
   full_name: string | null;
   phone?: string | null;
   job_title?: string | null;
+  employment_type?: string | null;
   is_active: boolean;
   permissions: string[];
   roles?: string[];

@@ -39,6 +39,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
     job_title: Optional[str] = None
+    employment_type: Optional[str] = None  # full_time | part_time | contractor | intern
     is_active: bool
     permissions: list[str] = []
     roles: list[str] = []  # role names e.g. ["sales"], ["manager", "sales"]

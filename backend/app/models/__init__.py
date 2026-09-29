@@ -24,8 +24,10 @@ from app.models.credential import ProjectCredential
 from app.models.booking import BookingPage
 from app.models.integration import UserIntegration
 from app.models.content import BlogPost, CaseStudy, ContentMedia
+from app.models.attendance import AttendanceRecord
 
 __all__ = [
+    "AttendanceRecord",
     "RecurringExpense",
     "BlogPost",
     "CaseStudy",

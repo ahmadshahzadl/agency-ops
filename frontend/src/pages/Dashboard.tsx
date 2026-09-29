@@ -16,6 +16,7 @@ import Box from "@mui/material/Box";
 import { PieChart as MuiPieChart } from "@mui/x-charts/PieChart";
 import { BarChart as MuiBarChart } from "@mui/x-charts/BarChart";
 import { getDashboard, type DashboardResponse } from "@/api/analytics";
+import { AttendancePanel } from "@/components/AttendancePanel";
 import {
   listInvoices,
   listExpenses,
@@ -316,6 +317,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <AttendancePanel />
       {/* Key metrics - Clients #5791c4, Active projects #347ab7, rest white. Leads card (admin) before Expenses this month. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {metricCards.slice(0, 3).map((c) => {

@@ -136,6 +136,7 @@ def _user_response(user: User):
         full_name=user.full_name,
         phone=getattr(user, "phone", None),
         job_title=getattr(user, "job_title", None),
+        employment_type=getattr(user, "employment_type", None),
         is_active=user.is_active,
         permissions=permissions,
         roles=role_names,

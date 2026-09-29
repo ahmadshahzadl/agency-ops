@@ -36,6 +36,7 @@ PERMISSIONS = [
     "credentials:read", "credentials:write",  # vault: seeded to admin only - grant to others deliberately
     "bookings:manage",  # see every inbound booking/lead and assign it to a solutions engineer
     "content:manage",  # write and publish website blog posts and case studies
+    "attendance:manage",  # everyone's attendance board, summary and corrections (admin)
 ]
 
 # Three primary roles per docs/roles-permissions-flow.md: Admin, Manager, Employee
