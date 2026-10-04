@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DateRangeFilter, loadRange, saveRange, type DateRange } from "@/components/DateRangeFilter";
 import {
   listInvoices,
   createInvoice,
@@ -36,6 +37,7 @@ export default function InvoicesPage() {
   const [clientFilter, setClientFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [range, setRange] = useState<DateRange>(() => loadRange("invoices"));
   const [modal, setModal] = useState<"new" | Invoice | null>(null);
   const [paymentModal, setPaymentModal] = useState<Invoice | null>(null);
   const [form, setForm] = useState({
@@ -63,10 +65,13 @@ export default function InvoicesPage() {
 
   const load = () => {
     listClients().then(setClients).catch(() => setClients([]));
-    const params: { client_id?: string; status_filter?: string } = {};
+    const params: { client_id?: string; status_filter?: string; from?: string; to?: string; limit?: number } = { limit: 100 };
     if (clientFilter) params.client_id = clientFilter;
     if (statusFilter) params.status_filter = statusFilter;
-    listInvoices(Object.keys(params).length ? params : undefined)
+    if (range.from) params.from = range.from;
+    if (range.to) params.to = range.to;
+    saveRange("invoices", range);
+    listInvoices(params)
       .then(setItems)
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
@@ -74,7 +79,8 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     load();
-  }, [clientFilter, statusFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientFilter, statusFilter, range.from, range.to]);
 
   const openNew = () => {
     setForm({
@@ -276,6 +282,7 @@ export default function InvoicesPage() {
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
+          <DateRangeFilter value={range} onChange={setRange} className="ml-2" />
           <label className="text-sm font-medium text-gray-700">Search</label>
           <input
             type="search"

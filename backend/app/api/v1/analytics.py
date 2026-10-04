@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta, date
 from decimal import Decimal
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.database import get_db
@@ -313,6 +313,34 @@ def _member_dashboard_charts(db: Session, user_id):
     }
 
 
+DASHBOARD_PERIODS = ("month", "quarter", "year", "all")
+
+
+def _period_bounds(period: str, today: date) -> tuple[date | None, date | None, str]:
+    """Start, end and label for the revenue/expense tiles. ``all`` has no bounds."""
+    if period == "month":
+        start = today.replace(day=1)
+        end = (start + timedelta(days=31)).replace(day=1) - timedelta(days=1)
+        return start, end, "This month"
+    if period == "quarter":
+        q0 = (today.month - 1) // 3 * 3 + 1
+        start = date(today.year, q0, 1)
+        end = (date(today.year + (q0 + 3 > 12), (q0 + 2) % 12 + 1, 1) - timedelta(days=1))
+        return start, end, "This quarter"
+    if period == "year":
+        return date(today.year, 1, 1), date(today.year, 12, 31), "This year"
+    return None, None, "All time"
+
+
+def _between(col, start: date | None, end: date | None) -> list:
+    conds = []
+    if start is not None:
+        conds.append(col >= start)
+    if end is not None:
+        conds.append(col <= end)
+    return conds
+
+
 @router.get("/dashboard", response_model=DashboardResponse)
 def dashboard(
     db: Session = Depends(get_db),
@@ -320,12 +348,16 @@ def dashboard(
     permissions=Depends(get_user_permissions),
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),
+    period: str = Query("month", description="Window for the revenue and expense tiles: month | quarter | year | all"),
 ):
     from decimal import Decimal
 
+    if period not in DASHBOARD_PERIODS:
+        raise HTTPException(status_code=400, detail=f"period must be one of: {', '.join(DASHBOARD_PERIODS)}")
     today = date.today()
     month_start = today.replace(day=1)
     month_end = (month_start + timedelta(days=31)).replace(day=1) - timedelta(days=1)
+    p_start, p_end, period_label = _period_bounds(period, today)
 
     if "admin:all" in permissions:
         total_clients = db.query(func.count(Client.id)).filter(Client.deleted_at.is_(None)).scalar() or 0
@@ -341,13 +373,12 @@ def dashboard(
         ).scalar()
         outstanding_total = Decimal(str(outstanding_total or 0))
         revenue_this_month = db.query(func.coalesce(func.sum(Payment.amount), 0)).filter(
-            Payment.paid_at >= month_start, Payment.paid_at <= month_end
+            *_between(Payment.paid_at, p_start, p_end)
         ).scalar()
         revenue_this_month = Decimal(str(revenue_this_month or 0))
         _exp_rows = db.query(Expense.currency, func.coalesce(func.sum(Expense.amount), 0)).filter(
             Expense.expense_date.isnot(None),
-            Expense.expense_date >= month_start,
-            Expense.expense_date <= month_end,
+            *_between(Expense.expense_date, p_start, p_end),
         ).group_by(Expense.currency).all()
         expenses_by_currency = {(cur or "PKR"): Decimal(str(t)) for cur, t in _exp_rows}
         expenses_this_month = sum(expenses_by_currency.values(), Decimal("0"))
@@ -390,13 +421,12 @@ def dashboard(
         ).scalar()
         outstanding_total = Decimal(str(outstanding_total or 0))
         revenue_this_month = db.query(func.coalesce(func.sum(Payment.amount), 0)).join(Invoice).join(Client).filter(
-            Payment.paid_at >= month_start, Payment.paid_at <= month_end, Client.created_by.in_(manager_scope),
+            *_between(Payment.paid_at, p_start, p_end), Client.created_by.in_(manager_scope),
         ).scalar()
         revenue_this_month = Decimal(str(revenue_this_month or 0))
         expenses_this_month = Decimal(str(db.query(func.coalesce(func.sum(Expense.amount), 0)).join(Project).join(Client).filter(
             Expense.expense_date.isnot(None),
-            Expense.expense_date >= month_start,
-            Expense.expense_date <= month_end,
+            *_between(Expense.expense_date, p_start, p_end),
             Client.created_by.in_(manager_scope),
         ).scalar() or 0))
         expenses_by_currency = None
@@ -453,6 +483,10 @@ def dashboard(
     hours_month, billable_month, unbilled_value = _hours_metrics(db, permissions, manager_scope, user, month_start, month_end)
     qa_review_queue, qa_failed_awaiting, client_reported_open = _role_focus_metrics(db, user, permissions, manager_scope)
     return DashboardResponse(
+        period=period,
+        period_label=period_label,
+        period_start=p_start,
+        period_end=p_end,
         total_clients=total_clients,
         active_projects=active_projects,
         total_users=total_users,

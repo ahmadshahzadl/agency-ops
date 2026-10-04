@@ -59,12 +59,16 @@ export async function listInvoices(params?: {
   limit?: number;
   client_id?: string;
   status_filter?: string;
+  from?: string;
+  to?: string;
 }): Promise<Invoice[]> {
   const sp = new URLSearchParams();
   if (params?.skip != null) sp.set("skip", String(params.skip));
   if (params?.limit != null) sp.set("limit", String(params.limit));
   if (params?.client_id) sp.set("client_id", params.client_id);
   if (params?.status_filter) sp.set("status_filter", params.status_filter);
+  if (params?.from) sp.set("from", params.from);
+  if (params?.to) sp.set("to", params.to);
   const qs = sp.toString();
   return apiFetch<Invoice[]>(`/api/v1/invoices${qs ? `?${qs}` : ""}`);
 }
@@ -98,11 +102,14 @@ export async function createPayment(data: Omit<Payment, "id" | "created_at">): P
   });
 }
 
-export async function listExpenses(params?: { skip?: number; limit?: number; project_id?: string }): Promise<Expense[]> {
+export async function listExpenses(params?: { skip?: number; limit?: number; project_id?: string; from?: string; to?: string; category?: string }): Promise<Expense[]> {
   const sp = new URLSearchParams();
   if (params?.skip != null) sp.set("skip", String(params.skip));
   if (params?.limit != null) sp.set("limit", String(params.limit));
   if (params?.project_id) sp.set("project_id", params.project_id);
+  if (params?.from) sp.set("from", params.from);
+  if (params?.to) sp.set("to", params.to);
+  if (params?.category) sp.set("category", params.category);
   const qs = sp.toString();
   return apiFetch<Expense[]>(`/api/v1/expenses${qs ? `?${qs}` : ""}`);
 }

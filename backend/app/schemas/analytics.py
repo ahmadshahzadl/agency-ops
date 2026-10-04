@@ -1,3 +1,4 @@
+from datetime import date
 from pydantic import BaseModel
 from typing import Optional
 from decimal import Decimal
@@ -41,7 +42,14 @@ class StatusCount(BaseModel):
 
 
 class DashboardResponse(BaseModel):
-    """Dashboard data: overview + chart data. Member-scoped when user is not admin/manager."""
+    """Dashboard data: overview + chart data. Member-scoped when user is not admin/manager.
+
+    revenue_this_month / expenses_this_month / expenses_by_currency are scoped to ``period``
+    (month by default; quarter, year or all). The field names are kept for compatibility."""
+    period: str = "month"
+    period_label: str = "This month"
+    period_start: Optional[date] = None
+    period_end: Optional[date] = None
     total_clients: int
     active_projects: int
     total_users: int

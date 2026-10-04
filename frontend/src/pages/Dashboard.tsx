@@ -15,7 +15,7 @@ import {
 import Box from "@mui/material/Box";
 import { PieChart as MuiPieChart } from "@mui/x-charts/PieChart";
 import { BarChart as MuiBarChart } from "@mui/x-charts/BarChart";
-import { getDashboard, type DashboardResponse } from "@/api/analytics";
+import { getDashboard, type DashboardResponse, type DashboardPeriod } from "@/api/analytics";
 import { AttendancePanel } from "@/components/AttendancePanel";
 import {
   listInvoices,
@@ -84,10 +84,26 @@ type LeadsPeriod = "today" | "this_week" | "this_month";
 
 type MetricCard = { label: string; value: string | number; to: string; highlight: boolean };
 
+const PERIOD_OPTIONS: { key: DashboardPeriod; label: string }[] = [
+  { key: "month", label: "This month" },
+  { key: "quarter", label: "This quarter" },
+  { key: "year", label: "This year" },
+  { key: "all", label: "All time" },
+];
+
+function loadPeriod(): DashboardPeriod {
+  try {
+    const v = localStorage.getItem("dashboard:period");
+    if (v === "month" || v === "quarter" || v === "year" || v === "all") return v;
+  } catch { /* ignore */ }
+  return "month";
+}
+
 export default function Dashboard() {
   const { user, hasPermission } = useAuth();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<DashboardPeriod>(loadPeriod);
   const [financeTab, setFinanceTab] = useState<FinanceTab>("invoices");
   const [leadsPeriod, setLeadsPeriod] = useState<LeadsPeriod>("this_month");
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -101,11 +117,12 @@ export default function Dashboard() {
   const canReadActivity = hasPermission("team_activity:read");
 
   useEffect(() => {
-    getDashboard()
+    try { localStorage.setItem("dashboard:period", period); } catch { /* ignore */ }
+    getDashboard(period)
       .then(setData)
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, []);
+  }, [period]);
 
   useEffect(() => {
     if (!isAdminOrManager) return;
@@ -195,7 +212,7 @@ export default function Dashboard() {
     ...(data.expenses_by_currency && Object.keys(data.expenses_by_currency).length > 0
       ? [
           {
-            label: "Expenses (this month)",
+            label: `Expenses (${data.period_label.toLowerCase()})`,
             value: Object.entries(data.expenses_by_currency)
               .map(([cur, amt]) => `${cur} ${Number(amt).toLocaleString()}`)
               .join(" · "),
@@ -207,18 +224,8 @@ export default function Dashboard() {
     ...(data.revenue_this_month != null
       ? [
           {
-            label: "Revenue (this month)",
+            label: `Revenue (${data.period_label.toLowerCase()})`,
             value: `$${Number(data.revenue_this_month).toLocaleString()}`,
-            to: "/invoices" as const,
-            highlight: false,
-          },
-        ]
-      : []),
-    ...(data.revenue_total != null && Number(data.revenue_total) > 0
-      ? [
-          {
-            label: "Revenue",
-            value: `$${Number(data.revenue_total).toLocaleString()}`,
             to: "/invoices" as const,
             highlight: true,
           },
@@ -315,9 +322,32 @@ export default function Dashboard() {
   const hasLeadsBar = data.leads_by_status.length > 0;
   const hasProjectsByStage = isAdminOrManager;
 
+  const showPeriodSwitch = data.revenue_this_month != null || data.expenses_this_month != null;
+
   return (
     <div className="space-y-6">
       <AttendancePanel />
+      {showPeriodSwitch && (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm text-gray-500">
+            Revenue and expenses for <span className="font-medium text-gray-800">{data.period_label.toLowerCase()}</span>
+            {data.period_start && data.period_end ? ` (${data.period_start} to ${data.period_end})` : ""}
+          </p>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5" role="radiogroup" aria-label="Revenue period">
+            {PERIOD_OPTIONS.map((o) => (
+              <button
+                key={o.key}
+                role="radio"
+                aria-checked={period === o.key}
+                onClick={() => setPeriod(o.key)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${period === o.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {/* Key metrics - Clients #5791c4, Active projects #347ab7, rest white. Leads card (admin) before Expenses this month. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {metricCards.slice(0, 3).map((c) => {

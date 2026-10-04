@@ -36,7 +36,13 @@ export interface StatusCount {
   count: number;
 }
 
+export type DashboardPeriod = "month" | "quarter" | "year" | "all";
+
 export interface DashboardResponse extends AnalyticsOverview {
+  period: DashboardPeriod;
+  period_label: string;
+  period_start: string | null;
+  period_end: string | null;
   leads_today: number;
   leads_this_week: number;
   leads_this_month: number;
@@ -51,6 +57,6 @@ export async function getOverview(): Promise<AnalyticsOverview> {
   return apiFetch<AnalyticsOverview>("/api/v1/analytics/overview");
 }
 
-export async function getDashboard(): Promise<DashboardResponse> {
-  return apiFetch<DashboardResponse>("/api/v1/analytics/dashboard");
+export async function getDashboard(period: DashboardPeriod = "month"): Promise<DashboardResponse> {
+  return apiFetch<DashboardResponse>(`/api/v1/analytics/dashboard?period=${period}`);
 }

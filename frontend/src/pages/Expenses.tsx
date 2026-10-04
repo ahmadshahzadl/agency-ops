@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { DateRangeFilter, loadRange, saveRange, type DateRange } from "@/components/DateRangeFilter";
 import { RecurringExpensesPanel } from "@/components/RecurringExpenses";
 import { listExpenses, createExpense, updateExpense, deleteExpense, listInvoices, type Expense, type Invoice } from "@/api/finance";
 import { listAssignableUsers, type UserList } from "@/api/users";
@@ -25,6 +26,7 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [range, setRange] = useState<DateRange>(() => loadRange("expenses"));
   const [modal, setModal] = useState<"new" | Expense | null>(null);
   const [form, setForm] = useState({
     project_id: "",
@@ -44,13 +46,18 @@ export default function ExpensesPage() {
     listProjects().then(setProjects).catch(() => setProjects([]));
     listInvoices({ limit: 100 }).then(setInvoices).catch(() => setInvoices([]));
     listAssignableUsers().then(setUsers).catch(() => setUsers([]));
-    const params = projectFilter ? { project_id: projectFilter } : undefined;
+    const params: { project_id?: string; from?: string; to?: string; limit?: number } = { limit: 100 };
+    if (projectFilter) params.project_id = projectFilter;
+    if (range.from) params.from = range.from;
+    if (range.to) params.to = range.to;
+    saveRange("expenses", range);
     listExpenses(params).then(setItems).catch(() => setItems([])).finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-  }, [projectFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectFilter, range.from, range.to]);
 
   const openNew = () => {
     setForm({
@@ -225,6 +232,7 @@ export default function ExpensesPage() {
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+          <DateRangeFilter value={range} onChange={setRange} className="ml-2" />
           <label className="text-sm font-medium text-gray-700">Search</label>
           <input
             type="search"

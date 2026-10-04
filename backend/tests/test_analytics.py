@@ -139,3 +139,16 @@ def test_client_reported_issue_counted(client, auth_headers):
 
     before = client.get("/api/v1/analytics/dashboard", headers=auth_headers).json()
     assert before["client_reported_open"] >= 1
+
+
+def test_dashboard_period_switch(client, auth_headers):
+    """Revenue/expense tiles follow the period parameter; bad values are rejected."""
+    month = client.get("/api/v1/analytics/dashboard?period=month", headers=auth_headers).json()
+    assert month["period"] == "month" and month["period_label"] == "This month"
+    assert month["period_start"] is not None and month["period_end"] is not None
+    year = client.get("/api/v1/analytics/dashboard?period=year", headers=auth_headers).json()
+    assert year["period"] == "year" and year["period_start"].endswith("-01-01")
+    assert float(year["revenue_this_month"]) >= float(month["revenue_this_month"])
+    allp = client.get("/api/v1/analytics/dashboard?period=all", headers=auth_headers).json()
+    assert allp["period_start"] is None and float(allp["revenue_this_month"]) >= float(year["revenue_this_month"])
+    assert client.get("/api/v1/analytics/dashboard?period=decade", headers=auth_headers).status_code == 400

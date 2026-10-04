@@ -122,8 +122,15 @@ def list_invoices(
     limit: int = Query(50, ge=1, le=100),
     client_id: UUID | None = None,
     status_filter: str | None = None,
+    date_from: date | None = Query(None, alias="from", description="Issued on or after (falls back to created date)"),
+    date_to: date | None = Query(None, alias="to"),
 ):
     qry = db.query(InvoiceModel).join(ClientModel)
+    issued = func.coalesce(InvoiceModel.issued_at, func.date(InvoiceModel.created_at))
+    if date_from:
+        qry = qry.filter(issued >= date_from)
+    if date_to:
+        qry = qry.filter(issued <= date_to)
     if "admin:all" not in permissions:
         if manager_scope is not None:
             qry = qry.filter(ClientModel.created_by.in_(manager_scope))
@@ -135,7 +142,7 @@ def list_invoices(
         qry = qry.filter(InvoiceModel.client_id == client_id)
     if status_filter:
         qry = qry.filter(InvoiceModel.status == status_filter)
-    rows = qry.offset(skip).limit(limit).all()
+    rows = qry.order_by(issued.desc(), InvoiceModel.created_at.desc()).offset(skip).limit(limit).all()
     _apply_overdue(db, rows)
     return rows
 
@@ -433,8 +440,17 @@ def list_expenses(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     project_id: UUID | None = None,
+    date_from: date | None = Query(None, alias="from"),
+    date_to: date | None = Query(None, alias="to"),
+    category: str | None = None,
 ):
     qry = db.query(ExpenseModel)
+    if date_from:
+        qry = qry.filter(ExpenseModel.expense_date >= date_from)
+    if date_to:
+        qry = qry.filter(ExpenseModel.expense_date <= date_to)
+    if category:
+        qry = qry.filter(ExpenseModel.category == category)
     if "admin:all" not in permissions:
         if manager_scope is not None:
             qry = qry.join(ProjectModel).filter(ProjectModel.owner_id.in_(manager_scope))

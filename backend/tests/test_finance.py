@@ -172,3 +172,19 @@ def test_delete_expense_admin(client, auth_headers):
     exp_id = create_resp.json()["id"]
     resp = client.delete(f"/api/v1/expenses/{exp_id}", headers=auth_headers)
     assert resp.status_code == 204
+
+
+def test_expense_and_invoice_date_filters(client, auth_headers):
+    """from/to narrow both lists by expense_date / issued_at."""
+    far = client.post("/api/v1/expenses", headers=auth_headers, json={"description": "Old rent", "amount": 10, "currency": "USD", "expense_date": "2020-01-15"})
+    assert far.status_code == 201, far.text
+    inside = client.get("/api/v1/expenses?from=2020-01-01&to=2020-01-31&limit=100", headers=auth_headers).json()
+    assert any(e["id"] == far.json()["id"] for e in inside)
+    outside = client.get("/api/v1/expenses?from=2020-02-01&to=2020-02-28&limit=100", headers=auth_headers).json()
+    assert all(e["id"] != far.json()["id"] for e in outside)
+    client.delete(f"/api/v1/expenses/{far.json()['id']}", headers=auth_headers)
+
+    r = client.get("/api/v1/invoices?from=2019-01-01&to=2019-12-31&limit=100", headers=auth_headers)
+    assert r.status_code == 200 and r.json() == []
+    r = client.get("/api/v1/invoices?from=2000-01-01&limit=100", headers=auth_headers)
+    assert r.status_code == 200
