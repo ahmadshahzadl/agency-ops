@@ -5,10 +5,29 @@ export interface Clause {
   body: string;
 }
 
+export type AgreementTypeKey = "nda" | "service" | "retainer" | "maintenance";
+
+export interface AgreementType {
+  key: AgreementTypeKey;
+  label: string;
+  short_label: string;
+  description: string;
+  has_value: boolean;
+}
+
 export interface Agreement {
   id: string;
   number: string;
   title: string;
+  agreement_type: AgreementTypeKey;
+  type_label: string;
+  sign_url: string | null;
+  signer_email: string | null;
+  signer_title: string | null;
+  accepted_user_agent: string | null;
+  acceptance_hash: string | null;
+  countersigned_by_name: string | null;
+  countersigned_at: string | null;
   client_id: string | null;
   client_name: string | null;
   project_id: string | null;
@@ -34,6 +53,7 @@ export interface Agreement {
 
 export interface AgreementPayload {
   title: string;
+  agreement_type?: AgreementTypeKey;
   client_id: string;
   project_id?: string | null;
   quote_id?: string | null;
@@ -52,13 +72,26 @@ export async function listAgreements(params?: { status_filter?: string; client_i
   return apiFetch<Agreement[]>(`/api/v1/agreements${qs ? `?${qs}` : ""}`);
 }
 
-export async function getAgreementTemplate(params?: { client_id?: string; quote_id?: string; project_id?: string }): Promise<{ clauses: Clause[] }> {
+export async function getAgreementTypes(): Promise<AgreementType[]> {
+  return apiFetch<AgreementType[]>("/api/v1/agreements/types");
+}
+
+export async function getAgreementTemplate(params?: { agreement_type?: AgreementTypeKey; client_id?: string; quote_id?: string; project_id?: string }): Promise<{ agreement_type: AgreementTypeKey; title_suggestion: string; clauses: Clause[] }> {
   const sp = new URLSearchParams();
+  if (params?.agreement_type) sp.set("agreement_type", params.agreement_type);
   if (params?.client_id) sp.set("client_id", params.client_id);
   if (params?.quote_id) sp.set("quote_id", params.quote_id);
   if (params?.project_id) sp.set("project_id", params.project_id);
   const qs = sp.toString();
-  return apiFetch<{ clauses: Clause[] }>(`/api/v1/agreements/template${qs ? `?${qs}` : ""}`);
+  return apiFetch<{ agreement_type: AgreementTypeKey; title_suggestion: string; clauses: Clause[] }>(`/api/v1/agreements/template${qs ? `?${qs}` : ""}`);
+}
+
+export async function getSignLink(id: string): Promise<{ url: string; expires_at: string | null }> {
+  return apiFetch<{ url: string; expires_at: string | null }>(`/api/v1/agreements/${id}/sign-link`);
+}
+
+export async function countersignAgreement(id: string, name?: string): Promise<Agreement> {
+  return apiFetch<Agreement>(`/api/v1/agreements/${id}/countersign`, { method: "POST", body: JSON.stringify({ name: name || null }) });
 }
 
 export async function createAgreement(data: AgreementPayload): Promise<Agreement> {
@@ -73,8 +106,8 @@ export async function deleteAgreement(id: string): Promise<void> {
   return apiFetch(`/api/v1/agreements/${id}`, { method: "DELETE" });
 }
 
-export async function sendAgreement(id: string): Promise<Agreement> {
-  return apiFetch<Agreement>(`/api/v1/agreements/${id}/send`, { method: "POST" });
+export async function sendAgreement(id: string, to?: string): Promise<Agreement> {
+  return apiFetch<Agreement>(`/api/v1/agreements/${id}/send`, { method: "POST", body: JSON.stringify({ to: to || null }) });
 }
 
 export async function markAgreementSigned(id: string, signerName?: string): Promise<Agreement> {

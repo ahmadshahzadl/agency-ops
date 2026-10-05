@@ -15,6 +15,8 @@ class Client(Base):
     contact_phone = Column(String(64))
     address = Column(Text)
     team_id = Column(UUID(as_uuid=True), ForeignKey("teams.id", ondelete="SET NULL"))
+    # prospect: talking, NDA stage; active: accepted client; archived: no longer working together
+    status = Column(String(16), nullable=False, default="active", server_default="active")
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -24,6 +26,24 @@ class Client(Base):
     created_by_user = relationship("User", back_populates="clients_created", foreign_keys=[created_by])
     projects = relationship("Project", back_populates="client")
     source_lead = relationship("Lead", back_populates="converted_to_client", uselist=False, foreign_keys="Lead.converted_to_client_id")
+    agreements = relationship("Agreement", back_populates="client")
+
+    def _latest_nda(self):
+        ndas = [a for a in (self.agreements or []) if a.agreement_type == "nda"]
+        if not ndas:
+            return None
+        return max(ndas, key=lambda a: (a.created_at or datetime.min.replace(tzinfo=None)).replace(tzinfo=None) if a.created_at else datetime.min)
+
+    @property
+    def nda_status(self) -> str:
+        """none | draft | sent | signed | declined | expired | terminated, from the most recent NDA."""
+        a = self._latest_nda()
+        return a.status if a else "none"
+
+    @property
+    def nda_signed_at(self):
+        a = self._latest_nda()
+        return a.accepted_at if a and a.status in ("signed", "terminated") else None
 
     # Attribution carried over from the lead this client was converted from.
     @property

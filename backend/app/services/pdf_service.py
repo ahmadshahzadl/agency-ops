@@ -14,9 +14,16 @@ GRAY = (110, 118, 130)
 LIGHT = (243, 244, 247)
 
 
+_PUNCT = str.maketrans({
+    "\u2014": "-", "\u2013": "-", "\u2012": "-", "\u2010": "-", "\u2011": "-",
+    "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201c": '"', "\u201d": '"', "\u201e": '"',
+    "\u2026": "...", "\u2022": "-", "\u00a0": " ", "\u2009": " ", "\u202f": " ", "\u2192": "->", "\u2713": "v", "\u2714": "v",
+})
+
+
 def _txt(value) -> str:
-    """Core fonts are latin-1 only; degrade unknown glyphs instead of crashing."""
-    return str(value if value is not None else "").encode("latin-1", "replace").decode("latin-1")
+    """Core fonts are latin-1 only: map common Unicode punctuation to ASCII, degrade the rest."""
+    return str(value if value is not None else "").translate(_PUNCT).encode("latin-1", "replace").decode("latin-1")
 
 
 class _BrandedPDF(FPDF):
@@ -343,7 +350,8 @@ def build_blank_letterhead() -> bytes:
 
 
 def build_agreement_pdf(agreement) -> bytes:
-    pdf = _BrandedPDF("SERVICE AGREEMENT")
+    from app.services.agreement_template import label_for
+    pdf = _BrandedPDF(label_for(getattr(agreement, "agreement_type", None)).upper())
     pdf.add_page()
     pdf.meta_row("Agreement", agreement.number)
     pdf.meta_row("Client", agreement.client.name if agreement.client else "-")
@@ -372,26 +380,47 @@ def build_agreement_pdf(agreement) -> bytes:
         if box_top > 250:
             pdf.add_page()
             box_top = pdf.get_y()
+        company = settings.app_name.replace(" API", "")
+        via = {"link": "electronically via a secure signing link", "portal": "electronically via the client portal"}.get(agreement.acceptance_method, "by signature")
+        signer = agreement.accepted_by_name or "-"
+        if getattr(agreement, "signer_title", None):
+            signer += f", {agreement.signer_title}"
+        lines = [f"Signed for {agreement.client.name if agreement.client else 'the Client'} by {signer} on {agreement.accepted_at:%d %B %Y at %H:%M} UTC {via}."]
+        evidence = []
+        if getattr(agreement, "signer_email", None):
+            evidence.append(f"email {agreement.signer_email}")
+        if agreement.accepted_ip:
+            evidence.append(f"IP {agreement.accepted_ip}")
+        if evidence:
+            lines.append("Identity record: " + ", ".join(evidence) + ".")
+        if getattr(agreement, "countersigned_at", None):
+            lines.append(f"Countersigned for {company} by {agreement.countersigned_by_name or '-'} on {agreement.countersigned_at:%d %B %Y at %H:%M} UTC.")
+        elif agreement.status == "signed":
+            lines.append(f"Countersignature for {company}: pending.")
+        if getattr(agreement, "acceptance_hash", None):
+            lines.append(f"Document fingerprint (SHA-256): {agreement.acceptance_hash}")
+        if agreement.status == "terminated" and agreement.terminated_at:
+            lines.append(f"Terminated on {agreement.terminated_at:%Y-%m-%d}: {agreement.termination_reason or ''}")
+        box_h = 12 + 5 * len(lines)
+        if box_top + box_h > 268:
+            pdf.add_page()
+            box_top = pdf.get_y()
         pdf.set_fill_color(*LIGHT)
-        pdf.rect(12, box_top, 186, 24, "F")
+        pdf.rect(12, box_top, 186, box_h, "F")
         pdf.set_xy(16, box_top + 3)
         pdf.set_font("helvetica", "B", 8)
         pdf.set_text_color(*NAVY)
-        pdf.cell(170, 5, "ACCEPTANCE RECORD")
+        pdf.cell(170, 5, "ELECTRONIC SIGNATURE RECORD")
         pdf.set_xy(16, box_top + 9)
-        pdf.set_font("helvetica", "", 9)
+        pdf.set_font("helvetica", "", 8.5)
         pdf.set_text_color(0, 0, 0)
-        via = "electronically via the client portal" if agreement.acceptance_method == "portal" else "by signature"
-        line = f"Accepted by {agreement.accepted_by_name or '-'} on {agreement.accepted_at:%Y-%m-%d %H:%M} UTC {via}"
-        if agreement.accepted_ip:
-            line += f" (IP {agreement.accepted_ip})"
-        pdf.multi_cell(178, 5, _txt(line))
-        if agreement.status == "terminated" and agreement.terminated_at:
-            pdf.set_xy(16, pdf.get_y() + 1)
-            pdf.set_text_color(200, 40, 40)
-            pdf.multi_cell(178, 5, _txt(f"Terminated on {agreement.terminated_at:%Y-%m-%d}: {agreement.termination_reason or ''}"))
-            pdf.set_text_color(0, 0, 0)
-        pdf.set_y(box_top + 28)
+        for ln in lines:
+            if ln.startswith("Terminated"):
+                pdf.set_text_color(200, 40, 40)
+            pdf.set_x(16)
+            pdf.multi_cell(178, 4.6, _txt(ln))
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_y(box_top + box_h + 4)
     else:
         # Signature lines for a wet signature
         y = pdf.get_y()

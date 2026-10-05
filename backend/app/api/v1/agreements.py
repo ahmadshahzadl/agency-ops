@@ -6,7 +6,7 @@ import uuid as uuid_mod
 from datetime import datetime, date
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import (
@@ -14,12 +14,16 @@ from app.models import (
     Quote as QuoteModel, Milestone as MilestoneModel,
 )
 from app.schemas.agreement import (
-    AgreementCreate, AgreementUpdate, AgreementResponse, AgreementTemplateResponse, ClauseIn,
+    AgreementCreate, AgreementUpdate, AgreementResponse, AgreementTemplateResponse, AgreementTypeOut, ClauseIn,
 )
 from app.api.deps import require_permission, get_user_permissions, get_manager_scope_user_ids
 from app.services.activity_service import log_activity
 from app.services import email_service
-from app.services.agreement_template import default_clauses, scope_from_quote, timeline_from_milestones
+from app.services.agreement_template import (
+    AGREEMENT_TYPES, HAS_VALUE, TYPE_DESCRIPTIONS, TYPE_LABELS, TYPE_SHORT,
+    clauses_for, label_for, prefix_for, scope_from_quote, timeline_from_milestones, title_for,
+)
+from app.services import agreement_signing as signing
 from app.core.money import validate_currency as _validate_currency
 
 router = APIRouter(prefix="/agreements", tags=["agreements"])
@@ -39,9 +43,19 @@ def _apply_expiry(db: Session, agreements: list[AgreementModel]) -> None:
         db.commit()
 
 
+def _validate_type(agreement_type: str | None) -> None:
+    if agreement_type is not None and agreement_type not in AGREEMENT_TYPES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"agreement_type must be one of: {', '.join(AGREEMENT_TYPES)}")
+
+
 def _response(a: AgreementModel) -> AgreementResponse:
+    live_link = a.status == "sent" and a.sign_token and not signing.link_expired(a)
     return AgreementResponse(
         id=a.id, number=a.number, title=a.title,
+        agreement_type=a.agreement_type or "service", type_label=label_for(a.agreement_type),
+        sign_url=signing.sign_url(a) if live_link else None,
+        signer_email=a.signer_email, signer_title=a.signer_title, accepted_user_agent=a.accepted_user_agent,
+        acceptance_hash=a.acceptance_hash, countersigned_by_name=a.countersigned_by_name, countersigned_at=a.countersigned_at,
         client_id=a.client_id, client_name=a.client.name if a.client else None,
         project_id=a.project_id, project_name=a.project.name if a.project else None,
         quote_id=a.quote_id, quote_number=a.quote.number if a.quote else None,
@@ -96,15 +110,25 @@ def _require_editable(a: AgreementModel) -> None:
         )
 
 
+@router.get("/types", response_model=list[AgreementTypeOut])
+def agreement_types(user=Depends(require_permission("agreements:read"))):
+    return [
+        AgreementTypeOut(key=k, label=TYPE_LABELS[k], short_label=TYPE_SHORT[k], description=TYPE_DESCRIPTIONS[k], has_value=k in HAS_VALUE)
+        for k in AGREEMENT_TYPES
+    ]
+
+
 @router.get("/template", response_model=AgreementTemplateResponse)
 def agreement_template(
     db: Session = Depends(get_db),
     user=Depends(require_permission("agreements:read")),
+    agreement_type: str = "service",
     client_id: UUID | None = None,
     quote_id: UUID | None = None,
     project_id: UUID | None = None,
 ):
-    """The default clause set, prefilled from a client/quote/project when given."""
+    """The pre-saved clause set for a type, prefilled from a client/quote/project when given."""
+    _validate_type(agreement_type)
     client_name = None
     scope_lines = None
     payment = None
@@ -125,7 +149,9 @@ def agreement_template(
         if ms:
             timeline_lines = timeline_from_milestones(ms)
     return AgreementTemplateResponse(
-        clauses=[ClauseIn(**c) for c in default_clauses(client_name, scope_lines, payment, timeline_lines)]
+        agreement_type=agreement_type,
+        title_suggestion=title_for(agreement_type, client_name),
+        clauses=[ClauseIn(**c) for c in clauses_for(agreement_type, client_name, scope_lines, payment, timeline_lines)],
     )
 
 
@@ -163,11 +189,13 @@ def create_agreement(
 ):
     _validate_links(db, data.model_dump())
     _validate_currency(data.currency)
+    _validate_type(data.agreement_type)
     if not data.clauses:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An agreement needs at least one clause")
     a = AgreementModel(
-        number=f"AGR-{datetime.utcnow():%Y%m}-{uuid_mod.uuid4().hex[:6].upper()}",
+        number=f"{prefix_for(data.agreement_type)}-{datetime.utcnow():%Y%m}-{uuid_mod.uuid4().hex[:6].upper()}",
         title=data.title.strip(),
+        agreement_type=data.agreement_type,
         client_id=data.client_id,
         project_id=data.project_id,
         quote_id=data.quote_id,
@@ -209,6 +237,7 @@ def update_agreement(
     a = _get_scoped_current(db, agreement_id, user, permissions, manager_scope)
     _require_editable(a)
     updates = data.model_dump(exclude_unset=True)
+    _validate_type(updates.get("agreement_type"))
     clauses = updates.pop("clauses", None)
     _validate_currency(updates.get("currency"))
     _validate_links(db, updates)
@@ -260,37 +289,81 @@ def agreement_pdf(
     )
 
 
+class SendIn(BaseModel):
+    to: EmailStr | None = None  # override the client's contact email (e.g. the founder who will sign)
+
+
 @router.post("/{agreement_id}/send", response_model=AgreementResponse)
 def send_agreement(
+    agreement_id: UUID,
+    data: SendIn | None = None,
+    db: Session = Depends(get_db),
+    user=Depends(require_permission("agreements:write")),
+    permissions=Depends(get_user_permissions),
+    manager_scope=Depends(get_manager_scope_user_ids),
+):
+    """Mark sent, mint the signing link and email it (with the PDF) to the signer."""
+    a = _get_scoped_current(db, agreement_id, user, permissions, manager_scope)
+    if a.status not in ("draft", "sent"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A {a.status} agreement cannot be sent")
+    a.status = "sent"
+    signing.ensure_sign_token(a)
+    recipient = (str(data.to) if data and data.to else None) or a.signer_email or (a.client.contact_email if a.client else None)
+    if recipient:
+        a.signer_email = recipient
+    log_activity(db, user.id, "agreement_sent", "agreement", a.id, details=f"{a.number} sent" + (f" to {recipient}" if recipient else " (no email on file)"))
+    db.commit()
+    db.refresh(a)
+    if recipient:
+        signing.send_for_signature(a, recipient)
+    return _response(a)
+
+
+@router.get("/{agreement_id}/sign-link")
+def sign_link(
     agreement_id: UUID,
     db: Session = Depends(get_db),
     user=Depends(require_permission("agreements:write")),
     permissions=Depends(get_user_permissions),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
+    """The signing URL, for pasting into WhatsApp or a message. Minted on first request; sent agreements only."""
     a = _get_scoped_current(db, agreement_id, user, permissions, manager_scope)
-    if a.status not in ("draft", "sent"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A {a.status} agreement cannot be sent")
-    a.status = "sent"
-    log_activity(db, user.id, "agreement_sent", "agreement", a.id, details=f"Agreement sent: {a.number}")
+    if a.status != "sent":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Send the agreement first; only sent agreements have a signing link")
+    if not a.sign_token or signing.link_expired(a):
+        a.sign_token = None
+        signing.ensure_sign_token(a)
+        db.commit()
+    return {"url": signing.sign_url(a), "expires_at": a.sign_token_expires_at}
+
+
+class CountersignIn(BaseModel):
+    name: str | None = None
+
+
+@router.post("/{agreement_id}/countersign", response_model=AgreementResponse)
+def countersign(
+    agreement_id: UUID,
+    data: CountersignIn | None = None,
+    db: Session = Depends(get_db),
+    user=Depends(require_permission("agreements:write")),
+    permissions=Depends(get_user_permissions),
+    manager_scope=Depends(get_manager_scope_user_ids),
+):
+    """Our side of the signature, recorded after the client signs. Emails the client the fully executed copy."""
+    a = _get_scoped_current(db, agreement_id, user, permissions, manager_scope)
+    if a.status != "signed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only a signed agreement can be countersigned")
+    if a.countersigned_at:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This agreement is already countersigned")
+    a.countersigned_by = user.id
+    a.countersigned_by_name = ((data.name if data else None) or user.full_name or user.email).strip()
+    a.countersigned_at = datetime.utcnow()
+    log_activity(db, user.id, "agreement_countersigned", "agreement", a.id, details=f"{a.number} countersigned by {a.countersigned_by_name}")
     db.commit()
     db.refresh(a)
-    recipient = a.client.contact_email if a.client else None
-    if recipient:
-        from app.services.pdf_service import build_agreement_pdf
-        body = (
-            f"<p>Please find our service agreement <b>{a.title}</b> ({a.number}) attached.</p>"
-            "<p>You can review the full terms and sign it electronically in your client portal, "
-            "or reply to this email with any questions.</p>"
-            + (f"<p>Please sign by: <b>{a.valid_until}</b></p>" if a.valid_until else "")
-        )
-        email_service.send_email(
-            recipient,
-            f"Service agreement {a.number}: {a.title}",
-            email_service._build_html(f"Service agreement: {a.title}", body),
-            f"Service agreement {a.number}: {a.title}\nPlease review and sign in your client portal.",
-            attachments=[(f"{a.number}.pdf", build_agreement_pdf(a))],
-        )
+    signing.send_executed_copy(a)
     return _response(a)
 
 
@@ -359,8 +432,9 @@ def duplicate_agreement(
     """Renewal helper: a fresh draft copying the terms of an existing agreement."""
     src = _get_scoped(db, agreement_id, user, permissions, manager_scope)
     a = AgreementModel(
-        number=f"AGR-{datetime.utcnow():%Y%m}-{uuid_mod.uuid4().hex[:6].upper()}",
+        number=f"{prefix_for(src.agreement_type)}-{datetime.utcnow():%Y%m}-{uuid_mod.uuid4().hex[:6].upper()}",
         title=src.title,
+        agreement_type=src.agreement_type or "service",
         client_id=src.client_id,
         project_id=src.project_id,
         quote_id=src.quote_id,

@@ -7,6 +7,9 @@ export interface Client {
   contact_phone: string | null;
   address: string | null;
   team_id: string | null;
+  status?: "prospect" | "active" | "archived";
+  nda_status?: "none" | "draft" | "sent" | "signed" | "declined" | "expired" | "terminated";
+  nda_signed_at?: string | null;
   source?: string | null;
   solutions_engineer_id?: string | null;
   solutions_engineer_name?: string | null;

@@ -24,12 +24,14 @@ export default function Clients() {
   const [localSearch, setLocalSearch] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [modal, setModal] = useState<"new" | Client | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"" | "prospect" | "active" | "archived">("");
   const [form, setForm] = useState({
     name: "",
     contact_email: "",
     contact_phone: "",
     address: "",
     team_id: "" as string | null,
+    status: "active" as "prospect" | "active" | "archived",
   });
 
   const load = async () => {
@@ -63,7 +65,7 @@ export default function Clients() {
   }, [isAdmin, searchQuery]);
 
   const openNew = () => {
-    setForm({ name: "", contact_email: "", contact_phone: "", address: "", team_id: null });
+    setForm({ name: "", contact_email: "", contact_phone: "", address: "", team_id: null, status: "prospect" });
     setModal("new");
   };
   const openEdit = (c: Client) => {
@@ -73,6 +75,7 @@ export default function Clients() {
       contact_phone: c.contact_phone || "",
       address: c.address || "",
       team_id: c.team_id || null,
+      status: c.status ?? "active",
     });
     setModal(c);
   };
@@ -85,6 +88,7 @@ export default function Clients() {
       contact_phone: form.contact_phone || null,
       address: form.address || null,
       team_id: (isAdmin && form.team_id) ? form.team_id : null,
+      status: form.status,
     };
     try {
       if (modal === "new") {
@@ -164,8 +168,23 @@ export default function Clients() {
   };
 
   const localLower = localSearch.trim().toLowerCase();
+  const acceptClient = (c: Client) => {
+    showConfirm({
+      title: "Accept client",
+      message: c.nda_status === "signed"
+        ? `Mark ${c.name} as an active client? Their NDA is signed.`
+        : `Mark ${c.name} as an active client? Note: no signed NDA is on file (${c.nda_status === "none" ? "none created" : c.nda_status}).`,
+      confirmLabel: "Accept",
+      onConfirm: async () => {
+        try { await updateClient(c.id, { status: "active" }); load(); }
+        catch (e) { showAlert({ title: "Error", message: e instanceof Error ? e.message : "Failed" }); throw e; }
+      },
+    });
+  };
+
   const filteredItems = items.filter((c) => {
     if (teamFilter && c.team_id !== teamFilter) return false;
+    if (statusFilter && (c.status ?? "active") !== statusFilter) return false;
     if (localLower) {
       const name = (c.name ?? "").toLowerCase();
       const email = (c.contact_email ?? "").toLowerCase();
@@ -187,6 +206,17 @@ export default function Clients() {
             onChange={(e) => setSearchInput(e.target.value)}
             className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[200px]"
           />
+          <label className="text-sm font-medium text-gray-700">Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "" | "prospect" | "active" | "archived")}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm min-w-[130px]"
+          >
+            <option value="">All</option>
+            <option value="prospect">Prospects</option>
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+          </select>
           {isAdmin && (
             <>
               <label className="text-sm font-medium text-gray-700">Team</label>
@@ -269,7 +299,20 @@ export default function Clients() {
                       />
                     </td>
                   )}
-                  <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-gray-900">{c.name}</p>
+                    <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                      {(c.status ?? "active") !== "active" && (
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${c.status === "prospect" ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"}`}>{c.status}</span>
+                      )}
+                      {c.nda_status && c.nda_status !== "none" && (
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${c.nda_status === "signed" ? "bg-green-50 text-green-700" : c.nda_status === "sent" ? "bg-blue-50 text-blue-700" : c.nda_status === "declined" || c.nda_status === "expired" ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500"}`} title={c.nda_signed_at ? `NDA signed ${c.nda_signed_at.slice(0, 10)}` : undefined}>NDA {c.nda_status}</span>
+                      )}
+                      {canWrite && c.status === "prospect" && (
+                        <button type="button" onClick={() => acceptClient(c)} className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-primary/10 text-primary hover:bg-primary/20">Accept</button>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{c.contact_email || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{c.contact_phone || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">
@@ -347,6 +390,19 @@ export default function Clients() {
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 rows={2}
               />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as "prospect" | "active" | "archived" }))}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  <option value="prospect">Prospect (NDA stage, not yet accepted)</option>
+                  <option value="active">Active client</option>
+                  <option value="archived">Archived</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">New contacts start as prospects. Send them an NDA from Agreements; once it is signed, accept them here.</p>
+              </div>
               {isAdmin && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Team</label>

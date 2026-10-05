@@ -3,7 +3,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications, notes, messages, boards, share, attachments, time_entries, quotes, milestones, portal, agreements, letters, credentials, webhooks, booking_public, booking_admin, integrations, content_admin, content_public, recurring_expenses, attendance
+from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications, notes, messages, boards, share, attachments, time_entries, quotes, milestones, portal, agreements, letters, credentials, webhooks, booking_public, booking_admin, integrations, content_admin, content_public, recurring_expenses, attendance, agreements_public
 from app.websocket import activity_manager
 from app.websocket_messages import message_ws_manager
 from app.services.activity_service import (
@@ -146,6 +146,7 @@ app.include_router(content_admin.router, prefix="/api/v1")
 app.include_router(content_public.router, prefix="/api/v1")
 app.include_router(recurring_expenses.router, prefix="/api/v1")
 app.include_router(attendance.router, prefix="/api/v1")
+app.include_router(agreements_public.router, prefix="/api/v1")
 
 
 @app.on_event("startup")

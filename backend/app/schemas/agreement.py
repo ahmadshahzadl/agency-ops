@@ -14,6 +14,7 @@ class ClauseIn(BaseModel):
 
 class AgreementCreate(BaseModel):
     title: str
+    agreement_type: str = "service"  # nda | service | retainer | maintenance
     client_id: UUID
     project_id: Optional[UUID] = None
     quote_id: Optional[UUID] = None
@@ -26,6 +27,7 @@ class AgreementCreate(BaseModel):
 
 class AgreementUpdate(BaseModel):
     title: Optional[str] = None
+    agreement_type: Optional[str] = None
     client_id: Optional[UUID] = None
     project_id: Optional[UUID] = None
     quote_id: Optional[UUID] = None
@@ -40,6 +42,15 @@ class AgreementResponse(BaseModel):
     id: UUID
     number: str
     title: str
+    agreement_type: str = "service"
+    type_label: str = "Service Agreement"
+    sign_url: Optional[str] = None  # live only while the agreement is sent and the link is valid
+    signer_email: Optional[str] = None
+    signer_title: Optional[str] = None
+    accepted_user_agent: Optional[str] = None
+    acceptance_hash: Optional[str] = None
+    countersigned_by_name: Optional[str] = None
+    countersigned_at: Optional[datetime] = None
     client_id: Optional[UUID] = None
     client_name: Optional[str] = None
     project_id: Optional[UUID] = None
@@ -67,4 +78,14 @@ class AgreementResponse(BaseModel):
 
 
 class AgreementTemplateResponse(BaseModel):
+    agreement_type: str = "service"
+    title_suggestion: str = ""
     clauses: list[ClauseIn]
+
+
+class AgreementTypeOut(BaseModel):
+    key: str
+    label: str
+    short_label: str
+    description: str
+    has_value: bool

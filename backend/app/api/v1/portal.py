@@ -475,15 +475,14 @@ def accept_agreement(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please type your full name to sign")
     forwarded = request.headers.get("x-forwarded-for", "")
     ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
-    a.status = "signed"
-    a.accepted_at = datetime.utcnow()
-    a.accepted_by_name = signer
-    a.accepted_ip = (ip or "")[:64] or None
-    a.acceptance_method = "portal"
-    _notify_agreement_creator(db, a, user, f"signed by {signer} via the client portal")
-    log_activity(db, user.id, "agreement_signed", "agreement", a.id, details=f"Agreement {a.number} signed by {signer} via client portal")
+    from app.services import agreement_signing as signing
+    signing.record_acceptance(
+        db, a, signer_name=signer, signer_email=user.email, signer_title=None, ip=ip,
+        user_agent=request.headers.get("user-agent"), method="portal", actor_user_id=user.id,
+    )
     db.commit()
     db.refresh(a)
+    signing.send_executed_copy(a)
     return _portal_agreement(a)
 
 

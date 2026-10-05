@@ -30,6 +30,7 @@ import Profile from "@/pages/Profile";
 import Announcements from "@/pages/Announcements";
 import Messages from "@/pages/Messages";
 import PublicStatus from "@/pages/PublicStatus";
+import SignAgreement from "@/pages/SignAgreement";
 import Portal from "@/pages/Portal";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
@@ -77,6 +78,7 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/status/:token" element={<PublicStatus />} />
+      <Route path="/sign/:token" element={<SignAgreement />} />
       <Route
         path="/portal"
         element={
