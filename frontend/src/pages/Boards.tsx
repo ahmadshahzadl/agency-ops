@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { useAuth } from "@/store/auth";
 import { allowedTargets } from "@/lib/taskFlow";
-import { listProjectNames } from "@/api/projects";
+import { listProjects, type Project } from "@/api/projects";
 import { listBoards, createBoard, deleteBoard, listBoardTasks, addBoardMember, removeBoardMember, type Board } from "@/api/boards";
 import { createTask, updateTask, deleteTask, type Task } from "@/api/tasks";
 import { uploadAttachment } from "@/api/attachments";
@@ -107,10 +108,15 @@ export default function Boards() {
   const isQA = user?.permissions.includes("tasks:qa_approve") || isAdmin;
   const canManage = isAdmin || !!user?.can_manage_tasks;
 
-  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
-  const [projectId, setProjectId] = useState<string>("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [allBoards, setAllBoards] = useState<Board[]>([]);
+  const [projectSearch, setProjectSearch] = useState("");
+  // The page opens on the project grid; a project is only selected by click or by URL (?project=).
+  const [projectId, setProjectId] = useState<string>(() => searchParams.get("project") ?? "");
   const [boards, setBoards] = useState<Board[]>([]);
-  const [boardId, setBoardId] = useState<string>("");
+  const [boardId, setBoardId] = useState<string>(() => searchParams.get("board") ?? "");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<UserList[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
@@ -141,20 +147,50 @@ export default function Boards() {
     window.setTimeout(() => setError(null), 4500);
   }, []);
 
-  useEffect(() => {
-    listProjectNames({ limit: 500 }).then((p) => {
-      setProjects(p);
-      if (p.length && !projectId) setProjectId(p[0].id);
-    }).catch(() => {});
-    listAssignableUsers().then(setUsers).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const loadProjectGrid = useCallback(() => {
+    setProjectsLoading(true);
+    Promise.all([listProjects({ limit: 500 }).catch(() => [] as Project[]), listBoards().catch(() => [] as Board[])])
+      .then(([ps, bs]) => { setProjects(ps); setAllBoards(bs); })
+      .finally(() => setProjectsLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadProjectGrid();
+    listAssignableUsers().then(setUsers).catch(() => {});
+  }, [loadProjectGrid]);
+
+  // Keep the selection in the URL so a refresh or a shared link lands on the same board.
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (projectId) next.set("project", projectId);
+    if (projectId && boardId) next.set("board", boardId);
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, boardId]);
 
   const refreshBoards = useCallback(async (pid: string, keepBoard = false) => {
     const bs = await listBoards(pid).catch(() => [] as Board[]);
     setBoards(bs);
-    setBoardId((cur) => (keepBoard && bs.some((b) => b.id === cur) ? cur : bs[0]?.id ?? ""));
+    setBoardId((cur) => ((keepBoard || cur) && bs.some((b) => b.id === cur) ? cur : bs[0]?.id ?? ""));
+    setAllBoards((all) => [...all.filter((b) => b.project_id !== pid), ...bs]);
   }, []);
+
+  const boardsByProject = useMemo(() => {
+    const m: Record<string, Board[]> = {};
+    for (const b of allBoards) (m[b.project_id] ??= []).push(b);
+    return m;
+  }, [allBoards]);
+
+  const visibleProjects = useMemo(() => {
+    const q = projectSearch.trim().toLowerCase();
+    const list = projects.filter((p) => !q || p.name.toLowerCase().includes(q) || (p.client_name ?? "").toLowerCase().includes(q));
+    // Projects with boards first, then by name
+    return list.sort((a, b) => ((boardsByProject[b.id]?.length ?? 0) > 0 ? 1 : 0) - ((boardsByProject[a.id]?.length ?? 0) > 0 ? 1 : 0) || a.name.localeCompare(b.name));
+  }, [projects, projectSearch, boardsByProject]);
+
+  const currentProject = projects.find((p) => p.id === projectId) || null;
+  const openProject = (pid: string) => { setBoardId(""); setProjectId(pid); };
+  const backToProjects = () => { setProjectId(""); setBoardId(""); setBoards([]); loadProjectGrid(); };
 
   useEffect(() => {
     if (projectId) refreshBoards(projectId);
@@ -283,12 +319,85 @@ export default function Boards() {
         <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5">{error}</div>
       )}
 
+      {/* Project grid: the landing view */}
+      {!projectId && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Choose a project</h2>
+              <p className="text-sm text-gray-500">Each project has its own boards. Pick one to open its kanban.</p>
+            </div>
+            <input
+              type="search"
+              placeholder="Search projects or clients…"
+              value={projectSearch}
+              onChange={(e) => setProjectSearch(e.target.value)}
+              className={`${inputClass} !w-auto min-w-[240px]`}
+            />
+          </div>
+          {projectsLoading ? (
+            <p className="text-sm text-gray-400">Loading projects…</p>
+          ) : visibleProjects.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-10 text-center text-sm text-gray-400">
+              {projects.length === 0 ? "No projects you can see yet." : "No projects match."}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {visibleProjects.map((p) => {
+                const pb = boardsByProject[p.id] ?? [];
+                const total = p.task_count ?? null;
+                const done = p.task_done_count ?? null;
+                const pct = total && total > 0 && done != null ? Math.round((done / total) * 100) : null;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => openProject(p.id)}
+                    className="text-left rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-sm hover:shadow-md hover:border-primary/40 transition-all group"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-primary">{p.name}</p>
+                        {p.client_name && <p className="text-xs text-gray-500 truncate">{p.client_name}</p>}
+                      </div>
+                      <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium border ${p.status === "active" ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-50 text-gray-500 border-gray-200"}`}>{p.status}</span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                      <span>{pb.length === 0 ? "No boards yet" : pb.length === 1 ? "1 board" : `${pb.length} boards`}</span>
+                      {total != null && <span>{done ?? 0}/{total} tasks</span>}
+                    </div>
+                    {pct != null && (
+                      <div className="mt-2 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    )}
+                    {pb.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {pb.slice(0, 4).map((b) => (
+                          <span key={b.id} className="px-2 py-0.5 rounded-md text-[11px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{b.name}</span>
+                        ))}
+                        {pb.length > 4 && <span className="text-[11px] text-gray-400">+{pb.length - 4}</span>}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Toolbar */}
+      {projectId && (
       <div className="flex flex-wrap items-center gap-3">
-        <select className={`${inputClass} !w-auto min-w-[200px]`} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-          {projects.length === 0 && <option value="">No projects</option>}
-          {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        <button onClick={backToProjects} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" title="Back to all projects">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          Projects
+        </button>
+        <div className="min-w-0">
+          <p className="font-semibold text-gray-900 dark:text-gray-100 leading-tight truncate">{currentProject?.name ?? "Project"}</p>
+          {currentProject?.client_name && <p className="text-xs text-gray-500 truncate">{currentProject.client_name}</p>}
+        </div>
+        <span className="hidden sm:block h-6 w-px bg-gray-200 dark:bg-gray-700" />
         <div className="flex items-center gap-1 flex-wrap">
           {boards.map((b) => (
             <button
@@ -340,11 +449,12 @@ export default function Boards() {
           </div>
         )}
       </div>
+      )}
 
       {/* Board */}
-      {!board ? (
+      {!projectId ? null : !board ? (
         <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-          {projectId ? (canManage ? "No boards yet — create one to get started." : "No boards you're a member of in this project.") : "Select a project."}
+          {canManage ? "No boards yet — create one to get started." : "No boards you're a member of in this project."}
         </div>
       ) : (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>

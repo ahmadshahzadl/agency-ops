@@ -271,3 +271,15 @@ def test_outsider_cannot_edit_task(client, auth_headers, employee_headers):
     lone = _make_task(client, auth_headers, project_id)  # no board, no assignee -> employee cannot even see it
     r = client.patch(f"/api/v1/tasks/{lone['id']}", headers=employee_headers, json={"status": "in_progress"})
     assert r.status_code == 404
+
+
+def test_board_member_sees_project_in_lists(client, auth_headers, employee_headers):
+    """The Boards page opens on a project grid, so a board member must see the project itself."""
+    project_id = _setup_project(client, auth_headers)
+    before = client.get("/api/v1/projects?limit=500", headers=employee_headers).json()
+    assert all(p["id"] != project_id for p in before)
+    _make_board(client, auth_headers, project_id, ["employee@test.com"])
+    after = client.get("/api/v1/projects?limit=500", headers=employee_headers).json()
+    assert any(p["id"] == project_id for p in after)
+    names = client.get("/api/v1/projects/names?limit=500", headers=employee_headers).json()
+    assert any(p["id"] == project_id for p in names)

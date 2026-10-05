@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_, exists, case
 from app.database import get_db
-from app.models import Project as ProjectModel, Client as ClientModel, ProjectMember as ProjectMemberModel, Task as TaskModel
+from app.models import Project as ProjectModel, Client as ClientModel, ProjectMember as ProjectMemberModel, Task as TaskModel, Board as BoardModel, BoardMember as BoardMemberModel
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectNameResponse
 from app.api.deps import get_current_user, require_staff, require_permission, require_any_permission, get_user_permissions, get_user_team_ids, get_manager_scope_user_ids
 from app.services.activity_service import log_activity
@@ -36,12 +36,14 @@ def list_project_names(
             ProjectMemberModel.project_id == ProjectModel.id,
             ProjectMemberModel.user_id == user.id,
         )
+        board_member_exists = _board_member_exists(ProjectModel, user.id)
         owner_ids = manager_scope if manager_scope is not None else {user.id}
         qry = qry.filter(
             or_(
                 ProjectModel.owner_id.in_(owner_ids),
                 (ProjectModel.assigned_team_id.isnot(None) & ProjectModel.assigned_team_id.in_(team_ids)),
                 member_exists,
+                board_member_exists,
                 has_own_task,
             )
         )
@@ -76,18 +78,29 @@ def _can_access_project(
     return False
 
 
+def _board_member_exists(ProjectModel, user_id: UUID):
+    """EXISTS clause: the user sits on at least one board of the project (board members work that project)."""
+    return exists().where(
+        BoardModel.project_id == ProjectModel.id,
+        BoardMemberModel.board_id == BoardModel.id,
+        BoardMemberModel.user_id == user_id,
+    )
+
+
 def _assigned_project_filter(qry, ProjectModel, user_id: UUID, team_ids: set[UUID], manager_scope: set[UUID] | None):
-    """Restrict to projects assigned to the user: owner, assigned team, or project member."""
+    """Restrict to projects assigned to the user: owner, assigned team, project member, or member of one of its boards."""
     member_exists = exists().where(
         ProjectMemberModel.project_id == ProjectModel.id,
         ProjectMemberModel.user_id == user_id,
     )
+    board_member_exists = _board_member_exists(ProjectModel, user_id)
     if manager_scope is not None:
         qry = qry.filter(
             or_(
                 ProjectModel.owner_id.in_(manager_scope),
                 (ProjectModel.assigned_team_id.isnot(None) & ProjectModel.assigned_team_id.in_(team_ids)),
                 member_exists,
+                board_member_exists,
             )
         )
     else:
@@ -96,6 +109,7 @@ def _assigned_project_filter(qry, ProjectModel, user_id: UUID, team_ids: set[UUI
                 ProjectModel.owner_id == user_id,
                 (ProjectModel.assigned_team_id.isnot(None) & ProjectModel.assigned_team_id.in_(team_ids)),
                 member_exists,
+                board_member_exists,
             )
         )
     return qry
@@ -109,7 +123,7 @@ def list_projects(
     team_ids=Depends(get_user_team_ids),
     manager_scope=Depends(get_manager_scope_user_ids),
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=500),
     client_id: UUID | None = None,
     status_filter: str | None = None,
 ):
