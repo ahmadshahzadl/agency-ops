@@ -291,6 +291,7 @@ def agreement_pdf(
 
 class SendIn(BaseModel):
     to: EmailStr | None = None  # override the client's contact email (e.g. the founder who will sign)
+    sign_for_company: bool = True  # place the sender's saved signature on the document before it goes out
 
 
 @router.post("/{agreement_id}/send", response_model=AgreementResponse)
@@ -308,6 +309,11 @@ def send_agreement(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A {a.status} agreement cannot be sent")
     a.status = "sent"
     signing.ensure_sign_token(a)
+    want_sign = data.sign_for_company if data else True
+    if want_sign and not a.countersigned_at and getattr(user, "signature_file", None):
+        a.countersigned_by = user.id
+        a.countersigned_by_name = (user.full_name or user.email).strip()
+        a.countersigned_at = datetime.utcnow()
     recipient = (str(data.to) if data and data.to else None) or a.signer_email or (a.client.contact_email if a.client else None)
     if recipient:
         a.signer_email = recipient

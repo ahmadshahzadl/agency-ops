@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/store/auth";
+import { APP_NAME } from "@/config";
 import { useModal } from "@/contexts/ModalContext";
 import { listClients, type Client } from "@/api/clients";
 import { listProjects, type Project } from "@/api/projects";
@@ -21,10 +22,12 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function Agreements() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const { showConfirm, showAlert } = useModal();
   const canWrite = hasPermission("agreements:write");
+  const hasSignature = !!user?.has_signature;
   const [prompt, setPrompt] = useState<{ kind: "sign" | "terminate" | "send" | "countersign"; agreement: Agreement; value: string } | null>(null);
+  const [signForCompany, setSignForCompany] = useState(true);
   const [types, setTypes] = useState<AgreementType[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [copied, setCopied] = useState<string | null>(null);
@@ -291,6 +294,15 @@ export default function Agreements() {
               value={prompt.value}
               onChange={(e) => setPrompt((p) => (p ? { ...p, value: e.target.value } : p))}
             />
+            {prompt.kind === "send" && !prompt.agreement.countersigned_at && (
+              <label className="mt-3 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input type="checkbox" className="mt-0.5 rounded border-gray-300" disabled={!hasSignature} checked={hasSignature && signForCompany} onChange={(e) => setSignForCompany(e.target.checked)} />
+                <span>
+                  Sign for {APP_NAME} now with my saved signature
+                  {!hasSignature && <span className="block text-xs text-gray-400">No signature saved. Add one under Settings to pre-sign documents.</span>}
+                </span>
+              </label>
+            )}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setPrompt(null)} className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 font-medium">Cancel</button>
               <button
@@ -299,7 +311,7 @@ export default function Agreements() {
                   const { kind, agreement, value } = prompt;
                   setPrompt(null);
                   if (kind === "sign") act(() => markAgreementSigned(agreement.id, value.trim() || undefined), "Agreement recorded as signed. It is now a frozen record.");
-                  else if (kind === "send") act(() => sendAgreement(agreement.id, value.trim()), `Sent to ${value.trim()} with a signing link. Use "Copy link" to share it another way.`);
+                  else if (kind === "send") act(() => sendAgreement(agreement.id, value.trim(), hasSignature && signForCompany), `Sent to ${value.trim()} with a signing link${hasSignature && signForCompany ? ", signed for us with your saved signature" : ""}. Use "Copy link" to share it another way.`);
                   else if (kind === "countersign") act(() => countersignAgreement(agreement.id, value.trim() || undefined), "Countersigned. The client has been emailed the executed copy.");
                   else act(() => terminateAgreement(agreement.id, value.trim()));
                 }}

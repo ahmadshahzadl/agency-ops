@@ -1,6 +1,8 @@
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
+from fastapi import UploadFile, File
+from fastapi.responses import FileResponse
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -137,6 +139,7 @@ def _user_response(user: User):
         phone=getattr(user, "phone", None),
         job_title=getattr(user, "job_title", None),
         employment_type=getattr(user, "employment_type", None),
+        has_signature=bool(getattr(user, "signature_file", None)),
         is_active=user.is_active,
         permissions=permissions,
         roles=role_names,
@@ -150,6 +153,38 @@ def _user_response(user: User):
 @router.get("/me", response_model=UserResponse)
 def me(user: User = Depends(get_current_user)):
     return _user_response(user)
+
+
+@router.post("/me/signature", response_model=UserResponse)
+async def upload_signature(file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Save a signature image (PNG/JPG/WebP). A white background is made transparent automatically."""
+    from app.services import signature_service
+    raw = await file.read()
+    try:
+        signature_service.save(user, raw, file.content_type)
+    except signature_service.SignatureError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    log_activity(db, user.id, "signature_updated", "user", user.id, details="Saved signature image")
+    db.commit()
+    db.refresh(user)
+    return _user_response(user)
+
+
+@router.get("/me/signature")
+def my_signature(user: User = Depends(get_current_user)):
+    from app.services import signature_service
+    path = signature_service.path_for(user.signature_file)
+    if not path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No signature saved")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@router.delete("/me/signature", status_code=status.HTTP_204_NO_CONTENT)
+def delete_signature(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import signature_service
+    signature_service.remove(user)
+    log_activity(db, user.id, "signature_removed", "user", user.id, details="Removed signature image")
+    db.commit()
 
 
 @router.patch("/me", response_model=UserResponse)

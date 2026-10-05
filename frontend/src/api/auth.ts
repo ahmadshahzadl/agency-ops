@@ -1,4 +1,4 @@
-import { apiFetch, setTokens, clearTokens } from "./client";
+import { apiFetch, setTokens, clearTokens, getToken, API_BASE } from "./client";
 
 export interface User {
   id: string;
@@ -7,6 +7,7 @@ export interface User {
   phone?: string | null;
   job_title?: string | null;
   employment_type?: string | null;
+  has_signature?: boolean;
   is_active: boolean;
   permissions: string[];
   roles?: string[];
@@ -86,4 +87,30 @@ export async function updateProfile(data: ProfileUpdate): Promise<User> {
     setTokens(res.access_token, res.refresh_token);
   }
   return res;
+}
+
+/* ---------------- saved signature ---------------- */
+
+export async function uploadSignature(file: File): Promise<User> {
+  const form = new FormData();
+  form.set("file", file);
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/api/v1/auth/me/signature`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : undefined, body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Upload failed");
+  }
+  return res.json();
+}
+
+export async function deleteSignature(): Promise<void> {
+  return apiFetch("/api/v1/auth/me/signature", { method: "DELETE" });
+}
+
+/** Fetches the PNG with auth and returns an object URL for an <img>. Caller revokes it. */
+export async function loadSignatureUrl(): Promise<string | null> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/api/v1/auth/me/signature`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+  if (!res.ok) return null;
+  return URL.createObjectURL(await res.blob());
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/store/auth";
+import { uploadSignature, deleteSignature, loadSignatureUrl } from "@/api/auth";
 import { updateProfile } from "@/api/auth";
 import { fetchServerVersion, compareVersions } from "@/api/version";
 import { APP_VERSION } from "@/config";
@@ -9,6 +10,61 @@ import { getGoogleStatus, getGoogleConnectUrl, disconnectGoogle, type GoogleStat
 const inputClass =
   "w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary/20 focus:border-primary";
 const labelClass = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1";
+
+function SignatureCard() {
+  const { user, refetch } = useAuth();
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const has = !!user?.has_signature;
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    if (has) {
+      loadSignatureUrl().then((u) => { if (active) { objectUrl = u; setUrl(u); } else if (u) URL.revokeObjectURL(u); });
+    } else {
+      setUrl(null);
+    }
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [has]);
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true); setErr(null);
+    try { await uploadSignature(file); await refetch(); }
+    catch (e) { setErr(e instanceof Error ? e.message : "Upload failed"); }
+    finally { setBusy(false); }
+  };
+  const remove = async () => {
+    setBusy(true); setErr(null);
+    try { await deleteSignature(); await refetch(); }
+    catch (e) { setErr(e instanceof Error ? e.message : "Could not remove"); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="mb-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">My signature</h2>
+      <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+        Placed on agreements you send and letters you write. Upload a PNG with a transparent background, or a photo of your signature on white paper and we remove the background.
+      </p>
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="h-20 w-56 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-[linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%),linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%)] bg-[length:16px_16px] bg-[position:0_0,8px_8px] flex items-center justify-center overflow-hidden">
+          {url ? <img src={url} alt="Your signature" className="max-h-16 max-w-full object-contain" /> : <span className="text-xs text-gray-400">No signature saved</span>}
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className={`px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer text-center ${busy ? "opacity-50" : ""} bg-primary text-white hover:bg-primary-hover`}>
+            {busy ? "Working…" : has ? "Replace" : "Upload signature"}
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={busy} onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+          {has && <button type="button" disabled={busy} onClick={remove} className="px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">Remove</button>}
+        </div>
+      </div>
+      {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const { user, refetch, hasPermission } = useAuth();
@@ -234,6 +290,7 @@ export default function ProfilePage() {
 
         {/* Contact information — half width */}
         <section className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm p-4 min-h-0 flex flex-col overflow-auto">
+          <SignatureCard />
           <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Contact information</h2>
           <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
             Admins and managers can edit. View on the left.

@@ -106,8 +106,8 @@ export async function deleteAgreement(id: string): Promise<void> {
   return apiFetch(`/api/v1/agreements/${id}`, { method: "DELETE" });
 }
 
-export async function sendAgreement(id: string, to?: string): Promise<Agreement> {
-  return apiFetch<Agreement>(`/api/v1/agreements/${id}/send`, { method: "POST", body: JSON.stringify({ to: to || null }) });
+export async function sendAgreement(id: string, to?: string, signForCompany = true): Promise<Agreement> {
+  return apiFetch<Agreement>(`/api/v1/agreements/${id}/send`, { method: "POST", body: JSON.stringify({ to: to || null, sign_for_company: signForCompany }) });
 }
 
 export async function markAgreementSigned(id: string, signerName?: string): Promise<Agreement> {

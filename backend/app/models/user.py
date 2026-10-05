@@ -23,6 +23,7 @@ class User(Base):
     manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     # Employment record (internal staff only): full_time | part_time | contractor | intern
     employment_type = Column(String(32))
+    signature_file = Column(String(255))  # uploads/signatures/<file>.png, see signature_service
     joined_on = Column(Date)
     left_on = Column(Date)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)

@@ -321,12 +321,19 @@ def build_letter_pdf(letter) -> bytes:
             pdf.multi_cell(0, 5.6, _txt(para.strip()))
             pdf.ln(3)
 
-    # Signature block (space above the name for an actual signature)
+    # Signature block: the author's saved signature image when there is one, else space for a wet signature
     if letter.signatory_name:
         pdf.ln(14)
         y = pdf.get_y()
         if y > 240:
             pdf.add_page()
+            y = pdf.get_y()
+        sig = _user_signature_path(letter, getattr(letter, "created_by", None))
+        if sig:
+            try:
+                pdf.image(sig, x=22, y=y - 12, h=14)
+            except Exception:
+                pass
         pdf.set_draw_color(160, 166, 178)
         pdf.set_line_width(0.3)
         pdf.line(22, pdf.get_y(), 74, pdf.get_y())
@@ -347,6 +354,62 @@ def build_blank_letterhead() -> bytes:
     pdf = _LetterheadPDF()
     pdf.add_page()
     return bytes(pdf.output())
+
+
+def _user_signature_path(obj, user_id):
+    from sqlalchemy.orm import object_session
+    from app.services import signature_service
+    try:
+        return signature_service.signature_path_for_user_id(object_session(obj), user_id)
+    except Exception:
+        return None
+
+
+def _agreement_signatures(pdf, agreement) -> None:
+    """Two signature boxes: the company (image when the sender/countersigner saved one) and the client
+    (typed e-signature when accepted, otherwise a line for a wet signature)."""
+    company = settings.app_name.replace(" API", "")
+    client_name = agreement.client.name if agreement.client else "Client"
+    y = pdf.get_y() + 4
+    if y > 236:
+        pdf.add_page()
+        y = pdf.get_y() + 4
+    sig_path = _user_signature_path(agreement, getattr(agreement, "countersigned_by", None)) if getattr(agreement, "countersigned_at", None) else None
+    boxes = [
+        (12, company, sig_path, getattr(agreement, "countersigned_by_name", None), getattr(agreement, "countersigned_at", None), None),
+        (110, client_name, None, agreement.accepted_by_name if agreement.accepted_at else None, agreement.accepted_at, getattr(agreement, "signer_title", None)),
+    ]
+    for x, party, img, name, when, title in boxes:
+        pdf.set_font("helvetica", "B", 8)
+        pdf.set_text_color(*NAVY)
+        pdf.set_xy(x, y)
+        pdf.cell(88, 5, _txt(f"FOR {party.upper()}"))
+        if img:
+            try:
+                pdf.image(img, x=x + 2, y=y + 6, h=14)
+            except Exception:
+                pass
+        elif name and x == 110:
+            # Typed e-signature in an italic face
+            pdf.set_font("helvetica", "I", 15)
+            pdf.set_text_color(20, 24, 34)
+            pdf.set_xy(x + 2, y + 10)
+            pdf.cell(86, 8, _txt(name))
+        pdf.set_draw_color(160, 166, 178)
+        pdf.set_line_width(0.3)
+        pdf.line(x, y + 22, x + 88, y + 22)
+        pdf.set_xy(x, y + 23)
+        pdf.set_font("helvetica", "", 8)
+        pdf.set_text_color(*GRAY)
+        if name:
+            label = name + (f", {title}" if title else "")
+            if when:
+                label += f" - {when:%d %b %Y}"
+            pdf.cell(88, 4.5, _txt(label))
+        else:
+            pdf.cell(88, 4.5, _txt("Name, signature, date"))
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_y(y + 32)
 
 
 def build_agreement_pdf(agreement) -> bytes:
@@ -373,7 +436,8 @@ def build_agreement_pdf(agreement) -> bytes:
         pdf.multi_cell(0, 4.8, _txt(clause.get("body", "")))
     pdf.set_text_color(0, 0, 0)
 
-    pdf.ln(8)
+    pdf.ln(4)
+    _agreement_signatures(pdf, agreement)
     if agreement.status in ("signed", "terminated") and agreement.accepted_at:
         # Acceptance record box (the clickwrap/e-sign evidence)
         box_top = pdf.get_y()
@@ -421,21 +485,6 @@ def build_agreement_pdf(agreement) -> bytes:
             pdf.multi_cell(178, 4.6, _txt(ln))
         pdf.set_text_color(0, 0, 0)
         pdf.set_y(box_top + box_h + 4)
-    else:
-        # Signature lines for a wet signature
-        y = pdf.get_y()
-        if y > 250:
-            pdf.add_page()
-            y = pdf.get_y() + 6
-        company = settings.app_name.replace(" API", "")
-        for x, party in ((12, company), (110, agreement.client.name if agreement.client else "Client")):
-            pdf.line(x, y + 14, x + 80, y + 14)
-            pdf.set_xy(x, y + 15)
-            pdf.set_font("helvetica", "", 8)
-            pdf.set_text_color(*GRAY)
-            pdf.cell(80, 5, _txt(f"For {party} - name, signature, date"))
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_y(y + 24)
     return bytes(pdf.output())
 
 
