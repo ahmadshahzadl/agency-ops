@@ -145,3 +145,14 @@ def test_public_endpoints_need_no_auth_but_staff_endpoints_do(client, auth_heade
     assert client.get(f"/api/v1/agreements/{a['id']}/sign-link", headers=employee_headers).status_code == 403
     assert client.post(f"/api/v1/agreements/{a['id']}/countersign", headers=employee_headers, json={}).status_code == 403
     assert client.get("/api/v1/agreements/types", headers=employee_headers).status_code == 403
+
+
+def test_only_admin_can_delete_signed(client, auth_headers, employee_headers):
+    cid = _make_client_record(client, auth_headers)
+    a = _nda(client, auth_headers, cid)
+    client.post(f"/api/v1/agreements/{a['id']}/mark-signed", headers=auth_headers, json={"signer_name": "Test Signer"})
+    assert client.get(f"/api/v1/agreements/{a['id']}", headers=auth_headers).json()["status"] == "signed"
+    # employee has no agreements:write at all
+    assert client.delete(f"/api/v1/agreements/{a['id']}", headers=employee_headers).status_code == 403
+    assert client.delete(f"/api/v1/agreements/{a['id']}", headers=auth_headers).status_code == 204
+    assert client.get(f"/api/v1/agreements/{a['id']}", headers=auth_headers).status_code == 404

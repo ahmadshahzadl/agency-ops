@@ -264,9 +264,12 @@ def delete_agreement(
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
     a = _get_scoped_current(db, agreement_id, user, permissions, manager_scope)
+    if a.status in ("signed", "terminated") and "admin:all" not in permissions:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Signed agreements are permanent records; only an admin can delete one")
+    details = f"Agreement deleted: {a.number} ({a.status})"
     if a.status in ("signed", "terminated"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Signed agreements are permanent records and cannot be deleted")
-    log_activity(db, user.id, "agreement_deleted", "agreement", None, details=f"Agreement deleted: {a.number}")
+        details += f" - signed record removed by admin; was signed by {a.accepted_by_name or '-'} on {a.accepted_at:%Y-%m-%d}" if a.accepted_at else " - signed record removed by admin"
+    log_activity(db, user.id, "agreement_deleted", "agreement", None, details=details)
     db.delete(a)
     db.commit()
 

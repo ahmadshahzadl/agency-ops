@@ -25,6 +25,7 @@ export default function Agreements() {
   const { hasPermission, user } = useAuth();
   const { showConfirm, showAlert } = useModal();
   const canWrite = hasPermission("agreements:write");
+  const isAdmin = hasPermission("admin:all");
   const hasSignature = !!user?.has_signature;
   const [prompt, setPrompt] = useState<{ kind: "sign" | "terminate" | "send" | "countersign"; agreement: Agreement; value: string } | null>(null);
   const [signForCompany, setSignForCompany] = useState(true);
@@ -230,8 +231,9 @@ export default function Agreements() {
                       <button
                         onClick={() => setPrompt({ kind: "sign", agreement: a, value: a.client_name || "" })}
                         className="text-xs font-medium text-green-600 hover:underline"
+                        title="The client signed outside the app (on paper or by email). Records that signature here; nothing is sent."
                       >
-                        Mark signed
+                        Signed offline
                       </button>
                     </>
                   )}
@@ -249,14 +251,19 @@ export default function Agreements() {
                   {canWrite && (a.status === "signed" || a.status === "expired" || a.status === "terminated") && (
                     <button onClick={() => act(() => duplicateAgreement(a.id), "New draft created with the same terms.")} className="text-xs font-medium text-primary hover:underline">Renew</button>
                   )}
-                  {canWrite && !["signed", "terminated"].includes(a.status) && (
+                  {canWrite && (isAdmin || !["signed", "terminated"].includes(a.status)) && (
                     <button
                       onClick={() => showConfirm({
                         title: "Delete agreement",
-                        message: `Delete ${a.number}?`,
+                        message: ["signed", "terminated"].includes(a.status)
+                          ? `${a.number} is a signed record${a.accepted_by_name ? ` (signed by ${a.accepted_by_name})` : ""}. Deleting it removes the contract and its signature evidence permanently. Only do this for test or mistaken entries; use Terminate to end a real agreement.`
+                          : `Delete ${a.number}?`,
+                        confirmLabel: "Delete",
+                        variant: "danger",
                         onConfirm: () => act(() => deleteAgreement(a.id)),
                       })}
                       className="text-xs font-medium text-red-400 hover:text-red-600"
+                      title={["signed", "terminated"].includes(a.status) ? "Admin: delete this signed record" : "Delete"}
                     >
                       ✕
                     </button>
@@ -275,13 +282,13 @@ export default function Agreements() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-5">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-              {prompt.kind === "sign" ? `Mark ${prompt.agreement.number} as signed`
+              {prompt.kind === "sign" ? `Record an offline signature for ${prompt.agreement.number}`
                 : prompt.kind === "send" ? `Send ${prompt.agreement.number} for signature`
                 : prompt.kind === "countersign" ? `Countersign ${prompt.agreement.number}`
                 : `Terminate ${prompt.agreement.number}`}
             </h3>
             <p className="text-sm text-gray-500 mt-1 mb-3">
-              {prompt.kind === "sign" && "Who signed it (e.g. on paper or by email)? This goes on the permanent record — the agreement becomes immutable."}
+              {prompt.kind === "sign" && "Use this only when the client has already signed outside the app, on paper or by returning a signed PDF. Type the client signer's name; it goes on the permanent record and the agreement becomes immutable. Attach the signed scan under the agreement's attachments. If the client has not signed yet, use Send instead."}
               {prompt.kind === "send" && "The signer gets an email with a secure signing link and the PDF. Leave the address as the client's contact email, or enter the person who will actually sign (e.g. the founder). You can also copy the link afterwards and send it on WhatsApp."}
               {prompt.kind === "countersign" && "Records our side of the signature and emails the client the fully executed copy. Leave the name empty to use your own."}
               {prompt.kind === "terminate" && "A reason is required and becomes part of the permanent record."}

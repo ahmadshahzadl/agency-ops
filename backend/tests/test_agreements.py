@@ -64,16 +64,14 @@ def test_agreement_lifecycle_and_editing(client, auth_headers):
     assert signed["accepted_by_name"] == "Jane Client"
     assert signed["acceptance_method"] == "manual"
 
-    # Signed = frozen: no edit, no delete, no re-send
+    # Signed = frozen: no edit, no re-send (admins may still delete a signed record; see test_agreement_signing)
     assert client.patch(f"/api/v1/agreements/{a['id']}", headers=auth_headers, json={"title": "Nope"}).status_code == 400
-    assert client.delete(f"/api/v1/agreements/{a['id']}", headers=auth_headers).status_code == 400
     assert client.post(f"/api/v1/agreements/{a['id']}/send", headers=auth_headers).status_code == 400
 
     # Terminate requires a reason and freezes the record
     assert client.post(f"/api/v1/agreements/{a['id']}/terminate", headers=auth_headers, json={"reason": "  "}).status_code == 400
     r = client.post(f"/api/v1/agreements/{a['id']}/terminate", headers=auth_headers, json={"reason": "Client pivoted"})
     assert r.status_code == 200 and r.json()["status"] == "terminated"
-    assert client.delete(f"/api/v1/agreements/{a['id']}", headers=auth_headers).status_code == 400
 
     # Renew: duplicate makes a fresh draft with the same terms
     r = client.post(f"/api/v1/agreements/{a['id']}/duplicate", headers=auth_headers)
