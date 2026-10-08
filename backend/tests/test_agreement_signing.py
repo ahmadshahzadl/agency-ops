@@ -156,3 +156,22 @@ def test_only_admin_can_delete_signed(client, auth_headers, employee_headers):
     assert client.delete(f"/api/v1/agreements/{a['id']}", headers=employee_headers).status_code == 403
     assert client.delete(f"/api/v1/agreements/{a['id']}", headers=auth_headers).status_code == 204
     assert client.get(f"/api/v1/agreements/{a['id']}", headers=auth_headers).status_code == 404
+
+
+def test_team_member_sees_client_agreements(client, auth_headers, manager_headers):
+    """A manager on the client's team sees agreements an admin created for that client."""
+    users = client.get("/api/v1/users", headers=auth_headers).json()
+    mgr = next(u for u in users if u["email"] == "manager@test.com")
+    team = client.post("/api/v1/teams", headers=auth_headers, json={"name": f"Team {uuid.uuid4().hex[:6]}"}).json()
+    assert client.patch(f"/api/v1/users/{mgr['id']}", headers=auth_headers, json={"team_ids": [team["id"]]}).status_code == 200
+    cid = client.post("/api/v1/clients", headers=auth_headers, json={"name": f"Teamed {uuid.uuid4().hex[:6]}", "team_id": team["id"]}).json()["id"]
+    other_cid = _make_client_record(client, auth_headers)
+    mine = _nda(client, auth_headers, cid)
+    foreign = _nda(client, auth_headers, other_cid)
+
+    rows = client.get("/api/v1/agreements", headers=manager_headers).json()
+    ids = {r["id"] for r in rows}
+    assert mine["id"] in ids and foreign["id"] not in ids
+    assert client.get(f"/api/v1/agreements/{mine['id']}", headers=manager_headers).status_code == 200
+    assert client.get(f"/api/v1/agreements/{foreign['id']}", headers=manager_headers).status_code == 404
+    assert client.get(f"/api/v1/agreements/{mine['id']}/pdf", headers=manager_headers).status_code == 200

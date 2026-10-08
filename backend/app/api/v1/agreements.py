@@ -80,7 +80,22 @@ def _get_scoped(db, agreement_id, user, permissions, manager_scope) -> Agreement
         return a
     if manager_scope is not None and a.created_by is not None and a.created_by in manager_scope:
         return a
+    if _client_visible(a.client, user, manager_scope):
+        return a
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agreement not found")
+
+
+def _client_visible(client, user, manager_scope) -> bool:
+    """Same rule as the Clients page: the client's team, the manager who owns its creator, or the
+    solutions engineer who brought the lead in. Anyone who can see the client can see its agreements."""
+    if client is None:
+        return False
+    team_ids = {t.id for t in (user.teams or [])}
+    if client.source_lead is not None and client.source_lead.assigned_to == user.id:
+        return True
+    if manager_scope is not None and client.created_by is not None and client.created_by in manager_scope:
+        return True
+    return client.team_id is not None and client.team_id in team_ids
 
 
 def _get_scoped_current(db, agreement_id, user, permissions, manager_scope) -> AgreementModel:
@@ -167,16 +182,18 @@ def list_agreements(
     qry = db.query(AgreementModel).options(
         joinedload(AgreementModel.client), joinedload(AgreementModel.project), joinedload(AgreementModel.quote)
     )
-    if "admin:all" not in permissions:
-        if manager_scope is not None:
-            qry = qry.filter(AgreementModel.created_by.in_(manager_scope))
-        else:
-            qry = qry.filter(AgreementModel.created_by == user.id)
     if status_filter:
         qry = qry.filter(AgreementModel.status == status_filter)
     if client_id:
         qry = qry.filter(AgreementModel.client_id == client_id)
     rows = qry.order_by(AgreementModel.created_at.desc()).all()
+    if "admin:all" not in permissions:
+        rows = [
+            a for a in rows
+            if a.created_by == user.id
+            or (manager_scope is not None and a.created_by is not None and a.created_by in manager_scope)
+            or _client_visible(a.client, user, manager_scope)
+        ]
     _apply_expiry(db, rows)
     return [_response(a) for a in rows]
 
