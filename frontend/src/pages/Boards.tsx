@@ -4,7 +4,7 @@ import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, use
 import { useAuth } from "@/store/auth";
 import { allowedTargets } from "@/lib/taskFlow";
 import { listProjects, type Project } from "@/api/projects";
-import { listBoards, createBoard, deleteBoard, listBoardTasks, addBoardMember, removeBoardMember, type Board } from "@/api/boards";
+import { listBoards, createBoard, deleteBoard, listBoardTasks, addBoardMembers, removeBoardMember, type Board } from "@/api/boards";
 import { createTask, updateTask, deleteTask, type Task } from "@/api/tasks";
 import { uploadAttachment } from "@/api/attachments";
 import { ImageDropInput } from "@/components/ImageDropInput";
@@ -134,7 +134,9 @@ export default function Boards() {
   const [newBoardName, setNewBoardName] = useState("");
   const [newTask, setNewTask] = useState({ title: "", description: "", item_type: "task", severity: "", steps_to_reproduce: "", environment: "", priority: "medium", assignee_id: "", due_date: "", milestone_id: "" });
   const [newTaskFiles, setNewTaskFiles] = useState<File[]>([]);
-  const [addMemberId, setAddMemberId] = useState("");
+  const [addMemberIds, setAddMemberIds] = useState<string[]>([]);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [addingMembers, setAddingMembers] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -760,53 +762,115 @@ export default function Boards() {
       )}
 
       {/* Members modal */}
-      {showMembers && board && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowMembers(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Board members</h3>
-            <ul className="mt-3 divide-y divide-gray-100 dark:divide-gray-700">
-              {board.members.map((m) => (
-                <li key={m.user_id} className="flex items-center justify-between py-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-200">{m.full_name || m.email}</span>
-                  <button
-                    onClick={async () => {
-                      try {
-                        const b = await removeBoardMember(board.id, m.user_id);
-                        setBoards((bs) => bs.map((x) => (x.id === b.id ? b : x)));
-                      } catch (e) { showError(e instanceof Error ? e.message : "Remove failed"); }
-                    }}
-                    className="text-xs font-medium text-red-500 hover:underline"
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-              {board.members.length === 0 && <li className="py-2 text-sm text-gray-400">No members yet.</li>}
-            </ul>
-            <div className="mt-3 flex gap-2">
-              <select className={inputClass} value={addMemberId} onChange={(e) => setAddMemberId(e.target.value)}>
-                <option value="">Add member…</option>
-                {users.filter((u) => !board.members.some((m) => m.user_id === u.id)).map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+      {showMembers && board && (() => {
+        const candidates = users.filter((u) => !board.members.some((m) => m.user_id === u.id));
+        const q = memberSearch.trim().toLowerCase();
+        const visible = q
+          ? candidates.filter((u) => (u.full_name ?? "").toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+          : candidates;
+        const allVisibleChecked = visible.length > 0 && visible.every((u) => addMemberIds.includes(u.id));
+        const toggle = (id: string) =>
+          setAddMemberIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+        const toggleAllVisible = () =>
+          setAddMemberIds((ids) =>
+            allVisibleChecked ? ids.filter((id) => !visible.some((u) => u.id === id)) : Array.from(new Set([...ids, ...visible.map((u) => u.id)]))
+          );
+        const closeMembers = () => { setShowMembers(false); setAddMemberIds([]); setMemberSearch(""); };
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeMembers}>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Board members</h3>
+              <ul className="mt-3 divide-y divide-gray-100 dark:divide-gray-700 max-h-40 overflow-y-auto">
+                {board.members.map((m) => (
+                  <li key={m.user_id} className="flex items-center justify-between py-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-200">{m.full_name || m.email}</span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const b = await removeBoardMember(board.id, m.user_id);
+                          setBoards((bs) => bs.map((x) => (x.id === b.id ? b : x)));
+                        } catch (e) { showError(e instanceof Error ? e.message : "Remove failed"); }
+                      }}
+                      className="text-xs font-medium text-red-500 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </li>
                 ))}
-              </select>
-              <button
-                disabled={!addMemberId}
-                onClick={async () => {
-                  try {
-                    const b = await addBoardMember(board.id, addMemberId);
-                    setBoards((bs) => bs.map((x) => (x.id === b.id ? b : x)));
-                    setAddMemberId("");
-                  } catch (e) { showError(e instanceof Error ? e.message : "Add failed"); }
-                }}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
-              >
-                Add
-              </button>
+                {board.members.length === 0 && <li className="py-2 text-sm text-gray-400">No members yet.</li>}
+              </ul>
+
+              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex-1 min-h-0 flex flex-col">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-200">Add members</p>
+                  {visible.length > 0 && (
+                    <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+                      <input type="checkbox" checked={allVisibleChecked} onChange={toggleAllVisible} className="rounded border-gray-300 text-primary focus:ring-primary/20" />
+                      Select all{q ? " shown" : ""}
+                    </label>
+                  )}
+                </div>
+                <input
+                  type="search"
+                  placeholder="Search by name or email…"
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  className={inputClass}
+                />
+                <div className="mt-2 rounded-lg border border-gray-200 dark:border-gray-600 overflow-y-auto max-h-56">
+                  {candidates.length === 0 ? (
+                    <p className="px-3 py-3 text-sm text-gray-400">Everyone you can assign is already on this board.</p>
+                  ) : visible.length === 0 ? (
+                    <p className="px-3 py-3 text-sm text-gray-400">No one matches &ldquo;{memberSearch}&rdquo;.</p>
+                  ) : (
+                    visible.map((u) => {
+                      const checked = addMemberIds.includes(u.id);
+                      return (
+                        <label
+                          key={u.id}
+                          className={`flex items-center gap-3 px-3 py-2 cursor-pointer text-sm border-b last:border-b-0 border-gray-100 dark:border-gray-700 ${checked ? "bg-primary/5" : "hover:bg-gray-50 dark:hover:bg-gray-700/50"}`}
+                        >
+                          <input type="checkbox" checked={checked} onChange={() => toggle(u.id)} className="rounded border-gray-300 text-primary focus:ring-primary/20" />
+                          <span className="min-w-0">
+                            <span className="block text-gray-900 dark:text-gray-100 truncate">{u.full_name || u.email}</span>
+                            {u.full_name && <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{u.email}</span>}
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {addMemberIds.length === 0 ? "Tick everyone to add, then confirm." : `${addMemberIds.length} selected`}
+                  </span>
+                  <div className="flex gap-2">
+                    <button onClick={closeMembers} className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                      Close
+                    </button>
+                    <button
+                      disabled={addMemberIds.length === 0 || addingMembers}
+                      onClick={async () => {
+                        setAddingMembers(true);
+                        try {
+                          const b = await addBoardMembers(board.id, addMemberIds);
+                          setBoards((bs) => bs.map((x) => (x.id === b.id ? b : x)));
+                          setAddMemberIds([]);
+                          setMemberSearch("");
+                        } catch (e) { showError(e instanceof Error ? e.message : "Add failed"); }
+                        finally { setAddingMembers(false); }
+                      }}
+                      className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
+                    >
+                      {addingMembers ? "Adding…" : addMemberIds.length > 1 ? `Add ${addMemberIds.length} members` : "Add member"}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* New task modal */}
       {showNewTask && board && (

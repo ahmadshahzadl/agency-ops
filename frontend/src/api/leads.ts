@@ -4,6 +4,8 @@ export interface Lead {
   id: string;
   company_name: string;
   contact_name: string | null;
+  last_contact_at: string | null;
+  next_follow_up_at: string | null;
   contact_email: string | null;
   contact_phone: string | null;
   source: string | null;
@@ -90,4 +92,61 @@ export async function convertLead(
 
 export async function deleteLead(id: string): Promise<void> {
   return apiFetch(`/api/v1/leads/${id}`, { method: "DELETE" });
+}
+
+export async function getLead(id: string): Promise<Lead> {
+  return apiFetch<Lead>(`/api/v1/leads/${id}`);
+}
+
+// --- Contact history -------------------------------------------------------------------------
+
+export const INTERACTION_TYPES = ["call", "email", "meeting", "whatsapp", "linkedin", "other"] as const;
+export type InteractionType = (typeof INTERACTION_TYPES)[number];
+
+export interface LeadInteraction {
+  id: string;
+  lead_id: string;
+  type: InteractionType | string;
+  summary: string;
+  occurred_at: string;
+  next_follow_up_at: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string | null;
+}
+
+/** One row of a lead's history: a logged interaction, a stage change or other audit entry,
+ *  a meeting booked with the prospect, or a quote sent to them. */
+export interface LeadTimelineItem {
+  id: string;
+  kind: "interaction" | "activity" | "meeting" | "quote";
+  type: string;
+  title: string;
+  details: string | null;
+  by_name: string | null;
+  occurred_at: string;
+  next_follow_up_at: string | null;
+  reference_id: string | null;
+}
+
+export async function listLeadInteractions(leadId: string): Promise<LeadInteraction[]> {
+  return apiFetch<LeadInteraction[]>(`/api/v1/leads/${leadId}/interactions`);
+}
+
+export async function createLeadInteraction(
+  leadId: string,
+  data: { type: string; summary: string; occurred_at?: string; next_follow_up_at?: string | null; status?: string }
+): Promise<LeadInteraction> {
+  return apiFetch<LeadInteraction>(`/api/v1/leads/${leadId}/interactions`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteLeadInteraction(leadId: string, interactionId: string): Promise<void> {
+  return apiFetch(`/api/v1/leads/${leadId}/interactions/${interactionId}`, { method: "DELETE" });
+}
+
+export async function getLeadTimeline(leadId: string): Promise<LeadTimelineItem[]> {
+  return apiFetch<LeadTimelineItem[]>(`/api/v1/leads/${leadId}/timeline`);
 }

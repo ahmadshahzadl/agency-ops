@@ -17,7 +17,16 @@ class BoardUpdate(BaseModel):
 
 
 class BoardMemberAdd(BaseModel):
-    user_id: UUID
+    """Add one user (user_id) or several at once (user_ids); at least one is required."""
+    user_id: Optional[UUID] = None
+    user_ids: list[UUID] = []
+
+    def all_user_ids(self) -> list[UUID]:
+        ids: list[UUID] = []
+        for uid in ([self.user_id] if self.user_id else []) + list(self.user_ids):
+            if uid not in ids:
+                ids.append(uid)
+        return ids
 
 
 class BoardMemberResponse(BaseModel):

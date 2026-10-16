@@ -23,6 +23,9 @@ class Lead(Base):
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     converted_to_client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"))
     converted_at = Column(DateTime(timezone=True))
+    # Denormalised from lead_interactions so the list view can show them without a join.
+    last_contact_at = Column(DateTime(timezone=True))
+    next_follow_up_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -30,6 +33,7 @@ class Lead(Base):
     assigned_to_user = relationship("User", back_populates="leads_assigned", foreign_keys=[assigned_to])
     created_by_user = relationship("User", back_populates="leads_created", foreign_keys=[created_by])
     converted_to_client = relationship("Client", back_populates="source_lead", foreign_keys=[converted_to_client_id])
+    interactions = relationship("LeadInteraction", back_populates="lead", cascade="all, delete-orphan", order_by="LeadInteraction.occurred_at.desc()")
 
     @property
     def assigned_to_name(self) -> str | None:

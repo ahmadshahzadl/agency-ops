@@ -54,3 +54,11 @@ export async function addBoardMember(boardId: string, userId: string): Promise<B
 export async function removeBoardMember(boardId: string, userId: string): Promise<Board> {
   return apiFetch<Board>(`/api/v1/boards/${boardId}/members/${userId}`, { method: "DELETE" });
 }
+
+/** Add several users to a board in one request (users already on the board are skipped). */
+export async function addBoardMembers(boardId: string, userIds: string[]): Promise<Board> {
+  return apiFetch<Board>(`/api/v1/boards/${boardId}/members`, {
+    method: "POST",
+    body: JSON.stringify({ user_ids: userIds }),
+  });
+}

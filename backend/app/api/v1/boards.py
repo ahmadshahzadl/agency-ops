@@ -202,22 +202,36 @@ def add_board_member(
     permissions=Depends(get_user_permissions),
     manager_scope=Depends(get_manager_scope_user_ids),
 ):
+    """Add one or more users to a board in a single request (`user_id` or `user_ids`).
+    Every id must be an active user; users already on the board are skipped."""
     board = db.query(BoardModel).filter(BoardModel.id == board_id).first()
     if not board:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
     if board.created_by != user.id and not _is_project_manager(db, board.project_id, user, permissions, manager_scope):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins, the project's manager, or the board creator can manage members")
-    target = db.query(UserModel).filter(UserModel.id == data.user_id, UserModel.is_active == True).first()
-    if not target:
+    wanted = data.all_user_ids()
+    if not wanted:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Provide user_id or a non-empty user_ids list")
+    targets = db.query(UserModel).filter(UserModel.id.in_(wanted), UserModel.is_active == True).all()
+    found = {u.id: u for u in targets}
+    missing = [str(uid) for uid in wanted if uid not in found]
+    if missing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found or inactive")
-    existing = db.query(BoardMemberModel).filter(
-        BoardMemberModel.board_id == board_id, BoardMemberModel.user_id == data.user_id
-    ).first()
-    if not existing:
-        db.add(BoardMemberModel(board_id=board_id, user_id=data.user_id))
-        if data.user_id != user.id:
+    already = {
+        r[0] for r in db.query(BoardMemberModel.user_id).filter(
+            BoardMemberModel.board_id == board_id, BoardMemberModel.user_id.in_(wanted)
+        ).all()
+    }
+    added: list[UserModel] = []
+    for uid in wanted:
+        if uid in already:
+            continue
+        target = found[uid]
+        db.add(BoardMemberModel(board_id=board_id, user_id=uid))
+        added.append(target)
+        if uid != user.id:
             db.add(NotificationModel(
-                user_id=data.user_id,
+                user_id=uid,
                 title="Added to board",
                 message=f'You were added to the board "{board.name}"',
                 link="/boards",
@@ -225,9 +239,11 @@ def add_board_member(
                 reference_id=None,
             ))
             email_service.send_notification(target.email, "Added to board", f'You were added to the board "{board.name}"', "/boards")
+    if added:
         notifications_updated_this_request.set(True)
         tasks_updated_this_request.set(True)
-        log_activity(db, user.id, "board_member_added", "board", board.id, details=f"{target.full_name or target.email} added to board: {board.name}")
+        names = ", ".join(t.full_name or t.email for t in added)
+        log_activity(db, user.id, "board_member_added", "board", board.id, details=f"{names} added to board: {board.name}")
         db.commit()
     return _board_response(db, board)
 

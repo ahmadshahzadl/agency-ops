@@ -3,6 +3,7 @@ from app.models.role import Role, Permission, RolePermission
 from app.models.team import Team, TeamMember
 from app.models.client import Client
 from app.models.lead import Lead
+from app.models.lead_interaction import LeadInteraction
 from app.models.activity_log import ActivityLog
 from app.models.project import Project, ProjectMember
 from app.models.task import Task
@@ -55,6 +56,7 @@ __all__ = [
     "TeamMember",
     "Client",
     "Lead",
+    "LeadInteraction",
     "ActivityLog",
     "Project",
     "ProjectMember",

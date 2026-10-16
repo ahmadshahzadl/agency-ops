@@ -283,3 +283,29 @@ def test_board_member_sees_project_in_lists(client, auth_headers, employee_heade
     assert any(p["id"] == project_id for p in after)
     names = client.get("/api/v1/projects/names?limit=500", headers=employee_headers).json()
     assert any(p["id"] == project_id for p in names)
+
+
+def test_add_several_members_at_once(client, auth_headers, employee_headers, qa_headers):
+    project_id = _setup_project(client, auth_headers)
+    board = _make_board(client, auth_headers, project_id)
+    emp = _user_id(client, auth_headers, "employee@test.com")
+    qa = _user_id(client, auth_headers, "qa@test.com")
+
+    r = client.post(f"/api/v1/boards/{board['id']}/members", headers=auth_headers, json={"user_ids": [emp, qa]})
+    assert r.status_code == 201, r.text
+    ids = {m["user_id"] for m in r.json()["members"]}
+    assert {emp, qa} <= ids
+
+    # Re-adding is a no-op, not an error; the single-id form still works.
+    r = client.post(f"/api/v1/boards/{board['id']}/members", headers=auth_headers, json={"user_id": emp, "user_ids": [qa]})
+    assert r.status_code == 201
+    assert len([m for m in r.json()["members"] if m["user_id"] == emp]) == 1
+
+    # Nothing to add is a validation error; an unknown id in the batch rejects the whole batch.
+    assert client.post(f"/api/v1/boards/{board['id']}/members", headers=auth_headers, json={}).status_code == 422
+    r = client.post(f"/api/v1/boards/{board['id']}/members", headers=auth_headers, json={"user_ids": [emp, str(uuid.uuid4())]})
+    assert r.status_code == 404
+
+    # Both new members can now see the board.
+    for h in (employee_headers, qa_headers):
+        assert client.get(f"/api/v1/boards/{board['id']}", headers=h).status_code == 200

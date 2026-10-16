@@ -13,6 +13,7 @@ import { NotesSection } from "@/components/NotesSection";
 import { AttachmentsSection } from "@/components/AttachmentsSection";
 import { useModal } from "@/contexts/ModalContext";
 import { BulkActionsBar } from "@/components/BulkActionsBar";
+import { LeadDetailDrawer } from "@/components/LeadDetailDrawer";
 
 const PIPELINE_STAGES = [
   "lead",
@@ -40,6 +41,8 @@ export default function Leads() {
   const [modal, setModal] = useState<"new" | Lead | null>(null);
   const [convertModal, setConvertModal] = useState<Lead | null>(null);
   const [markLostModal, setMarkLostModal] = useState<Lead | null>(null);
+  const [detail, setDetail] = useState<Lead | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [form, setForm] = useState({
     company_name: "",
     contact_name: "",
@@ -74,6 +77,9 @@ export default function Leads() {
       if (statusFilter) params.status = statusFilter;
       const leadList = await listLeads(Object.keys(params).length ? params : undefined);
       setItems(leadList);
+      // Keep an open detail drawer on the fresh row (or close it if the lead is gone).
+      setDetail((d) => (d ? leadList.find((x) => x.id === d.id) ?? null : d));
+      setRefreshKey((k) => k + 1);
       setTeams(teamList);
     } finally {
       setLoading(false);
@@ -258,6 +264,11 @@ export default function Leads() {
     });
   };
 
+  const fmtShortDate = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
+  const followUpOverdue = (l: Lead) =>
+    !!l.next_follow_up_at && new Date(l.next_follow_up_at).getTime() < Date.now() && !l.converted_to_client_id;
+
   const teamMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
   const sourceOptions = Array.from(new Set(items.map((l) => l.source?.trim() || "Unknown").filter(Boolean))).sort();
   const localLower = localSearch.trim().toLowerCase();
@@ -360,15 +371,21 @@ export default function Leads() {
                 <th className="px-4 py-3">Team</th>
                 <th className="px-4 py-3">Submitted by</th>
                 <th className="px-4 py-3">Assigned to</th>
+                <th className="px-4 py-3">Last contact</th>
+                <th className="px-4 py-3">Follow-up</th>
                 <th className="px-4 py-3">Converted</th>
                 {canWrite && <th className="px-4 py-3 w-32 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredItems.map((l) => (
-                <tr key={l.id} className={`hover:bg-gray-50/80 ${selectedIds.has(l.id) ? "bg-primary/5" : ""}`}>
+                <tr
+                  key={l.id}
+                  onClick={() => setDetail(l)}
+                  className={`cursor-pointer hover:bg-gray-50/80 ${selectedIds.has(l.id) ? "bg-primary/5" : ""}`}
+                >
                   {canBulk && (
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.has(l.id)}
@@ -377,7 +394,9 @@ export default function Leads() {
                       />
                     </td>
                   )}
-                  <td className="px-4 py-3 font-medium text-gray-900">{l.company_name}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    <span className="text-primary hover:underline">{l.company_name}</span>
+                  </td>
                   <td className="px-4 py-3 text-gray-600">
                     {l.contact_name || l.contact_email || "—"}
                   </td>
@@ -391,11 +410,15 @@ export default function Leads() {
                   <td className="px-4 py-3 text-gray-600">
                     {l.assigned_to_name ?? "—"}
                   </td>
+                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtShortDate(l.last_contact_at)}</td>
+                  <td className={`px-4 py-3 whitespace-nowrap ${followUpOverdue(l) ? "text-red-600 font-medium" : "text-gray-600"}`}>
+                    {fmtShortDate(l.next_follow_up_at)}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">
                     {l.converted_to_client_id ? "Yes" : "—"}
                   </td>
                   {(memberCanEdit(l) || managementCanEdit(l)) && (
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
@@ -465,9 +488,28 @@ export default function Leads() {
         </div>
       )}
 
+      {detail && (
+        <LeadDetailDrawer
+          lead={detail}
+          teamName={detail.assigned_team_id ? teamMap[detail.assigned_team_id] : null}
+          refreshKey={refreshKey}
+          canWrite={canWrite}
+          canManageLeads={canManageLeads}
+          memberCanEdit={memberCanEdit(detail)}
+          managementCanEdit={managementCanEdit(detail)}
+          onClose={() => setDetail(null)}
+          onEdit={openEdit}
+          onConvert={openConvert}
+          onMarkAsConverted={handleMarkAsConverted}
+          onMarkLost={(l) => setMarkLostModal(l)}
+          onDelete={remove}
+          onChanged={load}
+        />
+      )}
+
       {modal && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-10"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
           onClick={() => setModal(null)}
         >
           <div
@@ -575,7 +617,7 @@ export default function Leads() {
 
       {convertModal && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-10"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
           onClick={() => setConvertModal(null)}
         >
           <div
@@ -659,7 +701,7 @@ export default function Leads() {
 
       {markLostModal && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-10"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
           onClick={() => setMarkLostModal(null)}
         >
           <div
