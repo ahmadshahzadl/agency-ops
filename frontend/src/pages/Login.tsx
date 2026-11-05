@@ -86,6 +86,10 @@ export default function Login() {
               <input
                 id="login-email"
                 type="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#01184e]/40 focus:border-[#01184e] dark:focus:ring-[#01184e]/50 transition-shadow"

@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.models import User
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, decode_token, token_version_matches
@@ -5,7 +6,9 @@ from fastapi import HTTPException, status
 
 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
-    user = db.query(User).filter(User.email == email).first()
+    # Email is matched case-insensitively: new rows are stored lower-cased, but rows
+    # created before migration 041 may still carry the casing the admin typed.
+    user = db.query(User).filter(func.lower(User.email) == email.strip().lower()).first()
     if not user or not user.is_active:
         return None
     if not verify_password(password, user.password_hash):

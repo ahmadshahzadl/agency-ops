@@ -1,5 +1,5 @@
 from datetime import date
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 from uuid import UUID
 
@@ -15,6 +15,12 @@ class UserCreateAdmin(BaseModel):
     client_id: Optional[UUID] = None  # set to create a client-portal user
     role_ids: list[UUID] = []
     team_ids: list[UUID] = []
+
+    @field_validator("email")
+    @classmethod
+    def _normalize_email(cls, v: str) -> str:
+        """Store one canonical form so sign-in is not case-sensitive."""
+        return v.strip().lower()
 
 
 class UserUpdateAdmin(BaseModel):

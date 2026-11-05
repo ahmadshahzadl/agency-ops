@@ -1,11 +1,18 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 from uuid import UUID
+
+
+def _normalize_email(cls, v: str) -> str:
+    """Email is case-insensitive in practice; store and match one canonical form."""
+    return v.strip().lower() if isinstance(v, str) else v
 
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+    _norm_email = field_validator("email")(classmethod(_normalize_email))
 
 
 class RefreshRequest(BaseModel):
@@ -14,6 +21,8 @@ class RefreshRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: str
+
+    _norm_email = field_validator("email")(classmethod(_normalize_email))
 
 
 class ResetPasswordRequest(BaseModel):

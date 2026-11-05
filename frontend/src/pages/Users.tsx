@@ -400,6 +400,9 @@ export default function Users() {
                 <label className={labelClass}>Email</label>
                 <input
                   type="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                   className={inputClass}

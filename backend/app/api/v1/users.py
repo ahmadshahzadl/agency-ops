@@ -1,6 +1,7 @@
 """Admin-only: list, create, update users; assign roles and teams. Assignable users for task assignment."""
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User as UserModel, UserRole, TeamMember
@@ -79,7 +80,9 @@ def create_user(
     db: Session = Depends(get_db),
     admin_user=Depends(require_admin),
 ):
-    if db.query(UserModel).filter(UserModel.email == data.email).first():
+    # data.email is already normalised to lower case by the schema; compare case-insensitively
+    # so a pre-existing mixed-case row is still detected as a duplicate.
+    if db.query(UserModel).filter(func.lower(UserModel.email) == data.email).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
     user = UserModel(
         email=data.email,

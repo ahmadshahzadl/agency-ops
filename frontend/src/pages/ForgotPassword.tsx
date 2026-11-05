@@ -45,6 +45,10 @@ export default function ForgotPassword() {
             <form onSubmit={handleSubmit} className="space-y-5">
               <input
                 type="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#01184e]/40 focus:border-[#01184e]"

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.auth import LoginRequest, RefreshRequest, Token, UserResponse, ProfileUpdate, ForgotPasswordRequest, ResetPasswordRequest
@@ -34,7 +35,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     user = authenticate_user(db, data.email, data.password)
     if not user:
         login_limiter.record_failure(limiter_key)
-        known = db.query(User).filter(User.email == data.email).first()
+        known = db.query(User).filter(func.lower(User.email) == data.email).first()
         if known:
             log_activity(db, known.id, "login_failed", "user", known.id, details="Failed sign-in attempt")
             db.commit()
@@ -54,7 +55,7 @@ def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
     if forgot_limiter.retry_after(f"forgot:{email}"):
         return response  # silently drop when rate-limited
     forgot_limiter.record_failure(f"forgot:{email}")
-    user = db.query(User).filter(User.email == email, User.is_active == True).first()
+    user = db.query(User).filter(func.lower(User.email) == email, User.is_active == True).first()
     if user:
         token = secrets.token_urlsafe(32)
         db.add(PasswordResetToken(
