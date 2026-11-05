@@ -60,15 +60,15 @@ CASE_STUDY = {
         "up and verifies the builder and finds a contact itself. On top sits a full subscriber SaaS: "
         "seat-based pricing per trade per county, a Radar feed, a map view, and an opportunities pipeline, "
         "with Stripe handling subscriptions end to end, a clean personal-link attribution system for every "
-        "closer and affiliate, an internal admin console for the operations team, and a native iOS/Android "
-        "companion app for field crews."
+        "closer and affiliate, an internal admin console for the operations team, and a native companion app "
+        "for field crews, built with Flutter and live on the Apple App Store."
     ),
     "highlights": [
         "Taxonomy engine mapping county-specific permit codes to one construction timeline, regression-tested against real records",
         "Multi-source permit and inspection ingestion normalized into one pipeline",
         "Contact enrichment that verifies a builder is a real construction business before it ever reaches a subscriber",
         "Seat-based Stripe subscriptions with a one-link attribution and commission system for sales and affiliates",
-        "Native iOS/Android companion app for field crews, shipping through TestFlight",
+        "Native companion app built with Flutter — live on the Apple App Store today, giving field crews the Radar feed, a live map, route planning and the deal pipeline on their phone",
         "Migrated the production database live with zero downtime as part of a 90% infrastructure cost reduction",
     ],
     "results": [
@@ -92,45 +92,46 @@ CASE_STUDY = {
 def main(dry_run: bool) -> None:
     db = SessionLocal()
     try:
-        existing = db.query(CaseStudy).filter(CaseStudy.slug == CASE_STUDY["slug"]).first()
-        if existing:
-            print(f"ok     exists: {CASE_STUDY['slug']} (id={existing.id}) — nothing to do")
-            return
-
-        row = CaseStudy(
-            id=uuid.uuid4(),
-            slug=CASE_STUDY["slug"],
-            title=CASE_STUDY["title"],
-            tagline=CASE_STUDY["tagline"],
-            category=CASE_STUDY["category"],
-            tags=CASE_STUDY["tags"],
-            year=CASE_STUDY["year"],
-            overview=CASE_STUDY["overview"],
-            challenge=CASE_STUDY["challenge"],
-            solution=CASE_STUDY["solution"],
-            highlights=CASE_STUDY["highlights"],
-            results=CASE_STUDY["results"],
-            stack=CASE_STUDY["stack"],
-            related_slugs=CASE_STUDY["related_slugs"],
-            image_url=CASE_STUDY["image_url"],
-            gradient=CASE_STUDY["gradient"],
-            live_url=CASE_STUDY["live_url"],
-            status="published",
-            published_at=datetime.now(timezone.utc),
-            featured=CASE_STUDY["featured"],
-            sort_order=CASE_STUDY["sort_order"],
-            seo_title=CASE_STUDY["seo_title"],
-            seo_description=CASE_STUDY["seo_description"],
+        # Fields that are safe to overwrite on a re-run (everything except identity/publish bookkeeping).
+        MUTABLE_FIELDS = (
+            "title", "tagline", "category", "tags", "year", "overview", "challenge", "solution",
+            "highlights", "results", "stack", "related_slugs", "image_url", "gradient", "live_url",
+            "featured", "sort_order", "seo_title", "seo_description",
         )
-        db.add(row)
+
+        row = db.query(CaseStudy).filter(CaseStudy.slug == CASE_STUDY["slug"]).first()
+        verb = "update"
+        if not row:
+            verb = "create"
+            row = CaseStudy(id=uuid.uuid4(), slug=CASE_STUDY["slug"], status="published", published_at=datetime.now(timezone.utc))
+            db.add(row)
+
+        changed = []
+        for field in MUTABLE_FIELDS:
+            if getattr(row, field, None) != CASE_STUDY[field]:
+                setattr(row, field, CASE_STUDY[field])
+                changed.append(field)
 
         if dry_run:
             db.rollback()
-            print(f"DRY RUN: would create case study '{CASE_STUDY['slug']}'. Re-run without --dry-run to apply.")
+            if verb == "create":
+                print(f"DRY RUN: would create case study '{CASE_STUDY['slug']}'. Re-run without --dry-run to apply.")
+            elif changed:
+                print(f"DRY RUN: would update '{CASE_STUDY['slug']}': {', '.join(changed)}. Re-run without --dry-run to apply.")
+            else:
+                print(f"ok     {CASE_STUDY['slug']}: nothing to do")
             return
 
-        db.commit()
-        print(f"CHANGE created: {CASE_STUDY['slug']}")
+        if verb == "create":
+            db.commit()
+            print(f"CHANGE created: {CASE_STUDY['slug']}")
+        elif changed:
+            db.commit()
+            print(f"CHANGE updated {CASE_STUDY['slug']}: {', '.join(changed)}")
+        else:
+            db.rollback()
+            print(f"ok     {CASE_STUDY['slug']}: nothing to do")
+            return
     finally:
         db.close()
 
