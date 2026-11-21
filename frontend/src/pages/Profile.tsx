@@ -6,10 +6,65 @@ import { fetchServerVersion, compareVersions } from "@/api/version";
 import { APP_VERSION } from "@/config";
 import { setTheme, getStoredTheme, type ThemeValue } from "@/lib/theme";
 import { getGoogleStatus, getGoogleConnectUrl, disconnectGoogle, type GoogleStatus } from "@/api/integrations";
+import { getConnectorStatus, revokeConnector, type ConnectorStatus } from "@/api/connector";
 
 const inputClass =
   "w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary/20 focus:border-primary";
 const labelClass = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1";
+
+/** Settings -> Connected apps: the Claude connector (remote MCP). Hidden when the server has it off. */
+function ConnectedAppsCard() {
+  const [status, setStatus] = useState<ConnectorStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const load = () => getConnectorStatus().then(setStatus).catch(() => setStatus(null));
+  useEffect(() => { load(); }, []);
+  if (!status || !status.enabled || (!status.can_connect && status.grants.length === 0)) return null;
+
+  const revoke = async (id: string) => {
+    setBusy(true);
+    try { await revokeConnector(id); await load(); } finally { setBusy(false); }
+  };
+  const copy = async () => {
+    await navigator.clipboard.writeText(status.mcp_url).catch(() => undefined);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  const fmt = (d: string | null) => (d ? new Date(d).toLocaleString() : "never");
+
+  return (
+    <section className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm px-4 py-3 flex flex-col gap-2 shrink-0 min-h-0 overflow-auto">
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Connected apps</h2>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Use Fuorix from Claude: in Claude, open Settings → Connectors → Add custom connector and paste this URL, then approve it here.
+        Claude works with your role's access, cannot send emails or delete anything, and its changes are logged as "via Claude".
+      </p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 min-w-0 truncate text-xs px-2 py-1.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">{status.mcp_url}</code>
+        <button type="button" onClick={copy} className="px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      {status.grants.length === 0 ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400">Not connected.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+          {status.grants.map((g) => (
+            <li key={g.id} className="py-1.5 flex items-center justify-between gap-3 text-xs">
+              <span className="text-gray-700 dark:text-gray-300">
+                <strong>{g.client_name}</strong> · connected {fmt(g.created_at)} · last used {fmt(g.last_used_at)}
+              </span>
+              <button type="button" onClick={() => revoke(g.id)} disabled={busy}
+                className="px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+                Disconnect
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 function SignatureCard() {
   const { user, refetch } = useAuth();
@@ -365,6 +420,8 @@ export default function ProfilePage() {
             )}
           </section>
         )}
+
+        <ConnectedAppsCard />
 
         {/* Updates — half width, compact */}
         <section className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm px-4 py-3 flex flex-col gap-2 shrink-0 min-h-0 overflow-auto">

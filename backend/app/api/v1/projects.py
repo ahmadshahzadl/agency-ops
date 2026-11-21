@@ -10,6 +10,27 @@ from app.services.activity_service import log_activity
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
+# Money on a project (rate, budget) is finance data: only finance:read holders see it, and only
+# they may change it. Everyone else gets null and their edits leave the stored values untouched,
+# so a manager saving the project form can no longer wipe the rate that invoicing relies on.
+MONEY_FIELDS = ("hourly_rate", "budget")
+_BASE_FIELDS = ("id", "client_id", "name", "description", "status", "pipeline_stage", "assigned_team_id", "start_date", "end_date", "owner_id", "created_at", "updated_at")
+
+
+def can_see_project_money(permissions: set[str]) -> bool:
+    return "admin:all" in permissions or "finance:read" in permissions
+
+
+def _project_response(project: ProjectModel, permissions: set[str], task_count: int = 0, task_done_count: int = 0) -> ProjectResponse:
+    data = {k: getattr(project, k) for k in _BASE_FIELDS}
+    if can_see_project_money(permissions):
+        for k in MONEY_FIELDS:
+            data[k] = getattr(project, k)
+    data["client_name"] = project.client.name if project.client else None
+    data["task_count"] = task_count
+    data["task_done_count"] = task_done_count
+    return ProjectResponse(**data)
+
 
 @router.get("/names", response_model=list[ProjectNameResponse])
 def list_project_names(
@@ -154,11 +175,7 @@ def list_projects(
     out = []
     for p in projects:
         tc, tdc = stats_map.get(p.id, (0, 0))
-        data = {k: getattr(p, k) for k in ("id", "client_id", "name", "description", "status", "pipeline_stage", "assigned_team_id", "start_date", "end_date", "owner_id", "created_at", "updated_at")}
-        data["client_name"] = p.client.name if p.client else None
-        data["task_count"] = tc
-        data["task_done_count"] = tdc
-        out.append(ProjectResponse(**data))
+        out.append(_project_response(p, permissions, tc, tdc))
     return out
 
 
@@ -204,7 +221,7 @@ def create_project(
     log_activity(db, user.id, "project_created", "project", project.id, details=f"Project: {project.name}")
     db.commit()
     db.refresh(project)
-    return project
+    return _project_response(project, permissions)
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -223,11 +240,7 @@ def get_project(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     task_total = db.query(func.count(TaskModel.id)).filter(TaskModel.project_id == project_id).scalar() or 0
     task_done = db.query(func.count(TaskModel.id)).filter(TaskModel.project_id == project_id, TaskModel.status == "done").scalar() or 0
-    data = {k: getattr(project, k) for k in ("id", "client_id", "name", "description", "status", "pipeline_stage", "assigned_team_id", "start_date", "end_date", "hourly_rate", "budget", "owner_id", "created_at", "updated_at")}
-    data["client_name"] = project.client.name if project.client else None
-    data["task_count"] = task_total
-    data["task_done_count"] = task_done
-    return ProjectResponse(**data)
+    return _project_response(project, permissions, task_total, task_done)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -246,6 +259,9 @@ def update_project(
     if not _can_access_project(project, user.id, team_ids, "admin:all" in permissions, manager_scope, db):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     updates = data.model_dump(exclude_unset=True)
+    if not can_see_project_money(permissions):
+        for k in MONEY_FIELDS:
+            updates.pop(k, None)
     if "assigned_team_id" in updates and updates["assigned_team_id"] and "admin:all" not in permissions:
         if updates["assigned_team_id"] not in team_ids:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign project to this team")
@@ -258,7 +274,9 @@ def update_project(
     log_activity(db, user.id, "project_updated", "project", project.id, details=f"Project: {project.name}")
     db.commit()
     db.refresh(project)
-    return project
+    tc = db.query(func.count(TaskModel.id)).filter(TaskModel.project_id == project.id).scalar() or 0
+    tdc = db.query(func.count(TaskModel.id)).filter(TaskModel.project_id == project.id, TaskModel.status == "done").scalar() or 0
+    return _project_response(project, permissions, tc, tdc)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -39,6 +39,8 @@ export default function Projects() {
   });
   const { hasPermission } = useAuth();
   const isAdmin = hasPermission("admin:all");
+  // Rate and budget are finance data: the API hides them and ignores edits without finance:read.
+  const canSeeMoney = hasPermission("finance:read");
   const canBulk = hasPermission("admin:all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -123,8 +125,12 @@ export default function Projects() {
       assigned_team_id: form.assigned_team_id || null,
       start_date: form.start_date || null,
       end_date: form.end_date || null,
-      hourly_rate: form.hourly_rate ? Number(form.hourly_rate) : null,
-      budget: form.budget ? Number(form.budget) : null,
+      ...(canSeeMoney
+        ? {
+            hourly_rate: form.hourly_rate ? Number(form.hourly_rate) : null,
+            budget: form.budget ? Number(form.budget) : null,
+          }
+        : {}),
     };
     try {
       if (modal === "new") {
@@ -411,6 +417,7 @@ export default function Projects() {
                 <input type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} className={inputClass} />
                 <input type="date" value={form.end_date} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))} className={inputClass} />
               </div>
+              {canSeeMoney && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="number"
@@ -431,6 +438,7 @@ export default function Projects() {
                   className={inputClass}
                 />
               </div>
+              )}
             </div>
             <MilestonesSection projectId={modal !== "new" ? (modal as Project).id : undefined} />
             <NotesSection entityType="project" entityId={modal !== "new" ? (modal as Project).id : undefined} />

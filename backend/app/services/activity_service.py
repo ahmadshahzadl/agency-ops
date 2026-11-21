@@ -29,6 +29,8 @@ def log_activity(
         user = db.query(User).filter(User.id == user_id).first()
         if user and (user.email or "").strip().lower() == super_email:
             return
+    if db.info.get("via") == "mcp":  # set by get_current_user for Claude-connector requests
+        details = f"{details} · via Claude" if details else "via Claude"
     log = ActivityLog(
         user_id=user_id,
         action=action,

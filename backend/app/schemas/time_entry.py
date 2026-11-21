@@ -55,7 +55,7 @@ class TimeSummaryResponse(BaseModel):
     total_hours: Decimal
     billable_hours: Decimal
     unbilled_billable_hours: Decimal
-    unbilled_amount: Decimal  # using entry rate, else project rate, else 0 for that entry
+    unbilled_amount: Optional[Decimal] = None  # None without finance:read; using entry rate, else project rate, else 0 for that entry
     by_user: list[TimeSummaryUser]
 
 

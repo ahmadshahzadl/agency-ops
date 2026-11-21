@@ -188,6 +188,9 @@ certbot --nginx -d app.example.com     # issues TLS, sets up renewal
 ufw allow 'Nginx Full'                 # if ufw is active
 ```
 
+Optional: the Claude connector (remote MCP) adds a second service and three nginx locations.
+See [claude-connector.md](claude-connector.md).
+
 ## 9. Backups (non-negotiable)
 
 `/opt/fuorix/backup.sh`:

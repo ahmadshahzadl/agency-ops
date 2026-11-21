@@ -22,7 +22,7 @@ export interface TimeSummary {
   total_hours: string;
   billable_hours: string;
   unbilled_billable_hours: string;
-  unbilled_amount: string;
+  unbilled_amount: string | null; // null without finance:read
   by_user: { user_id: string; user_name: string | null; hours: string }[];
 }
 

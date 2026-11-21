@@ -23,6 +23,15 @@ jobs:
             .venv/bin/alembic upgrade head
             systemctl restart fuorix
 
+            # Claude connector (remote MCP). Its own venv: mcp 2.x needs a newer Starlette than the
+            # API's FastAPI pin. Skipped until the fuorix-mcp service is installed (docs/claude-connector.md).
+            if [ -f /etc/systemd/system/fuorix-mcp.service ]; then
+              cd /opt/fuorix/app/mcp
+              [ -d .venv ] || python3 -m venv .venv
+              .venv/bin/pip install -q -r requirements.txt
+              systemctl restart fuorix-mcp
+            fi
+
             cd /opt/fuorix/app/frontend
             npm ci
             VITE_API_URL=https://app.fuorix.com npm run build

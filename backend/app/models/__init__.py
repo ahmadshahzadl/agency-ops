@@ -26,8 +26,11 @@ from app.models.booking import BookingPage
 from app.models.integration import UserIntegration
 from app.models.content import BlogPost, CaseStudy, ContentMedia
 from app.models.attendance import AttendanceRecord
+from app.models.oauth import OAuthClient, OAuthGrant
 
 __all__ = [
+    "OAuthClient",
+    "OAuthGrant",
     "AttendanceRecord",
     "RecurringExpense",
     "BlogPost",

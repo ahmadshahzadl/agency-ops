@@ -3,7 +3,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications, notes, messages, boards, share, attachments, time_entries, quotes, milestones, portal, agreements, letters, credentials, webhooks, booking_public, booking_admin, integrations, content_admin, content_public, recurring_expenses, attendance, agreements_public
+from app.api.v1 import auth, clients, projects, tasks, meetings, finance, analytics, users, roles, teams, leads, team_activity, announcements, notifications, notes, messages, boards, share, attachments, time_entries, quotes, milestones, portal, agreements, letters, credentials, webhooks, booking_public, booking_admin, integrations, content_admin, content_public, recurring_expenses, attendance, agreements_public, oauth
 from app.websocket import activity_manager
 from app.websocket_messages import message_ws_manager
 from app.services.activity_service import (
@@ -36,6 +36,8 @@ def _ws_user_id(websocket: WebSocket) -> UUID | None:
     payload = decode_token(token)
     if not payload or payload.get("type") != "access":
         return None
+    if payload.get("via") == "mcp":
+        return None  # Claude-connector tokens get no realtime feeds
     try:
         user_id = UUID(payload["sub"])
     except (KeyError, ValueError, TypeError):
@@ -147,6 +149,16 @@ app.include_router(content_public.router, prefix="/api/v1")
 app.include_router(recurring_expenses.router, prefix="/api/v1")
 app.include_router(attendance.router, prefix="/api/v1")
 app.include_router(agreements_public.router, prefix="/api/v1")
+app.include_router(oauth.router, prefix="/api/v1")
+
+
+@app.get("/.well-known/oauth-authorization-server", include_in_schema=False)
+def oauth_authorization_server_metadata():
+    """RFC 8414 discovery for the Claude connector (404 while MCP_ENABLED is off)."""
+    from fastapi import HTTPException
+    if not settings.mcp_enabled:
+        raise HTTPException(status_code=404, detail="Not found")
+    return oauth.authorization_server_metadata()
 
 
 @app.on_event("startup")

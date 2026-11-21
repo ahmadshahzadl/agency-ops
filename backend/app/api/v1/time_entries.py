@@ -20,7 +20,12 @@ from app.services import email_service
 router = APIRouter(tags=["time"])
 
 
-def _entry_response(e: TimeEntryModel) -> TimeEntryResponse:
+def _can_see_money(permissions: set[str]) -> bool:
+    """Rates and money values are finance data (same rule as analytics and project budgets)."""
+    return "admin:all" in permissions or "finance:read" in permissions
+
+
+def _entry_response(e: TimeEntryModel, permissions: set[str]) -> TimeEntryResponse:
     return TimeEntryResponse(
         id=e.id,
         user_id=e.user_id,
@@ -33,7 +38,7 @@ def _entry_response(e: TimeEntryModel) -> TimeEntryResponse:
         hours=e.hours,
         description=e.description,
         billable=e.billable,
-        hourly_rate=e.hourly_rate,
+        hourly_rate=e.hourly_rate if _can_see_money(permissions) else None,
         invoice_id=e.invoice_id,
         created_at=e.created_at,
     )
@@ -89,7 +94,7 @@ def list_time_entries(
     if unbilled:
         qry = qry.filter(TimeEntryModel.invoice_id.is_(None))
     rows = qry.order_by(TimeEntryModel.work_date.desc(), TimeEntryModel.created_at.desc()).offset(skip).limit(limit).all()
-    return [_entry_response(e) for e in rows]
+    return [_entry_response(e, permissions) for e in rows]
 
 
 @router.post("/time-entries", response_model=TimeEntryResponse, status_code=status.HTTP_201_CREATED)
@@ -132,7 +137,7 @@ def create_time_entry(
         hours=data.hours,
         description=(data.description or "").strip() or None,
         billable=data.billable,
-        hourly_rate=data.hourly_rate,
+        hourly_rate=data.hourly_rate if _can_see_money(permissions) else None,
     )
     db.add(entry)
     db.flush()
@@ -149,7 +154,7 @@ def create_time_entry(
     entry = db.query(TimeEntryModel).options(
         joinedload(TimeEntryModel.user), joinedload(TimeEntryModel.project), joinedload(TimeEntryModel.task)
     ).filter(TimeEntryModel.id == entry.id).first()
-    return _entry_response(entry)
+    return _entry_response(entry, permissions)
 
 
 def _get_editable_entry(db, entry_id, user, permissions, manager_scope) -> TimeEntryModel:
@@ -175,6 +180,8 @@ def update_time_entry(
 ):
     entry = _get_editable_entry(db, entry_id, user, permissions, manager_scope)
     updates = data.model_dump(exclude_unset=True)
+    if not _can_see_money(permissions):
+        updates.pop("hourly_rate", None)  # rates are finance-only; keep the stored value
     _validate_entry_fields(updates.get("hours"))
     if "task_id" in updates and updates["task_id"] is not None:
         task = db.query(TaskModel).filter(TaskModel.id == updates["task_id"]).first()
@@ -184,7 +191,7 @@ def update_time_entry(
         setattr(entry, k, v)
     db.commit()
     db.refresh(entry)
-    return _entry_response(entry)
+    return _entry_response(entry, permissions)
 
 
 @router.delete("/time-entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -249,7 +256,7 @@ def time_summary(
         total_hours=total,
         billable_hours=billable,
         unbilled_billable_hours=unbilled,
-        unbilled_amount=unbilled_amount,
+        unbilled_amount=unbilled_amount if _can_see_money(permissions) else None,
         by_user=sorted(per_user.values(), key=lambda u: -u.hours),
     )
 
@@ -344,4 +351,4 @@ def invoice_time_entries(
         .order_by(TimeEntryModel.work_date)
         .all()
     )
-    return [_entry_response(e) for e in rows]
+    return [_entry_response(e, permissions) for e in rows]

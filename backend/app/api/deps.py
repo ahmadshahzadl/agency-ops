@@ -1,6 +1,6 @@
 from typing import Annotated
 from uuid import UUID
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -21,6 +21,7 @@ def is_super_admin(user: User) -> bool:
 
 
 def get_current_user(
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
 ) -> User:
@@ -38,7 +39,26 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
     if not token_version_matches(payload, user):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
+    if payload.get("via") == "mcp":
+        _enforce_connector(request, db, payload, user)
     return user
+
+
+def _enforce_connector(request: Request, db: Session, payload: dict, user: User) -> None:
+    """Claude-connector tokens: only allowlisted routes (app/core/mcp_policy.py), live grant, rate cap."""
+    from app.core.mcp_policy import is_allowed
+    from app.services.connector_service import check_connector_request
+
+    route = request.scope.get("route")
+    if not is_allowed(request.method, getattr(route, "path", None)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not available to the Claude connector")
+    reason = check_connector_request(db, payload, user)
+    if reason == "RATE_LIMIT":
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many connector requests", headers={"Retry-After": "60"})
+    if reason:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=reason)
+    # Activity entries written during this request get marked "via Claude" (see log_activity).
+    db.info["via"] = "mcp"
 
 
 def require_staff(user: Annotated[User, Depends(get_current_user)]) -> User:

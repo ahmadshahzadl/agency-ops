@@ -84,6 +84,20 @@ class Settings(BaseSettings):
     # Seconds a webhook timestamp may lag before it is rejected as a replay.
     calendly_webhook_tolerance_seconds: int = 300
 
+    # Claude connector (remote MCP). Off unless MCP_ENABLED=true.
+    #   MCP_PUBLIC_URL      public base URL of the app (issuer), e.g. https://app.fuorix.com;
+    #                       the MCP endpoint is <MCP_PUBLIC_URL>/mcp
+    #   MCP_ALLOWED_EMAILS  comma-separated accounts allowed to connect; empty = any active
+    #                       staff account (portal/client accounts are always refused)
+    #   MCP_REDIRECT_URIS   OAuth callback URLs the connector may redirect to (Claude's)
+    mcp_enabled: bool = False
+    mcp_public_url: str = ""
+    mcp_allowed_emails: str = ""
+    mcp_redirect_uris: str = "https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback"
+    mcp_access_token_minutes: int = 60
+    mcp_refresh_token_days: int = 30
+    mcp_requests_per_minute: int = 120
+
     @model_validator(mode="after")
     def _enforce_safe_config(self):
         # The default JWT secret is public (it's in the repo); anyone knowing it can forge

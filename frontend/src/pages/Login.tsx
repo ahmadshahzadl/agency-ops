@@ -4,6 +4,12 @@ import { useAuth } from "@/store/auth";
 import { APP_NAME, getBrandMarkUrl } from "@/config";
 import { BrandLogo } from "@/components/BrandLogo";
 
+/** Where to go after signing in: back to the Claude connector consent page if that sent us here. */
+function postLoginPath(): string {
+  const r = sessionStorage.getItem("postLoginRedirect");
+  return r && r.startsWith("/oauth/consent?") ? r : "/dashboard";
+}
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,7 +19,7 @@ export default function Login() {
   const { user, loading, login } = useAuth();
   const navigate = useNavigate();
 
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to={postLoginPath()} replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +27,7 @@ export default function Login() {
     try {
       await login(email, password);
       sessionStorage.setItem("loginTransition", "1");
-      navigate("/dashboard");
+      navigate(postLoginPath());
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Login failed");
     }

@@ -34,6 +34,7 @@ import SignAgreement from "@/pages/SignAgreement";
 import Portal from "@/pages/Portal";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
+import ConnectorConsent from "@/pages/ConnectorConsent";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -79,6 +80,7 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/status/:token" element={<PublicStatus />} />
       <Route path="/sign/:token" element={<SignAgreement />} />
+      <Route path="/oauth/consent" element={<ConnectorConsent />} />
       <Route
         path="/portal"
         element={
